@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -189,7 +188,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   };
 
   return (
-    <div className="space-y-4 h-full flex flex-col max-w-5xl mx-auto w-full">
+    <div className="space-y-4 h-full flex flex-col max-w-7xl mx-auto w-full">
       <div className="flex gap-2 no-print">
         <button className={`btn btn-sm ${!showHistory ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setShowHistory(false)}>
           <ShoppingCart className="w-3.5 h-3.5" /> Punto de Venta
@@ -201,6 +200,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
       {!showHistory ? (
         <div className="flex flex-col gap-4 flex-1 overflow-hidden">
+          {/* BUSCADOR SUPERIOR */}
           <div className="relative group">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c8952e] z-10">
               <Barcode className="w-6 h-6" />
@@ -208,7 +208,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             <input 
               ref={searchInputRef}
               className="form-input pl-14 py-6 text-lg bg-[#131313] border-[#c8952e]/30 focus:border-[#c8952e] shadow-xl shadow-black/20" 
-              placeholder="Escanee o busque..." 
+              placeholder="Escanee o busque por código o nombre..." 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
               onKeyDown={e => e.key === 'Enter' && matches.length >= 1 && agregar(matches[0].id)}
@@ -230,119 +230,127 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             )}
           </div>
 
-          <div className="card flex-1 flex flex-col overflow-hidden shadow-2xl">
-            <div className="card-head bg-[#131313]/50">
-              <h3 className="flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4 text-[#c8952e]" /> Carrito
-              </h3>
-              <button className="btn btn-sm btn-secondary text-[#e04848]" onClick={() => { updateState({ carrito: [] }); setPagos([]); }}>
-                <Trash2 className="w-3.5 h-3.5" /> Vaciar
-              </button>
-            </div>
+          <div className="flex flex-1 gap-4 overflow-hidden">
             
-            <div className="flex-1 overflow-y-auto p-2">
-              {state.carrito.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center opacity-10 py-20">
-                  <ShoppingCart className="w-20 h-20 mb-4" />
-                  <p className="text-lg font-display uppercase tracking-widest">Esperando productos...</p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {state.carrito.map((item, i) => (
-                    <div key={i} className="flex items-center gap-4 p-3 bg-[#0b0b0b] rounded-md border border-[#2a2a2a]">
-                      <div className="flex-1 min-w-0">
-                        <div className="truncate font-semibold text-xs uppercase">{item.nombre}</div>
-                        <div className="text-[10px] text-[#5a5650] mono">{Utils.fmtUSD(item.precioUnitUSD)}</div>
-                      </div>
-                      <div className="flex items-center gap-2 bg-[#131313] rounded p-1 border border-[#2a2a2a]">
-                        <button className="btn-icon btn-sm h-6 w-6" onClick={() => updateQty(i, -1)}><Minus className="w-3 h-3" /></button>
-                        <span className="w-6 text-center text-xs font-bold">{item.cantidad}</span>
-                        <button className="btn-icon btn-sm h-6 w-6" onClick={() => updateQty(i, 1)}><Plus className="w-3 h-3" /></button>
-                      </div>
-                      <div className="text-right min-w-[80px]">
-                        <div className="font-display font-bold text-[#c8952e] text-sm">{Utils.fmtUSD(item.subtotalUSD)}</div>
-                      </div>
-                      <button className="text-[#5a5650] hover:text-[#e04848]" onClick={() => updateQty(i, -item.cantidad)}>
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* ZONA DE COBRO DINÁMICA */}
-            <div className="p-4 bg-[#131313] border-t border-[#2a2a2a] grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              
-              {/* Columna I - Datos Cliente */}
-              <div className="space-y-2">
+            {/* PANEL DE CONTROL (1/3 IZQUIERDA) */}
+            <div className="w-1/3 flex flex-col gap-4">
+              <div className="card p-4 space-y-6 bg-[#131313] border-[#2a2a2a] shadow-xl">
+                
+                {/* Datos Cliente */}
                 <div className="form-group mb-0">
-                  <label className="form-label text-[10px] uppercase font-bold text-[#c8952e] mb-1">Identificación Cliente</label>
+                  <label className="form-label text-[10px] uppercase font-bold text-[#c8952e] mb-2 tracking-widest">Identificación Cliente</label>
                   <input className="form-input h-11 text-sm bg-[#0b0b0b] border-[#2a2a2a]" value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nombre o Cédula..." />
                 </div>
-              </div>
 
-              {/* Columna II - Métodos y Saldo Restante (Rediseñado) */}
-              <div className="space-y-2">
-                <div className="min-h-[64px] p-2 border border-white/5 bg-[#181818] rounded-lg overflow-y-auto max-h-[80px]">
-                  <label className="text-[9px] text-[#8a847c] font-bold uppercase block mb-1">Métodos Aplicados</label>
-                  {pagos.map((p, idx) => (
-                    <div key={idx} className="flex justify-between text-[10px] border-b border-[#2a2a2a] py-1 last:border-0">
-                      <span className="capitalize">{Utils.metodoLabel(p.metodo)}</span>
-                      <span className="font-bold text-[#c8952e]">{Utils.fmtUSD(p.montoUSD)}</span>
-                    </div>
-                  ))}
-                  {pagos.length === 0 && <div className="text-[10px] opacity-20 italic">No hay abonos aún...</div>}
+                {/* Métodos de Pago Aplicados */}
+                <div className="space-y-2">
+                  <label className="text-[9px] text-[#8a847c] font-bold uppercase tracking-widest block">Métodos Aplicados</label>
+                  <div className="min-h-[100px] p-3 border border-white/5 bg-[#181818] rounded-lg overflow-y-auto max-h-[150px] shadow-inner">
+                    {pagos.map((p, idx) => (
+                      <div key={idx} className="flex justify-between text-[11px] border-b border-[#2a2a2a] py-2 last:border-0">
+                        <span className="capitalize text-[#8a847c]">{Utils.metodoLabel(p.metodo)}</span>
+                        <span className="font-bold text-[#c8952e]">{Utils.fmtUSD(p.montoUSD)}</span>
+                      </div>
+                    ))}
+                    {pagos.length === 0 && <div className="text-[11px] opacity-20 italic py-4 text-center">No hay abonos registrados</div>}
+                  </div>
                 </div>
-                
-                {/* Recuadro Turquesa Mejorado con Caja Negra para Bs */}
-                <div className="p-3 border border-[#3a9bdc]/30 bg-[#3a9bdc]/5 rounded-lg text-center flex flex-col gap-2">
-                  <label className="text-[9px] text-[#3a9bdc] font-bold uppercase block">Saldo Restante</label>
-                  <div className={`text-xl font-display font-black tracking-tight ${saldoRestanteUSD <= 0.01 ? 'text-[#27ae60]' : 'text-[#3a9bdc]'}`}>
-                    {saldoRestanteUSD <= 0.01 ? 'SALDADO - LISTO' : Utils.fmtUSD(saldoRestanteUSD)}
+
+                {/* Saldo Restante e Indicador Bs */}
+                <div className="p-4 border border-[#3a9bdc]/30 bg-[#3a9bdc]/5 rounded-xl text-center space-y-4">
+                  <div>
+                    <label className="text-[9px] text-[#3a9bdc] font-bold uppercase tracking-widest block mb-1">Saldo Restante</label>
+                    <div className={`text-3xl font-display font-black tracking-tight ${saldoRestanteUSD <= 0.01 ? 'text-[#27ae60]' : 'text-[#3a9bdc]'}`}>
+                      {saldoRestanteUSD <= 0.01 ? 'SALDADO' : Utils.fmtUSD(saldoRestanteUSD)}
+                    </div>
                   </div>
                   
-                  {/* Recuadro Negro para el equivalente en Bs Resaltado */}
-                  <div className="bg-black py-2.5 px-3 rounded border border-[#2a2a2a] shadow-inner">
-                    <div className="text-[8px] text-[#5a5650] uppercase font-bold mb-0.5">Equivalente Pendiente</div>
-                    <div className="text-xl font-display font-black text-white tracking-tighter">
+                  <div className="bg-black py-4 px-3 rounded-lg border border-[#2a2a2a] shadow-2xl">
+                    <div className="text-[8px] text-[#5a5650] uppercase font-bold mb-1 tracking-widest">Equivalente a pagar</div>
+                    <div className="text-3xl font-display font-black text-white tracking-tighter">
                       {Utils.fmtBS(saldoRestanteBS)}
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Columna III - Totales y Acción */}
-              <div className="bg-[#0b0b0b] p-4 rounded-lg border border-[#c8952e]/20 relative">
-                <button 
-                  onClick={() => setShowMultiModal(true)}
-                  className="absolute left-4 top-4 btn-icon bg-[#c8952e]/10 text-[#c8952e] border border-[#c8952e]/20 hover:bg-[#c8952e] hover:text-black transition-all"
-                  title="Abonar Pago"
-                >
-                  <Wallet className="w-5 h-5" />
-                </button>
-                
-                <div className="text-right">
-                  <div className="text-[10px] text-[#5a5650] uppercase tracking-widest font-bold">Total a Facturar</div>
-                  <div className="text-2xl font-display font-black text-[#c8952e]">{Utils.fmtUSD(subtotalUSD)}</div>
-                  <div className="text-xs text-[#8a847c] font-medium">{Utils.fmtBS(totalBS)}</div>
+                {/* Totales y Botón Procesar */}
+                <div className="bg-[#0b0b0b] p-4 rounded-xl border border-[#c8952e]/20 relative shadow-lg">
+                  <button 
+                    onClick={() => setShowMultiModal(true)}
+                    className="absolute right-4 top-4 btn-icon h-10 w-10 bg-[#c8952e]/10 text-[#c8952e] border border-[#c8952e]/20 hover:bg-[#c8952e] hover:text-black transition-all"
+                    title="Registrar Abono"
+                  >
+                    <Wallet className="w-5 h-5" />
+                  </button>
+                  
+                  <div className="mb-4">
+                    <div className="text-[10px] text-[#5a5650] uppercase tracking-widest font-bold">Total Factura</div>
+                    <div className="text-2xl font-display font-black text-[#c8952e]">{Utils.fmtUSD(subtotalUSD)}</div>
+                    <div className="text-xs text-[#8a847c] font-medium">{Utils.fmtBS(totalBS)}</div>
+                  </div>
+                  
+                  <button 
+                    className="btn btn-primary w-full h-14 justify-center text-sm uppercase font-black tracking-widest disabled:opacity-20 shadow-lg shadow-[#c8952e]/5" 
+                    disabled={state.carrito.length === 0 || saldoRestanteUSD > 0.01}
+                    onClick={ejecutarVenta}
+                  >
+                    <CheckCircle2 className="w-5 h-5 mr-2" /> Procesar Pago
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            {/* CARRITO (2/3 DERECHA) */}
+            <div className="w-2/3 flex flex-col">
+              <div className="card flex-1 flex flex-col overflow-hidden shadow-2xl">
+                <div className="card-head bg-[#131313]/50">
+                  <h3 className="flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4 text-[#c8952e]" /> Carrito de Venta
+                  </h3>
+                  <button className="btn btn-sm btn-secondary text-[#e04848] border-none" onClick={() => { updateState({ carrito: [] }); setPagos([]); }}>
+                    <Trash2 className="w-3.5 h-3.5" /> Vaciar Carrito
+                  </button>
                 </div>
                 
-                <button 
-                  className="btn btn-primary w-full mt-4 h-12 justify-center text-sm uppercase font-bold disabled:opacity-20 shadow-lg shadow-[#c8952e]/5" 
-                  disabled={state.carrito.length === 0 || saldoRestanteUSD > 0.01}
-                  onClick={ejecutarVenta}
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> Procesar Pago
-                </button>
+                <div className="flex-1 overflow-y-auto p-3">
+                  {state.carrito.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center opacity-10 py-20">
+                      <ShoppingCart className="w-24 h-24 mb-4" />
+                      <p className="text-xl font-display uppercase tracking-widest">Esperando Productos...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {state.carrito.map((item, i) => (
+                        <div key={i} className="flex items-center gap-4 p-4 bg-[#0b0b0b] rounded-lg border border-[#2a2a2a] hover:border-[#c8952e]/30 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <div className="truncate font-bold text-xs uppercase tracking-tight">{item.nombre}</div>
+                            <div className="text-[10px] text-[#5a5650] mono font-bold uppercase mt-1">{item.productoId} • {Utils.fmtUSD(item.precioUnitUSD)}</div>
+                          </div>
+                          <div className="flex items-center gap-3 bg-[#131313] rounded-lg p-1.5 border border-[#2a2a2a]">
+                            <button className="btn-icon btn-sm h-7 w-7 bg-[#181818]" onClick={() => updateQty(i, -1)}><Minus className="w-3 h-3" /></button>
+                            <span className="w-8 text-center text-sm font-black">{item.cantidad}</span>
+                            <button className="btn-icon btn-sm h-7 w-7 bg-[#181818]" onClick={() => updateQty(i, 1)}><Plus className="w-3 h-3" /></button>
+                          </div>
+                          <div className="text-right min-w-[100px]">
+                            <div className="font-display font-black text-[#c8952e] text-lg">{Utils.fmtUSD(item.subtotalUSD)}</div>
+                          </div>
+                          <button className="text-[#5a5650] hover:text-[#e04848] p-2" onClick={() => updateQty(i, -item.cantidad)}>
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-
             </div>
+
           </div>
         </div>
       ) : (
         <div className="card shadow-xl animate-in fade-in">
-          <div className="card-head"><h3>Historial Reciente</h3></div>
+          <div className="card-head"><h3>Historial Reciente de Ventas</h3></div>
           <div className="table-wrap">
             <table>
               <thead><tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Monto USD</th><th>Método</th></tr></thead>
@@ -362,25 +370,25 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* MODAL PEQUEÑO DE PAGO MULTI */}
+      {/* MODAL DE ABONO MULTI-MÉTODO */}
       {showMultiModal && (
         <div className="modal show">
           <div className="modal-bg" onClick={() => setShowMultiModal(false)}></div>
-          <div className="modal-box max-w-[340px] animate-in zoom-in-95 duration-200">
+          <div className="modal-box max-w-[360px] animate-in zoom-in-95 duration-200">
             <div className="modal-head py-3">
-              <h3 className="text-sm">Registrar Abono</h3>
+              <h3 className="text-sm font-bold uppercase tracking-widest">Registrar Abono</h3>
               <button onClick={() => setShowMultiModal(false)}><X className="w-4 h-4"/></button>
             </div>
-            <div className="modal-body p-4 space-y-4">
-              <div className="bg-[#181818] p-3 rounded text-center border border-[#2a2a2a]">
-                <p className="text-[10px] uppercase opacity-50 mb-1">Pendiente</p>
-                <p className="text-xl font-display font-bold text-[#3a9bdc]">{Utils.fmtUSD(saldoRestanteUSD)}</p>
-                <p className="text-[11px] opacity-40">{Utils.fmtBS(saldoRestanteBS)}</p>
+            <div className="modal-body p-5 space-y-5">
+              <div className="bg-[#181818] p-4 rounded-xl text-center border border-[#2a2a2a] shadow-inner">
+                <p className="text-[10px] uppercase opacity-50 mb-1 font-bold">Saldo Pendiente</p>
+                <p className="text-2xl font-display font-black text-[#3a9bdc]">{Utils.fmtUSD(saldoRestanteUSD)}</p>
+                <p className="text-xs opacity-40 font-bold">{Utils.fmtBS(saldoRestanteBS)}</p>
               </div>
 
               <div className="form-group">
-                <label className="form-label text-[10px] uppercase">Método</label>
-                <select className="form-select text-xs" value={metodoActual} onChange={e => setMetodoActual(e.target.value as any)}>
+                <label className="form-label text-[10px] uppercase font-bold text-[#8a847c] mb-2">Método de Pago</label>
+                <select className="form-select h-12 text-sm" value={metodoActual} onChange={e => setMetodoActual(e.target.value as any)}>
                   <option value="efectivo_usd">Efectivo USD</option>
                   <option value="efectivo_bs">Efectivo BS</option>
                   <option value="punto_venta">Punto de Venta (BS)</option>
@@ -390,12 +398,12 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
               </div>
 
               <div className="form-group">
-                <label className="form-label text-[10px] uppercase">
-                  Monto a abonar ({metodoActual === 'efectivo_usd' ? 'USD' : 'BS'})
+                <label className="form-label text-[10px] uppercase font-bold text-[#8a847c] mb-2">
+                  Monto a recibir ({metodoActual === 'efectivo_usd' ? 'USD' : 'BS'})
                 </label>
                 <input 
                   type="number" 
-                  className="form-input text-lg font-bold" 
+                  className="form-input h-14 text-xl font-black text-[#c8952e]" 
                   placeholder={metodoActual === 'efectivo_usd' ? saldoRestanteUSD.toFixed(2) : saldoRestanteBS.toFixed(2)}
                   value={montoInput}
                   onChange={e => setMontoInput(e.target.value)}
@@ -404,8 +412,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 />
               </div>
 
-              <button className="btn btn-primary w-full h-10 justify-center" onClick={addPago}>
-                Aceptar Abono
+              <button className="btn btn-primary w-full h-12 justify-center font-black uppercase text-xs tracking-widest" onClick={addPago}>
+                Confirmar Abono
               </button>
             </div>
           </div>
