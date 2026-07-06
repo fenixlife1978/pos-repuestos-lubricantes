@@ -9,6 +9,7 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
   const [activeTab, setActiveTab] = useState('productos');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
+  const [selectedKardexId, setSelectedKardexId] = useState<string | null>(null);
   
   // Modales
   const [showAjuste, setShowAjuste] = useState<string | null>(null);
@@ -87,7 +88,8 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
                         <td>
                           <div className="flex gap-1">
                             <button className="btn-icon text-[#c8952e]" title="Editar" onClick={() => setShowProducto(p.id)}><Edit2 className="w-3.5 h-3.5" /></button>
-                            <button className="btn-icon text-[#3a9bdc]" title="Ajustes de Stock" onClick={() => setShowAjuste(p.id)}><Boxes className="w-3.5 h-3.5" /></button>
+                            <button className="btn-icon text-[#3a9bdc]" title="Ver Kardex" onClick={() => { setSelectedKardexId(p.id); setActiveTab('kardex'); }}><History className="w-3.5 h-3.5" /></button>
+                            <button className="btn-icon text-[#27ae60]" title="Ajustes de Stock" onClick={() => setShowAjuste(p.id)}><Boxes className="w-3.5 h-3.5" /></button>
                             <button className="btn-icon text-[#e04848]" onClick={() => eliminar(p.id)} title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
                           </div>
                         </td>
@@ -103,6 +105,7 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
       case 'reporte_general': return <ReporteGeneral state={state} />;
       case 'reporte_ventas': return <ReporteVentas state={state} />;
       case 'historial_ajustes': return <HistorialAjustes state={state} />;
+      case 'kardex': return <ReporteKardex state={state} selectedId={selectedKardexId} onSelect={setSelectedKardexId} />;
       case 'consumo_colab': return <ReporteConsumo state={state} />;
       default: return null;
     }
@@ -114,6 +117,7 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
         <button onClick={() => setActiveTab('productos')} className={`tab ${activeTab === 'productos' ? 'active' : ''}`}>Productos</button>
         <button onClick={() => setActiveTab('reporte_general')} className={`tab ${activeTab === 'reporte_general' ? 'active' : ''}`}>Reporte General (CPP)</button>
         <button onClick={() => setActiveTab('reporte_ventas')} className={`tab ${activeTab === 'reporte_ventas' ? 'active' : ''}`}>Reporte de Ventas</button>
+        <button onClick={() => setActiveTab('kardex')} className={`tab ${activeTab === 'kardex' ? 'active' : ''}`}>Kardex</button>
         <button onClick={() => setActiveTab('historial_ajustes')} className={`tab ${activeTab === 'historial_ajustes' ? 'active' : ''}`}>Historial de Ajustes</button>
         <button onClick={() => setActiveTab('consumo_colab')} className={`tab ${activeTab === 'consumo_colab' ? 'active' : ''}`}>Consumo y Colab.</button>
       </div>
@@ -172,7 +176,10 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
                   const stockActual = p.stock;
                   const cantidadNueva = mov.cantidad;
                   const costoNuevo = nuevoCosto || p.costoUSD;
-                  finalCosto = ((stockActual * p.costoUSD) + (cantidadNueva * costoNuevo)) / (stockActual + cantidadNueva);
+                  const stockTotal = stockActual + cantidadNueva;
+                  if (stockTotal > 0) {
+                    finalCosto = ((stockActual * p.costoUSD) + (cantidadNueva * costoNuevo)) / stockTotal;
+                  }
                 }
                 return { ...p, stock: mov.stockDespues, costoUSD: finalCosto };
               }
@@ -575,6 +582,71 @@ function ReporteVentas({ state }: { state: AppState }) {
                     <td className="mono font-bold">{Utils.fmtUSD(item.subtotalUSD)}</td>
                   </tr>
                 )))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selectedId: string | null, onSelect: (id: string) => void }) {
+  const products = state.productos.filter(p => p.activo);
+  const movs = selectedId ? state.movimientos.filter(m => m.productoId === selectedId).sort((a, b) => b.fecha.localeCompare(a.fecha)) : [];
+  const prod = selectedId ? state.productos.find(p => p.id === selectedId) : null;
+
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+      <div className="flex gap-4 flex-wrap items-center">
+        <div className="form-group mb-0 flex-1 min-w-[250px]">
+          <label className="form-label">Seleccionar Producto</label>
+          <select className="form-select" value={selectedId || ''} onChange={e => onSelect(e.target.value)}>
+            <option value="">-- Seleccione un producto --</option>
+            {products.map(p => <option key={p.id} value={p.id}>{p.codigo} - {p.nombre}</option>)}
+          </select>
+        </div>
+        {prod && (
+          <div className="p-3 bg-secondary/30 rounded-lg flex gap-6">
+            <div className="text-center"><p className="text-[10px] text-[#5a5650] uppercase">Stock Actual</p><p className="font-bold text-[#c8952e]">{prod.stock}</p></div>
+            <div className="text-center"><p className="text-[10px] text-[#5a5650] uppercase">CPP Actual</p><p className="font-bold text-[#27ae60]">{Utils.fmtUSD(prod.costoUSD)}</p></div>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="card-head"><h3>Kardex Detallado</h3></div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tipo de Movimiento</th>
+                <th>Cant.</th>
+                <th>Saldo Antes</th>
+                <th>Saldo Después</th>
+                <th>Referencia / Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!selectedId ? (
+                <tr><td colSpan={6} className="text-center py-20 opacity-30 italic">Seleccione un producto para ver su historial</td></tr>
+              ) : movs.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-20 opacity-30">No se registran movimientos para este producto</td></tr>
+              ) : (
+                movs.map(m => {
+                  const isEntry = m.tipo === 'compra' || m.tipo === 'ajuste_entrada' || m.tipo === 'devolucion';
+                  return (
+                    <tr key={m.id}>
+                      <td className="text-xs">{m.fecha.replace('T', ' ').slice(0, 16)}</td>
+                      <td><span className={`badge ${isEntry ? 'badge-ok' : 'badge-err'}`}>{m.tipo.replace('_', ' ')}</span></td>
+                      <td className={`mono font-bold ${isEntry ? 'text-[#27ae60]' : 'text-[#e04848]'}`}>{isEntry ? '+' : '-'}{m.cantidad}</td>
+                      <td className="mono opacity-60">{m.stockAntes}</td>
+                      <td className="mono font-bold">{m.stockDespues}</td>
+                      <td className="text-xs text-[#8a847c]">{m.referencia}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
