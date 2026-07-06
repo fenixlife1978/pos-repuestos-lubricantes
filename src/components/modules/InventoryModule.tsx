@@ -631,9 +631,14 @@ function HistorialAjustes({ state }: { state: AppState }) {
 function ReporteConsumo({ state }: { state: AppState }) {
   const movs = state.movimientos.filter(m => m.tipo === 'consumo' || m.tipo === 'colaboracion');
   
+  const totalPerdidaUSD = movs.reduce((acc, m) => {
+    const p = state.productos.find(prod => prod.id === m.productoId);
+    return acc + (m.cantidad * (p?.costoUSD || 0));
+  }, 0);
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="kpi amber">
           <div className="kpi-icon"><Gift /></div>
           <div className="kpi-label">Total Colaboraciones</div>
@@ -643,6 +648,12 @@ function ReporteConsumo({ state }: { state: AppState }) {
           <div className="kpi-icon"><History /></div>
           <div className="kpi-label">Total Consumo Interno</div>
           <div className="kpi-value">{movs.filter(m => m.tipo === 'consumo').length}</div>
+        </div>
+        <div className="kpi red">
+          <div className="kpi-icon"><Trash2 className="text-[#e04848]" /></div>
+          <div className="kpi-label">Costo Total (pérdida)</div>
+          <div className="kpi-value">{Utils.fmtUSD(totalPerdidaUSD)}</div>
+          <div className="kpi-sub">{Utils.fmtBS(totalPerdidaUSD * state.tasa)}</div>
         </div>
       </div>
       
@@ -656,19 +667,22 @@ function ReporteConsumo({ state }: { state: AppState }) {
                 <th>Producto</th>
                 <th>Tipo</th>
                 <th>Cantidad</th>
-                <th>Motivo/Referencia</th>
+                <th>Costo Unit.</th>
+                <th>Subtotal (Pérdida)</th>
               </tr>
             </thead>
             <tbody>
               {movs.map(m => {
                 const p = state.productos.find(prod => prod.id === m.productoId);
+                const subPerdida = m.cantidad * (p?.costoUSD || 0);
                 return (
                   <tr key={m.id}>
                     <td>{m.fecha.slice(0, 10)}</td>
                     <td className="font-bold">{p?.nombre}</td>
                     <td><span className="badge badge-info">{m.tipo}</span></td>
                     <td className="mono">{m.cantidad}</td>
-                    <td className="text-sm opacity-80">{m.referencia}</td>
+                    <td className="mono text-xs opacity-60">{Utils.fmtUSD(p?.costoUSD || 0)}</td>
+                    <td className="mono font-bold text-[#e04848]">{Utils.fmtUSD(subPerdida)}</td>
                   </tr>
                 );
               })}
