@@ -274,63 +274,62 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             {/* ZONA DE COBRO DINÁMICA */}
             <div className="p-4 bg-[#131313] border-t border-[#2a2a2a] grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               
-              {/* Recuadros Rojos I y II (Acumulado) */}
+              {/* Columna I - Datos Cliente */}
               <div className="space-y-2">
-                <div className="p-2 border border-[#e04848]/30 bg-[#e04848]/5 rounded-lg">
-                  <label className="text-[9px] text-[#e04848] font-bold uppercase block mb-1">I - Total Pagado Bs.</label>
-                  <div className="text-lg font-display font-bold">{Utils.fmtBS(totalPagadoBS)}</div>
-                </div>
-                <div className="p-2 border border-[#e04848]/30 bg-[#e04848]/5 rounded-lg">
-                  <label className="text-[9px] text-[#e04848] font-bold uppercase block mb-1">II - Total Pagado USD</label>
-                  <div className="text-lg font-display font-bold">{Utils.fmtUSD(totalPagadoUSD)}</div>
-                </div>
                 <div className="form-group mb-0">
-                  <label className="form-label text-[10px] uppercase">Cliente</label>
-                  <input className="form-input h-9 text-xs" value={cliente} onChange={e => setCliente(e.target.value)} />
+                  <label className="form-label text-[10px] uppercase font-bold text-[#c8952e] mb-1">Identificación Cliente</label>
+                  <input className="form-input h-11 text-sm bg-[#0b0b0b] border-[#2a2a2a]" value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nombre o Cédula..." />
                 </div>
               </div>
 
-              {/* Recuadros Amarillos (Métodos Seleccionados) y Turquesa (Saldo) */}
+              {/* Columna II - Métodos y Saldo Restante (Rediseñado) */}
               <div className="space-y-2">
-                <div className="min-h-[74px] p-2 border border-[#warn]/30 bg-[#warn-bg] rounded-lg overflow-y-auto max-h-[80px]">
-                  <label className="text-[9px] text-[#warn] font-bold uppercase block mb-1">Métodos de Pago</label>
+                <div className="min-h-[64px] p-2 border border-white/5 bg-[#181818] rounded-lg overflow-y-auto max-h-[80px]">
+                  <label className="text-[9px] text-[#8a847c] font-bold uppercase block mb-1">Métodos Aplicados</label>
                   {pagos.map((p, idx) => (
                     <div key={idx} className="flex justify-between text-[10px] border-b border-[#2a2a2a] py-1 last:border-0">
                       <span className="capitalize">{Utils.metodoLabel(p.metodo)}</span>
-                      <span className="font-bold">{Utils.fmtUSD(p.montoUSD)}</span>
+                      <span className="font-bold text-[#c8952e]">{Utils.fmtUSD(p.montoUSD)}</span>
                     </div>
                   ))}
-                  {pagos.length === 0 && <div className="text-[10px] opacity-30 italic">Esperando abonos...</div>}
+                  {pagos.length === 0 && <div className="text-[10px] opacity-20 italic">No hay abonos aún...</div>}
                 </div>
                 
-                {/* Recuadro Turquesa (Saldo Restante) */}
-                <div className="p-3 border border-[#3a9bdc]/50 bg-[#3a9bdc]/10 rounded-lg text-center">
-                  <label className="text-[9px] text-[#3a9bdc] font-bold uppercase block mb-1">Saldo Restante</label>
-                  <div className={`text-xl font-display font-black ${saldoRestanteUSD <= 0.01 ? 'text-[#27ae60]' : 'text-[#3a9bdc]'}`}>
+                {/* Recuadro Turquesa Mejorado con Caja Negra para Bs */}
+                <div className="p-3 border border-[#3a9bdc]/30 bg-[#3a9bdc]/5 rounded-lg text-center flex flex-col gap-2">
+                  <label className="text-[9px] text-[#3a9bdc] font-bold uppercase block">Saldo Restante</label>
+                  <div className={`text-xl font-display font-black tracking-tight ${saldoRestanteUSD <= 0.01 ? 'text-[#27ae60]' : 'text-[#3a9bdc]'}`}>
                     {saldoRestanteUSD <= 0.01 ? 'SALDADO - LISTO' : Utils.fmtUSD(saldoRestanteUSD)}
                   </div>
-                  <div className="text-[10px] opacity-60">{Utils.fmtBS(saldoRestanteBS)}</div>
+                  
+                  {/* Recuadro Negro para el equivalente en Bs Resaltado */}
+                  <div className="bg-black py-2.5 px-3 rounded border border-[#2a2a2a] shadow-inner">
+                    <div className="text-[8px] text-[#5a5650] uppercase font-bold mb-0.5">Equivalente Pendiente</div>
+                    <div className="text-xl font-display font-black text-white tracking-tighter">
+                      {Utils.fmtBS(saldoRestanteBS)}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Totales y Acción */}
+              {/* Columna III - Totales y Acción */}
               <div className="bg-[#0b0b0b] p-4 rounded-lg border border-[#c8952e]/20 relative">
                 <button 
                   onClick={() => setShowMultiModal(true)}
-                  className="absolute left-4 top-4 btn-icon bg-[#c8952e]/10 text-[#c8952e] border border-[#c8952e]/20"
+                  className="absolute left-4 top-4 btn-icon bg-[#c8952e]/10 text-[#c8952e] border border-[#c8952e]/20 hover:bg-[#c8952e] hover:text-black transition-all"
                   title="Abonar Pago"
                 >
                   <Wallet className="w-5 h-5" />
                 </button>
                 
                 <div className="text-right">
-                  <div className="text-[10px] text-[#5a5650] uppercase tracking-widest">Total a Pagar</div>
+                  <div className="text-[10px] text-[#5a5650] uppercase tracking-widest font-bold">Total a Facturar</div>
                   <div className="text-2xl font-display font-black text-[#c8952e]">{Utils.fmtUSD(subtotalUSD)}</div>
-                  <div className="text-xs text-[#8a847c]">{Utils.fmtBS(totalBS)}</div>
+                  <div className="text-xs text-[#8a847c] font-medium">{Utils.fmtBS(totalBS)}</div>
                 </div>
                 
                 <button 
-                  className="btn btn-primary w-full mt-4 h-12 justify-center text-sm uppercase font-bold disabled:opacity-20" 
+                  className="btn btn-primary w-full mt-4 h-12 justify-center text-sm uppercase font-bold disabled:opacity-20 shadow-lg shadow-[#c8952e]/5" 
                   disabled={state.carrito.length === 0 || saldoRestanteUSD > 0.01}
                   onClick={ejecutarVenta}
                 >
@@ -342,7 +341,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           </div>
         </div>
       ) : (
-        /* Historial de Ventas (Sin cambios significativos para mantener foco) */
         <div className="card shadow-xl animate-in fade-in">
           <div className="card-head"><h3>Historial Reciente</h3></div>
           <div className="table-wrap">
