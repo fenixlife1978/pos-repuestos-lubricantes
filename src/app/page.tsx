@@ -35,8 +35,9 @@ export default function LicoreriaPOS() {
   const [mounted, setMounted] = useState(false);
   
   // Estado para controlar qué grupos del menú están expandidos
+  // Iniciamos todos en falso para que el menú esté "recogido" inicialmente
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    operaciones: true,
+    operaciones: false,
     finanzas: false,
     sistema: false
   });
@@ -62,11 +63,11 @@ export default function LicoreriaPOS() {
   };
 
   const generateDemoData = (): AppState => {
-    const hoy = Utils.hoy();
+    const hoyStr = Utils.hoy();
     const products = [
-      { id: Store.uid(), codigo: 'WH-001', nombre: 'Johnnie Walker Black Label', categoria: 'Whisky', cantidad: '750ml', marca: 'Johnnie Walker', costoUSD: 28, precioUSD: 48, stock: 12, stockMinimo: 3, proveedor: 'Distribuidora Nacional', fechaCreacion: hoy, activo: true },
-      { id: Store.uid(), codigo: 'RN-001', nombre: 'Santa Teresa 1796', categoria: 'Ron', cantidad: '750ml', marca: 'Santa Teresa', costoUSD: 30, precioUSD: 52, stock: 10, stockMinimo: 3, proveedor: 'Licorera Central', fechaCreacion: hoy, activo: true },
-      { id: Store.uid(), codigo: 'VN-001', nombre: 'Casillero del Diablo Reserva', categoria: 'Vino', cantidad: '750ml', marca: 'Casillero del Diablo', costoUSD: 8, precioUSD: 16, stock: 20, stockMinimo: 6, proveedor: 'Bodegas del Sur', fechaCreacion: hoy, activo: true },
+      { id: Store.uid(), codigo: 'WH-001', nombre: 'Johnnie Walker Black Label', categoria: 'Whisky', cantidad: '750ml', marca: 'Johnnie Walker', costoUSD: 28, precioUSD: 48, stock: 12, stockMinimo: 3, proveedor: 'Distribuidora Nacional', fechaCreacion: hoyStr, activo: true },
+      { id: Store.uid(), codigo: 'RN-001', nombre: 'Santa Teresa 1796', categoria: 'Ron', cantidad: '750ml', marca: 'Santa Teresa', costoUSD: 30, precioUSD: 52, stock: 10, stockMinimo: 3, proveedor: 'Licorera Central', fechaCreacion: hoyStr, activo: true },
+      { id: Store.uid(), codigo: 'VN-001', nombre: 'Casillero del Diablo Reserva', categoria: 'Vino', cantidad: '750ml', marca: 'Casillero del Diablo', costoUSD: 8, precioUSD: 16, stock: 20, stockMinimo: 6, proveedor: 'Bodegas del Sur', fechaCreacion: hoyStr, activo: true },
     ];
     return { ...initialState, productos: products };
   };
@@ -126,8 +127,8 @@ export default function LicoreriaPOS() {
 
   return (
     <div className="flex min-h-screen bg-[#0b0b0b] text-[#ece7df]">
-      {/* SIDEBAR */}
-      <aside className={`fixed top-0 left-0 w-[260px] h-screen bg-[#131313] border-r border-[#2a2a2a] flex flex-col z-[100] transition-transform duration-300 md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* SIDEBAR - Comportamiento de drawer para todas las pantallas */}
+      <aside className={`fixed top-0 left-0 w-[260px] h-screen bg-[#131313] border-r border-[#2a2a2a] flex flex-col z-[100] transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 border-b border-[#2a2a2a]">
           <h1 className="flex items-center gap-2 font-display text-xl font-bold text-[#c8952e] tracking-tighter">
             <Wine className="w-6 h-6" /> LicoreriaPOS
@@ -157,7 +158,10 @@ export default function LicoreriaPOS() {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => { setActiveModule(item.id); setIsSidebarOpen(false); }}
+                        onClick={() => { 
+                          setActiveModule(item.id); 
+                          setIsSidebarOpen(false); // Cierre automático del menú lateral
+                        }}
                         className={`w-full flex items-center gap-3 p-3 rounded-md text-sm font-medium transition-all relative ${active ? 'text-[#c8952e] bg-[rgba(200,149,46,0.08)]' : 'text-[#8a847c] hover:bg-[#181818] hover:text-[#ece7df]'}`}
                       >
                         {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#c8952e] rounded-r" />}
@@ -177,16 +181,16 @@ export default function LicoreriaPOS() {
         </div>
       </aside>
 
-      {/* OVERLAY */}
+      {/* OVERLAY - Aparece al abrir el menú para permitir cerrarlo haciendo clic fuera */}
       {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black/60 z-[90] md:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-black/60 z-[90] backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
       )}
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 md:ml-[260px] flex flex-col min-h-screen">
+      {/* MAIN CONTENT - Se eliminó el margen izquierdo fijo de escritorio para que el menú siempre sea un drawer */}
+      <main className="flex-1 flex flex-col min-h-screen">
         <header className="flex items-center justify-between p-4 border-b border-[#2a2a2a] bg-[#131313] sticky top-0 z-50">
           <div className="flex items-center gap-3">
-            <button className="md:hidden p-2 text-[#8a847c] hover:text-[#ece7df]" onClick={() => setIsSidebarOpen(true)}>
+            <button className="p-2 text-[#8a847c] hover:text-[#ece7df]" onClick={() => setIsSidebarOpen(true)}>
               <Menu className="w-5 h-5" />
             </button>
             <h2 className="font-display text-lg font-semibold capitalize">{activeModule}</h2>
