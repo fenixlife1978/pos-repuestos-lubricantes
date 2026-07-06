@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -34,8 +33,6 @@ export default function LicoreriaPOS() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   
-  // Estado para controlar qué grupos del menú están expandidos
-  // Iniciamos todos en falso para que el menú esté "recogido" inicialmente
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     operaciones: false,
     finanzas: false,
@@ -46,7 +43,6 @@ export default function LicoreriaPOS() {
     setMounted(true);
     const loadedState = Store.get();
     
-    // Initial data if empty
     if (loadedState.productos.length === 0) {
       const demoData = generateDemoData();
       Store.set(demoData);
@@ -126,8 +122,7 @@ export default function LicoreriaPOS() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#0b0b0b] text-[#ece7df]">
-      {/* SIDEBAR - Comportamiento de drawer para todas las pantallas */}
+    <div className="flex h-screen bg-[#0b0b0b] text-[#ece7df] overflow-hidden">
       <aside className={`fixed top-0 left-0 w-[260px] h-screen bg-[#131313] border-r border-[#2a2a2a] flex flex-col z-[100] transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 border-b border-[#2a2a2a]">
           <h1 className="flex items-center gap-2 font-display text-xl font-bold text-[#c8952e] tracking-tighter">
@@ -160,7 +155,7 @@ export default function LicoreriaPOS() {
                         key={item.id}
                         onClick={() => { 
                           setActiveModule(item.id); 
-                          setIsSidebarOpen(false); // Cierre automático del menú lateral
+                          setIsSidebarOpen(false);
                         }}
                         className={`w-full flex items-center gap-3 p-3 rounded-md text-sm font-medium transition-all relative ${active ? 'text-[#c8952e] bg-[rgba(200,149,46,0.08)]' : 'text-[#8a847c] hover:bg-[#181818] hover:text-[#ece7df]'}`}
                       >
@@ -181,26 +176,24 @@ export default function LicoreriaPOS() {
         </div>
       </aside>
 
-      {/* OVERLAY - Aparece al abrir el menú para permitir cerrarlo haciendo clic fuera */}
       {isSidebarOpen && (
         <div className="fixed inset-0 bg-black/60 z-[90] backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
       )}
 
-      {/* MAIN CONTENT - Se eliminó el margen izquierdo fijo de escritorio para que el menú siempre sea un drawer */}
-      <main className="flex-1 flex flex-col min-h-screen">
-        <header className="flex items-center justify-between p-4 border-b border-[#2a2a2a] bg-[#131313] sticky top-0 z-50">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        <header className="flex items-center justify-between p-3 border-b border-[#2a2a2a] bg-[#131313] shrink-0">
           <div className="flex items-center gap-3">
             <button className="p-2 text-[#8a847c] hover:text-[#ece7df]" onClick={() => setIsSidebarOpen(true)}>
               <Menu className="w-5 h-5" />
             </button>
-            <h2 className="font-display text-lg font-semibold capitalize">{activeModule}</h2>
+            <h2 className="font-display text-base font-semibold capitalize text-[#c8952e] tracking-widest">{activeModule}</h2>
           </div>
-          <span className="text-[0.78rem] text-[#5a5650]">
-            {mounted ? new Date().toLocaleDateString('es', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : ''}
+          <span className="text-[0.7rem] text-[#5a5650] uppercase font-bold tracking-tighter">
+            {mounted ? new Date().toLocaleDateString('es', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : ''}
           </span>
         </header>
         
-        <div className="p-6 md:p-8 flex-1 animate-in fade-in duration-300">
+        <div className="p-3 md:p-4 flex-1 overflow-hidden">
           {mounted ? renderModule() : null}
         </div>
       </main>
