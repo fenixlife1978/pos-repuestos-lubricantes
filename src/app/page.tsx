@@ -12,7 +12,10 @@ import {
   RotateCcw, 
   BarChart, 
   Settings,
-  Menu
+  Menu,
+  ChevronDown,
+  ChevronRight,
+  LayoutDashboard
 } from 'lucide-react';
 import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
@@ -30,6 +33,13 @@ export default function LicoreriaPOS() {
   const [activeModule, setActiveModule] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  
+  // Estado para controlar qué grupos del menú están expandidos
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    operaciones: true,
+    finanzas: false,
+    sistema: false
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -75,17 +85,43 @@ export default function LicoreriaPOS() {
     }
   };
 
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: PieChart },
-    { id: 'inventario', label: 'Inventario', icon: Package },
-    { id: 'ventas', label: 'Ventas', icon: ShoppingCart },
-    { type: 'sep' },
-    { id: 'cxc', label: 'Cuentas por Cobrar', icon: HandCoins },
-    { id: 'cxp', label: 'Cuentas por Pagar', icon: FileText },
-    { id: 'devoluciones', label: 'Devoluciones', icon: RotateCcw },
-    { type: 'sep' },
-    { id: 'reportes', label: 'Reportes', icon: BarChart },
-    { id: 'config', label: 'Configuracion', icon: Settings },
+  const toggleGroup = (group: string) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [group]: !prev[group]
+    }));
+  };
+
+  const menuGroups = [
+    {
+      id: 'operaciones',
+      label: 'Operaciones',
+      icon: LayoutDashboard,
+      items: [
+        { id: 'dashboard', label: 'Dashboard', icon: PieChart },
+        { id: 'inventario', label: 'Inventario', icon: Package },
+        { id: 'ventas', label: 'Ventas', icon: ShoppingCart },
+      ]
+    },
+    {
+      id: 'finanzas',
+      label: 'Finanzas',
+      icon: HandCoins,
+      items: [
+        { id: 'cxc', label: 'Cuentas por Cobrar', icon: HandCoins },
+        { id: 'cxp', label: 'Cuentas por Pagar', icon: FileText },
+        { id: 'devoluciones', label: 'Devoluciones', icon: RotateCcw },
+      ]
+    },
+    {
+      id: 'sistema',
+      label: 'Sistema',
+      icon: Settings,
+      items: [
+        { id: 'reportes', label: 'Reportes', icon: BarChart },
+        { id: 'config', label: 'Configuración', icon: Settings },
+      ]
+    }
   ];
 
   return (
@@ -99,23 +135,41 @@ export default function LicoreriaPOS() {
           <p className="text-[0.75rem] text-[#5a5650] mt-1">Sistema de punto de venta</p>
         </div>
         
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navItems.map((item, idx) => {
-            if (item.type === 'sep') return <div key={idx} className="h-[1px] bg-[#2a2a2a] my-2 mx-3" />;
-            const Icon = item.icon!;
-            const active = activeModule === item.id;
-            return (
+        <nav className="flex-1 overflow-y-auto p-3 space-y-2">
+          {menuGroups.map((group) => (
+            <div key={group.id} className="space-y-1">
               <button
-                key={item.id}
-                onClick={() => { setActiveModule(item.id!); setIsSidebarOpen(false); }}
-                className={`w-full flex items-center gap-3 p-3 rounded-md text-sm font-medium transition-all relative ${active ? 'text-[#c8952e] bg-[rgba(200,149,46,0.08)]' : 'text-[#8a847c] hover:bg-[#181818] hover:text-[#ece7df]'}`}
+                onClick={() => toggleGroup(group.id)}
+                className="w-full flex items-center justify-between p-2 rounded-md text-[0.7rem] font-bold uppercase tracking-widest text-[#5a5650] hover:text-[#8a847c] transition-colors"
               >
-                {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#c8952e] rounded-r" />}
-                <Icon className="w-5 h-5" />
-                {item.label}
+                <span className="flex items-center gap-2">
+                  <group.icon className="w-3.5 h-3.5" />
+                  {group.label}
+                </span>
+                {expandedGroups[group.id] ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
               </button>
-            );
-          })}
+              
+              <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedGroups[group.id] ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className="space-y-1 mt-1 pl-2">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = activeModule === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => { setActiveModule(item.id); setIsSidebarOpen(false); }}
+                        className={`w-full flex items-center gap-3 p-3 rounded-md text-sm font-medium transition-all relative ${active ? 'text-[#c8952e] bg-[rgba(200,149,46,0.08)]' : 'text-[#8a847c] hover:bg-[#181818] hover:text-[#ece7df]'}`}
+                      >
+                        {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#c8952e] rounded-r" />}
+                        <Icon className="w-4 h-4" />
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
         </nav>
         
         <div className="p-4 border-t border-[#2a2a2a] text-[0.8rem] text-[#5a5650]">
