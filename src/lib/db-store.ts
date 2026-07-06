@@ -19,7 +19,10 @@ export const initialState: AppState = {
     rif: 'J-12345678-9', 
     direccion: 'Av. Principal, Local 5', 
     telefono: '0412-1234567' 
-  }
+  },
+  departamentos: ['Licores', 'Viveres', 'Charcuteria', 'Tabaco', 'Snacks', 'Limpieza', 'Otros'],
+  categorias: ['Whisky', 'Ron', 'Vino', 'Cerveza', 'Tequila', 'Champagne', 'Vodka', 'Gin', 'Licores', 'Cerveza Artesanal', 'Sin Alcohol', 'Otros'],
+  marcas: ['Johnnie Walker', 'Santa Teresa', 'Pampero', 'Polar', 'Regional', 'Casillero del Diablo', 'Chivas Regal', 'Jack Daniel\'s']
 };
 
 export const Store = {
@@ -28,7 +31,14 @@ export const Store = {
     const d = localStorage.getItem(STORAGE_KEY);
     if (!d) return initialState;
     try {
-      return { ...initialState, ...JSON.parse(d) };
+      const parsed = JSON.parse(d);
+      return { 
+        ...initialState, 
+        ...parsed,
+        departamentos: parsed.departamentos || initialState.departamentos,
+        categorias: parsed.categorias || initialState.categorias,
+        marcas: parsed.marcas || initialState.marcas
+      };
     } catch {
       return initialState;
     }

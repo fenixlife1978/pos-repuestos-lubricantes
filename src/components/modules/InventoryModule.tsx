@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useState } from 'react';
-import { AppState, Product, Movimiento } from '@/lib/types';
+import React, { useState, useEffect } from 'react';
+import { AppState, Product, Movimiento, KitItem } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
-import { Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, Gift } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, Gift, Layers, Settings2, Trash } from 'lucide-react';
 
 export default function InventoryModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [activeTab, setActiveTab] = useState('productos');
@@ -39,7 +39,7 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
               </div>
               <select className="form-select w-auto" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
                 <option value="">Todas las categorias</option>
-                {Array.from(new Set(state.productos.map(p => p.categoria))).map(c => <option key={c} value={c}>{c}</option>)}
+                {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <button className="btn btn-primary" onClick={() => setShowProducto('nuevo')}><Plus className="w-4 h-4" /> Nuevo Producto</button>
@@ -66,7 +66,12 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
                     prods.map(p => (
                       <tr key={p.id}>
                         <td className="mono opacity-60 text-xs">{p.codigo}</td>
-                        <td className="font-medium">{p.nombre}</td>
+                        <td className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {p.isKit && <Layers className="w-3 h-3 text-[#c8952e]" title="Es un Kit" />}
+                            {p.nombre}
+                          </div>
+                        </td>
                         <td>
                           <div className="flex flex-col">
                             <span className="badge badge-neutral mb-1">{p.categoria}</span>
@@ -118,8 +123,10 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
 
       {showProducto && (
         <ModalProducto 
+          state={state}
           producto={showProducto === 'nuevo' ? undefined : state.productos.find(p => p.id === showProducto)}
           onClose={() => setShowProducto(null)}
+          onUpdateLists={(lists) => updateState(lists)}
           onSave={(datos) => {
             let nuevosProds;
             if (showProducto === 'nuevo') {
@@ -184,23 +191,44 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
   );
 }
 
-function ModalProducto({ producto, onClose, onSave }: { producto?: Product, onClose: () => void, onSave: (p: any) => void }) {
+function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { producto?: Product, state: AppState, onClose: () => void, onSave: (p: any) => void, onUpdateLists: (l: any) => void }) {
   const [datos, setDatos] = useState({
     codigo: producto?.codigo || '',
     nombre: producto?.nombre || '',
-    categoria: producto?.categoria || 'Whisky',
-    departamento: producto?.departamento || 'Licores',
+    categoria: producto?.categoria || state.categorias[0] || '',
+    departamento: producto?.departamento || state.departamentos[0] || '',
     cantidad: producto?.cantidad || '750ml',
-    marca: producto?.marca || '',
+    marca: producto?.marca || state.marcas[0] || '',
     costoUSD: producto?.costoUSD || 0,
     precioUSD: producto?.precioUSD || 0,
+    margen: producto?.margen || 0,
+    precioBS: (producto?.precioUSD || 0) * state.tasa,
     stock: producto?.stock || 0,
     stockMinimo: producto?.stockMinimo || 3,
-    proveedor: producto?.proveedor || ''
+    proveedor: producto?.proveedor || '',
+    isKit: producto?.isKit || false,
+    kitType: producto?.kitType || 'stock_propio',
+    kitItems: producto?.kitItems || [] as KitItem[]
   });
 
-  const cats = ['Whisky','Ron','Vino','Cerveza','Tequila','Champagne','Vodka','Gin','Licores','Cerveza Artesanal','Sin Alcohol','Otros'];
-  const depts = ['Licores', 'Viveres', 'Charcuteria', 'Tabaco', 'Snacks', 'Limpieza', 'Otros'];
+  const [kitSearch, setKitSearch] = useState('');
+
+  // Sincronizar margen y BS cuando cambia el precio USD o costo
+  const recalcularDesdeUSD = (usd: number, costo: number = datos.costoUSD) => {
+    const nuevoMargen = costo > 0 ? ((usd - costo) / costo) * 100 : 0;
+    setDatos(d => ({ ...d, precioUSD: usd, margen: nuevoMargen, precioBS: usd * state.tasa, costoUSD: costo }));
+  };
+
+  const recalcularDesdeMargen = (m: number, costo: number = datos.costoUSD) => {
+    const usd = costo * (1 + m / 100);
+    setDatos(d => ({ ...d, margen: m, precioUSD: usd, precioBS: usd * state.tasa, costoUSD: costo }));
+  };
+
+  const recalcularDesdeBS = (bs: number) => {
+    const usd = bs / state.tasa;
+    const nuevoMargen = datos.costoUSD > 0 ? ((usd - datos.costoUSD) / datos.costoUSD) * 100 : 0;
+    setDatos(d => ({ ...d, precioBS: bs, precioUSD: usd, margen: nuevoMargen }));
+  };
 
   const handleSubmit = () => {
     if (!datos.nombre || !datos.codigo) return alert('Nombre y Código son requeridos');
@@ -208,67 +236,178 @@ function ModalProducto({ producto, onClose, onSave }: { producto?: Product, onCl
     onSave(datos);
   };
 
+  const addToList = (key: 'categorias' | 'departamentos' | 'marcas') => {
+    const val = prompt(`Nueva entrada para ${key}:`);
+    if (val) {
+      const newList = [...state[key], val];
+      onUpdateLists({ [key]: newList });
+      setDatos(d => ({ ...d, [key.slice(0, -1)]: val }));
+    }
+  };
+
+  const removeFromList = (key: 'categorias' | 'departamentos' | 'marcas', val: string) => {
+    if (confirm(`¿Borrar "${val}" de la lista?`)) {
+      const newList = state[key].filter(i => i !== val);
+      onUpdateLists({ [key]: newList });
+    }
+  };
+
   return (
     <div className="modal show">
       <div className="modal-bg" onClick={onClose}></div>
-      <div className="modal-box">
+      <div className="modal-box" style={{ maxWidth: '650px' }}>
         <div className="modal-head">
           <h3>{producto ? 'Editar Producto' : 'Nuevo Producto'}</h3>
           <button className="btn-icon" onClick={onClose}><X className="w-4 h-4" /></button>
         </div>
         <div className="modal-body space-y-4">
+          
           <div className="form-row grid grid-cols-2 gap-4">
             <div className="form-group">
-              <label className="form-label">Código</label>
-              <input className="form-input" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} placeholder="Ej: WH-001" />
+              <label className="form-label">Código (Barcode)</label>
+              <input className="form-input mono" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} placeholder="Escanee o escriba" />
             </div>
             <div className="form-group">
-              <label className="form-label">Departamento</label>
-              <select className="form-select" value={datos.departamento} onChange={e => setDatos({...datos, departamento: e.target.value})}>
-                {depts.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
+              <div className="flex justify-between items-center mb-1">
+                <label className="form-label m-0">Departamento</label>
+                <button className="text-[0.65rem] text-[#c8952e]" onClick={() => addToList('departamentos')}>+ Nuevo</button>
+              </div>
+              <div className="flex gap-1">
+                <select className="form-select" value={datos.departamento} onChange={e => setDatos({...datos, departamento: e.target.value})}>
+                  {state.departamentos.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <button className="btn-icon btn-sm text-[#e04848]" onClick={() => removeFromList('departamentos', datos.departamento)}><Trash className="w-3 h-3"/></button>
+              </div>
             </div>
           </div>
+
           <div className="form-row grid grid-cols-2 gap-4">
             <div className="form-group">
-              <label className="form-label">Categoría</label>
-              <select className="form-select" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
-                {cats.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <div className="flex justify-between items-center mb-1">
+                <label className="form-label m-0">Categoría</label>
+                <button className="text-[0.65rem] text-[#c8952e]" onClick={() => addToList('categorias')}>+ Nuevo</button>
+              </div>
+              <div className="flex gap-1">
+                <select className="form-select" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
+                  {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <button className="btn-icon btn-sm text-[#e04848]" onClick={() => removeFromList('categorias', datos.categoria)}><Trash className="w-3 h-3"/></button>
+              </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Marca</label>
-              <input className="form-input" value={datos.marca} onChange={e => setDatos({...datos, marca: e.target.value})} placeholder="Ej: Johnnie Walker" />
+              <div className="flex justify-between items-center mb-1">
+                <label className="form-label m-0">Marca</label>
+                <button className="text-[0.65rem] text-[#c8952e]" onClick={() => addToList('marcas')}>+ Nuevo</button>
+              </div>
+              <div className="flex gap-1">
+                <select className="form-select" value={datos.marca} onChange={e => setDatos({...datos, marca: e.target.value})}>
+                  {state.marcas.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <button className="btn-icon btn-sm text-[#e04848]" onClick={() => removeFromList('marcas', datos.marca)}><Trash className="w-3 h-3"/></button>
+              </div>
             </div>
           </div>
+
           <div className="form-group">
             <label className="form-label">Nombre del producto</label>
             <input className="form-input" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} placeholder="Ej: Johnnie Walker Black Label" />
           </div>
-          <div className="form-row grid grid-cols-2 gap-4">
-            <div className="form-group">
-              <label className="form-label">Costo USD</label>
-              <input className="form-input" type="number" step="0.01" value={datos.costoUSD} onChange={e => setDatos({...datos, costoUSD: parseFloat(e.target.value) || 0})} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Precio Venta USD</label>
-              <input className="form-input" type="number" step="0.01" value={datos.precioUSD} onChange={e => setDatos({...datos, precioUSD: parseFloat(e.target.value) || 0})} />
-            </div>
+
+          <div className="bg-[#181818] p-4 rounded-lg border border-[#2a2a2a] space-y-4">
+             <div className="form-row grid grid-cols-2 gap-4">
+                <div className="form-group">
+                  <label className="form-label">Costo Unitario USD</label>
+                  <input className="form-input" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Margen de Ganancia (%)</label>
+                  <input className="form-input text-[#27ae60] font-bold" type="number" value={datos.margen} onChange={e => recalcularDesdeMargen(parseFloat(e.target.value) || 0)} />
+                </div>
+             </div>
+             <div className="form-row grid grid-cols-2 gap-4">
+                <div className="form-group">
+                  <label className="form-label">Precio Venta USD</label>
+                  <input className="form-input text-[#c8952e] font-bold" type="number" step="0.01" value={datos.precioUSD} onChange={e => recalcularDesdeUSD(parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Precio Venta BS ({state.tasa})</label>
+                  <input className="form-input" type="number" step="0.01" value={datos.precioBS} onChange={e => recalcularDesdeBS(parseFloat(e.target.value) || 0)} />
+                </div>
+             </div>
           </div>
+
           <div className="form-row grid grid-cols-2 gap-4">
             <div className="form-group">
               <label className="form-label">Stock Actual</label>
-              <input className="form-input" type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: parseInt(e.target.value) || 0})} disabled={!!producto} />
+              <input className="form-input" type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: parseInt(e.target.value) || 0})} disabled={!!producto && !datos.isKit} />
+              <p className="text-[0.6rem] text-[#5a5650] mt-1">* Solo editable al crear o vía Ajustes.</p>
             </div>
             <div className="form-group">
               <label className="form-label">Stock Mínimo</label>
               <input className="form-input" type="number" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: parseInt(e.target.value) || 0})} />
             </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">Proveedor</label>
-            <input className="form-input" value={datos.proveedor} onChange={e => setDatos({...datos, proveedor: e.target.value})} placeholder="Nombre del proveedor" />
+
+          {/* SECCION KIT */}
+          <div className="border-t border-[#2a2a2a] pt-4 mt-4">
+            <div className="flex items-center gap-3 mb-3">
+              <input type="checkbox" checked={datos.isKit} onChange={e => setDatos({...datos, isKit: e.target.checked})} className="w-4 h-4 accent-[#c8952e]" />
+              <label className="form-label m-0 flex items-center gap-2">Este producto es un Kit <Layers className="w-3.5 h-3.5 text-[#c8952e]"/></label>
+            </div>
+
+            {datos.isKit && (
+              <div className="bg-[#1e1e1e] p-4 rounded-lg border border-[#333] space-y-4 animate-in fade-in">
+                <div className="form-group">
+                  <label className="form-label">Tipo de Stock del Kit</label>
+                  <select className="form-select" value={datos.kitType} onChange={e => setDatos({...datos, kitType: e.target.value as any})}>
+                    <option value="stock_propio">Stock Propio (Independiente)</option>
+                    <option value="stock_componentes">Basado en componentes (Calculado)</option>
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="form-label">Componentes del Kit</label>
+                  <div className="flex gap-2">
+                    <input className="form-input text-sm" placeholder="Buscar producto para añadir..." value={kitSearch} onChange={e => setKitSearch(e.target.value)} />
+                  </div>
+                  
+                  {kitSearch.length > 1 && (
+                    <div className="bg-[#0b0b0b] border border-[#333] rounded max-h-32 overflow-y-auto">
+                      {state.productos.filter(p => !p.isKit && p.activo && (p.nombre.toLowerCase().includes(kitSearch.toLowerCase()) || p.codigo.includes(kitSearch))).map(p => (
+                        <div key={p.id} className="p-2 hover:bg-[#181818] cursor-pointer text-xs flex justify-between" onClick={() => {
+                          if (!datos.kitItems.find(i => i.productoId === p.id)) {
+                            setDatos({...datos, kitItems: [...datos.kitItems, { productoId: p.id, nombre: p.nombre, cantidad: 1 }]});
+                          }
+                          setKitSearch('');
+                        }}>
+                          <span>{p.nombre}</span>
+                          <span className="text-[#c8952e]">${p.precioUSD}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    {datos.kitItems.map((item, idx) => (
+                      <div key={item.productoId} className="flex items-center gap-2 bg-[#0b0b0b] p-2 rounded text-xs border border-[#2a2a2a]">
+                        <span className="flex-1 truncate">{item.nombre}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[#5a5650]">Cant:</span>
+                          <input type="number" className="bg-[#181818] border border-[#333] rounded w-12 p-1 text-center" value={item.cantidad} onChange={e => {
+                            const ni = [...datos.kitItems];
+                            ni[idx].cantidad = Math.max(1, parseInt(e.target.value) || 1);
+                            setDatos({...datos, kitItems: ni});
+                          }} />
+                        </div>
+                        <button className="text-[#e04848] p-1" onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_, i) => i !== idx)})}><X className="w-3 h-3"/></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+
         </div>
         <div className="modal-foot">
           <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>

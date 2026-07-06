@@ -2,6 +2,12 @@
 export type PaymentMethod = 'efectivo_usd' | 'efectivo_bs' | 'punto_venta' | 'transferencia' | 'credito' | 'mixto';
 export type EntityStatus = 'completada' | 'cancelada' | 'pendiente' | 'parcial' | 'pagada' | 'parcialmente_devuelta' | 'totalmente_devuelta' | 'procesada';
 
+export interface KitItem {
+  productoId: string;
+  nombre: string;
+  cantidad: number;
+}
+
 export interface Product {
   id: string;
   codigo: string;
@@ -12,11 +18,16 @@ export interface Product {
   marca: string;
   costoUSD: number;
   precioUSD: number;
+  margen: number;
   stock: number;
   stockMinimo: number;
   proveedor: string;
   fechaCreacion: string;
   activo: boolean;
+  // Propiedades de Kit
+  isKit?: boolean;
+  kitType?: 'stock_propio' | 'stock_componentes';
+  kitItems?: KitItem[];
 }
 
 export interface SaleItem {
@@ -114,4 +125,8 @@ export interface AppState {
     direccion: string;
     telefono: string;
   };
+  // Listas de configuracion
+  departamentos: string[];
+  categorias: string[];
+  marcas: string[];
 }
