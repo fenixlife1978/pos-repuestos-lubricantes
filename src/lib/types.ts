@@ -90,7 +90,7 @@ export interface Devolucion {
 export interface Movimiento {
   id: string;
   productoId: string;
-  tipo: 'compra' | 'venta' | 'devolucion' | 'ajuste_entrada' | 'ajuste_salida';
+  tipo: 'compra' | 'venta' | 'devolucion' | 'ajuste_entrada' | 'ajuste_salida' | 'consumo' | 'colaboracion';
   cantidad: number;
   stockAntes: number;
   stockDespues: number;
