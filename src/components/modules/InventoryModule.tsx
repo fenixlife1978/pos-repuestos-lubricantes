@@ -213,17 +213,12 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
 
   const [kitSearch, setKitSearch] = useState('');
 
-  // Sincronizar usando MARGEN SOBRE VENTA
-  // Formula: Precio = Costo / (1 - Margen/100)
-  // Formula: Margen = (Precio - Costo) / Precio * 100
-
   const recalcularDesdeUSD = (usd: number, costo: number = datos.costoUSD) => {
     const nuevoMargen = usd > 0 ? ((usd - costo) / usd) * 100 : 0;
     setDatos(d => ({ ...d, precioUSD: usd, margen: nuevoMargen, precioBS: usd * state.tasa, costoUSD: costo }));
   };
 
   const recalcularDesdeMargen = (m: number, costo: number = datos.costoUSD) => {
-    // Si el margen es 100% o mas, evitamos division por cero
     const factor = (1 - (m / 100));
     const usd = factor > 0 ? costo / factor : 0;
     setDatos(d => ({ ...d, margen: m, precioUSD: usd, precioBS: usd * state.tasa, costoUSD: costo }));
@@ -260,163 +255,169 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
   return (
     <div className="modal show">
       <div className="modal-bg" onClick={onClose}></div>
-      <div className="modal-box" style={{ maxWidth: '650px' }}>
-        <div className="modal-head">
-          <h3>{producto ? 'Editar Producto' : 'Nuevo Producto'}</h3>
-          <button className="btn-icon" onClick={onClose}><X className="w-4 h-4" /></button>
+      <div className="modal-box" style={{ maxWidth: '680px' }}>
+        <div className="modal-head py-3 px-5">
+          <h3 className="text-base">{producto ? 'Editar Producto' : 'Nuevo Producto'}</h3>
+          <button className="btn-icon btn-sm" onClick={onClose}><X className="w-4 h-4" /></button>
         </div>
-        <div className="modal-body space-y-4">
+        <div className="modal-body p-5 space-y-3">
           
-          <div className="form-row grid grid-cols-2 gap-4">
-            <div className="form-group">
-              <label className="form-label">Código (Barcode)</label>
-              <input className="form-input mono" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} placeholder="Escanee o escriba" />
+          {/* Fila 1: Codigo, Dept, Cat */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] mb-1 uppercase">Código / Barcode</label>
+              <input className="form-input py-1.5 mono text-sm" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} placeholder="Escanee" />
             </div>
-            <div className="form-group">
+            <div className="form-group mb-0">
               <div className="flex justify-between items-center mb-1">
-                <label className="form-label m-0">Departamento</label>
-                <button className="text-[0.65rem] text-[#c8952e]" onClick={() => addToList('departamentos')}>+ Nuevo</button>
+                <label className="form-label text-[10px] m-0 uppercase">Dpto.</label>
+                <button className="text-[9px] text-[#c8952e]" onClick={() => addToList('departamentos')}>+ ADD</button>
               </div>
               <div className="flex gap-1">
-                <select className="form-select" value={datos.departamento} onChange={e => setDatos({...datos, departamento: e.target.value})}>
+                <select className="form-select py-1.5 text-xs" value={datos.departamento} onChange={e => setDatos({...datos, departamento: e.target.value})}>
                   {state.departamentos.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
-                <button className="btn-icon btn-sm text-[#e04848]" onClick={() => removeFromList('departamentos', datos.departamento)}><Trash className="w-3 h-3"/></button>
+                <button className="btn-icon btn-sm h-7 w-7 text-[#e04848]" onClick={() => removeFromList('departamentos', datos.departamento)}><Trash className="w-3 h-3"/></button>
               </div>
             </div>
-          </div>
-
-          <div className="form-row grid grid-cols-2 gap-4">
-            <div className="form-group">
+            <div className="form-group mb-0">
               <div className="flex justify-between items-center mb-1">
-                <label className="form-label m-0">Categoría</label>
-                <button className="text-[0.65rem] text-[#c8952e]" onClick={() => addToList('categorias')}>+ Nuevo</button>
+                <label className="form-label text-[10px] m-0 uppercase">Cat.</label>
+                <button className="text-[9px] text-[#c8952e]" onClick={() => addToList('categorias')}>+ ADD</button>
               </div>
               <div className="flex gap-1">
-                <select className="form-select" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
+                <select className="form-select py-1.5 text-xs" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
                   {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <button className="btn-icon btn-sm text-[#e04848]" onClick={() => removeFromList('categorias', datos.categoria)}><Trash className="w-3 h-3"/></button>
+                <button className="btn-icon btn-sm h-7 w-7 text-[#e04848]" onClick={() => removeFromList('categorias', datos.categoria)}><Trash className="w-3 h-3"/></button>
               </div>
             </div>
-            <div className="form-group">
+          </div>
+
+          {/* Fila 2: Marca y Nombre */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="form-group mb-0">
               <div className="flex justify-between items-center mb-1">
-                <label className="form-label m-0">Marca</label>
-                <button className="text-[0.65rem] text-[#c8952e]" onClick={() => addToList('marcas')}>+ Nuevo</button>
+                <label className="form-label text-[10px] m-0 uppercase">Marca</label>
+                <button className="text-[9px] text-[#c8952e]" onClick={() => addToList('marcas')}>+ ADD</button>
               </div>
               <div className="flex gap-1">
-                <select className="form-select" value={datos.marca} onChange={e => setDatos({...datos, marca: e.target.value})}>
+                <select className="form-select py-1.5 text-xs" value={datos.marca} onChange={e => setDatos({...datos, marca: e.target.value})}>
                   {state.marcas.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
-                <button className="btn-icon btn-sm text-[#e04848]" onClick={() => removeFromList('marcas', datos.marca)}><Trash className="w-3 h-3"/></button>
+                <button className="btn-icon btn-sm h-7 w-7 text-[#e04848]" onClick={() => removeFromList('marcas', datos.marca)}><Trash className="w-3 h-3"/></button>
+              </div>
+            </div>
+            <div className="form-group mb-0 col-span-2">
+              <label className="form-label text-[10px] mb-1 uppercase">Nombre del producto</label>
+              <input className="form-input py-1.5 text-sm" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} placeholder="Ej: Johnnie Walker Black Label" />
+            </div>
+          </div>
+
+          {/* Fila 3: Precios Compactos */}
+          <div className="bg-[#181818] p-3 rounded-lg border border-[#2a2a2a]">
+            <div className="grid grid-cols-4 gap-3">
+              <div className="form-group mb-0">
+                <label className="form-label text-[9px] mb-1">COSTO $</label>
+                <input className="form-input py-1.5 text-sm" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, parseFloat(e.target.value) || 0)} />
+              </div>
+              <div className="form-group mb-0">
+                <label className="form-label text-[9px] mb-1">MARGEN %</label>
+                <input className="form-input py-1.5 text-sm text-[#27ae60] font-bold" type="number" value={Math.round(datos.margen * 100) / 100} onChange={e => recalcularDesdeMargen(parseFloat(e.target.value) || 0)} />
+              </div>
+              <div className="form-group mb-0">
+                <label className="form-label text-[9px] mb-1">VENTA $</label>
+                <input className="form-input py-1.5 text-sm text-[#c8952e] font-bold" type="number" step="0.01" value={Math.round(datos.precioUSD * 100) / 100} onChange={e => recalcularDesdeUSD(parseFloat(e.target.value) || 0)} />
+              </div>
+              <div className="form-group mb-0">
+                <label className="form-label text-[9px] mb-1">VENTA BS</label>
+                <input className="form-input py-1.5 text-sm" type="number" step="0.01" value={Math.round(datos.precioBS * 100) / 100} onChange={e => recalcularDesdeBS(parseFloat(e.target.value) || 0)} />
               </div>
             </div>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Nombre del producto</label>
-            <input className="form-input" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} placeholder="Ej: Johnnie Walker Black Label" />
-          </div>
-
-          <div className="bg-[#181818] p-4 rounded-lg border border-[#2a2a2a] space-y-4">
-             <div className="form-row grid grid-cols-2 gap-4">
-                <div className="form-group">
-                  <label className="form-label">Costo Unitario USD</label>
-                  <input className="form-input" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, parseFloat(e.target.value) || 0)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Margen de Ganancia (%) <span className="text-[10px] text-[#5a5650] font-normal">(Sobre Venta)</span></label>
-                  <input className="form-input text-[#27ae60] font-bold" type="number" value={Math.round(datos.margen * 100) / 100} onChange={e => recalcularDesdeMargen(parseFloat(e.target.value) || 0)} />
-                </div>
-             </div>
-             <div className="form-row grid grid-cols-2 gap-4">
-                <div className="form-group">
-                  <label className="form-label">Precio Venta USD</label>
-                  <input className="form-input text-[#c8952e] font-bold" type="number" step="0.01" value={Math.round(datos.precioUSD * 100) / 100} onChange={e => recalcularDesdeUSD(parseFloat(e.target.value) || 0)} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Precio Venta BS ({state.tasa})</label>
-                  <input className="form-input" type="number" step="0.01" value={Math.round(datos.precioBS * 100) / 100} onChange={e => recalcularDesdeBS(parseFloat(e.target.value) || 0)} />
-                </div>
-             </div>
-          </div>
-
-          <div className="form-row grid grid-cols-2 gap-4">
-            <div className="form-group">
-              <label className="form-label">Stock Actual</label>
-              <input className="form-input" type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: parseInt(e.target.value) || 0})} disabled={!!producto && !datos.isKit} />
-              <p className="text-[0.6rem] text-[#5a5650] mt-1">* Solo editable al crear o vía Ajustes.</p>
+          {/* Fila 4: Inventario y Presentacion */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] mb-1 uppercase">Stock Inicial</label>
+              <input className="form-input py-1.5 text-sm" type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: parseInt(e.target.value) || 0})} disabled={!!producto && !datos.isKit} />
             </div>
-            <div className="form-group">
-              <label className="form-label">Stock Mínimo</label>
-              <input className="form-input" type="number" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: parseInt(e.target.value) || 0})} />
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] mb-1 uppercase">Mínimo</label>
+              <input className="form-input py-1.5 text-sm" type="number" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: parseInt(e.target.value) || 0})} />
+            </div>
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] mb-1 uppercase">Presentación</label>
+              <input className="form-input py-1.5 text-sm" value={datos.cantidad} onChange={e => setDatos({...datos, cantidad: e.target.value})} placeholder="750ml" />
             </div>
           </div>
 
-          {/* SECCION KIT */}
-          <div className="border-t border-[#2a2a2a] pt-4 mt-4">
-            <div className="flex items-center gap-3 mb-3">
-              <input type="checkbox" checked={datos.isKit} onChange={e => setDatos({...datos, isKit: e.target.checked})} className="w-4 h-4 accent-[#c8952e]" />
-              <label className="form-label m-0 flex items-center gap-2">Este producto es un Kit <Layers className="w-3.5 h-3.5 text-[#c8952e]"/></label>
+          {/* Fila 5: Proveedor */}
+          <div className="form-group mb-0">
+            <label className="form-label text-[10px] mb-1 uppercase">Proveedor</label>
+            <input className="form-input py-1.5 text-sm" value={datos.proveedor} onChange={e => setDatos({...datos, proveedor: e.target.value})} placeholder="Distribuidor..." />
+          </div>
+
+          {/* SECCION KIT COMPACTA */}
+          <div className="border-t border-[#2a2a2a] pt-3">
+            <div className="flex items-center gap-3 mb-2">
+              <input type="checkbox" checked={datos.isKit} onChange={e => setDatos({...datos, isKit: e.target.checked})} className="w-3.5 h-3.5 accent-[#c8952e]" />
+              <label className="form-label m-0 text-xs flex items-center gap-2">Este producto es un Kit <Layers className="w-3 h-3 text-[#c8952e]"/></label>
             </div>
 
             {datos.isKit && (
-              <div className="bg-[#1e1e1e] p-4 rounded-lg border border-[#333] space-y-4 animate-in fade-in">
-                <div className="form-group">
-                  <label className="form-label">Tipo de Stock del Kit</label>
-                  <select className="form-select" value={datos.kitType} onChange={e => setDatos({...datos, kitType: e.target.value as any})}>
-                    <option value="stock_propio">Stock Propio (Independiente)</option>
-                    <option value="stock_componentes">Basado en componentes (Calculado)</option>
-                  </select>
+              <div className="bg-[#1e1e1e] p-3 rounded-lg border border-[#333] space-y-3 animate-in fade-in">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="form-group mb-0">
+                    <label className="form-label text-[9px] uppercase mb-1">Tipo de Stock</label>
+                    <select className="form-select py-1 text-xs" value={datos.kitType} onChange={e => setDatos({...datos, kitType: e.target.value as any})}>
+                      <option value="stock_propio">Propio</option>
+                      <option value="stock_componentes">Calculado</option>
+                    </select>
+                  </div>
+                  <div className="form-group mb-0">
+                    <label className="form-label text-[9px] uppercase mb-1">Añadir Componente</label>
+                    <input className="form-input py-1 text-xs" placeholder="Buscar..." value={kitSearch} onChange={e => setKitSearch(e.target.value)} />
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <label className="form-label">Componentes del Kit</label>
-                  <div className="flex gap-2">
-                    <input className="form-input text-sm" placeholder="Buscar producto para añadir..." value={kitSearch} onChange={e => setKitSearch(e.target.value)} />
-                  </div>
-                  
-                  {kitSearch.length > 1 && (
-                    <div className="bg-[#0b0b0b] border border-[#333] rounded max-h-32 overflow-y-auto">
-                      {state.productos.filter(p => !p.isKit && p.activo && (p.nombre.toLowerCase().includes(kitSearch.toLowerCase()) || p.codigo.includes(kitSearch))).map(p => (
-                        <div key={p.id} className="p-2 hover:bg-[#181818] cursor-pointer text-xs flex justify-between" onClick={() => {
-                          if (!datos.kitItems.find(i => i.productoId === p.id)) {
-                            setDatos({...datos, kitItems: [...datos.kitItems, { productoId: p.id, nombre: p.nombre, cantidad: 1 }]});
-                          }
-                          setKitSearch('');
-                        }}>
-                          <span>{p.nombre}</span>
-                          <span className="text-[#c8952e]">${p.precioUSD}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    {datos.kitItems.map((item, idx) => (
-                      <div key={item.productoId} className="flex items-center gap-2 bg-[#0b0b0b] p-2 rounded text-xs border border-[#2a2a2a]">
-                        <span className="flex-1 truncate">{item.nombre}</span>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[#5a5650]">Cant:</span>
-                          <input type="number" className="bg-[#181818] border border-[#333] rounded w-12 p-1 text-center" value={item.cantidad} onChange={e => {
-                            const ni = [...datos.kitItems];
-                            ni[idx].cantidad = Math.max(1, parseInt(e.target.value) || 1);
-                            setDatos({...datos, kitItems: ni});
-                          }} />
-                        </div>
-                        <button className="text-[#e04848] p-1" onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_, i) => i !== idx)})}><X className="w-3 h-3"/></button>
+                {kitSearch.length > 1 && (
+                  <div className="bg-[#0b0b0b] border border-[#333] rounded max-h-24 overflow-y-auto">
+                    {state.productos.filter(p => !p.isKit && p.activo && (p.nombre.toLowerCase().includes(kitSearch.toLowerCase()) || p.codigo.includes(kitSearch))).map(p => (
+                      <div key={p.id} className="p-1.5 hover:bg-[#181818] cursor-pointer text-[10px] flex justify-between" onClick={() => {
+                        if (!datos.kitItems.find(i => i.productoId === p.id)) {
+                          setDatos({...datos, kitItems: [...datos.kitItems, { productoId: p.id, nombre: p.nombre, cantidad: 1 }]});
+                        }
+                        setKitSearch('');
+                      }}>
+                        <span>{p.nombre}</span>
+                        <span className="text-[#c8952e]">${p.precioUSD}</span>
                       </div>
                     ))}
                   </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  {datos.kitItems.map((item, idx) => (
+                    <div key={item.productoId} className="flex items-center gap-2 bg-[#0b0b0b] p-1.5 rounded text-[10px] border border-[#2a2a2a]">
+                      <span className="flex-1 truncate">{item.nombre}</span>
+                      <input type="number" className="bg-[#181818] border border-[#333] rounded w-8 p-0.5 text-center" value={item.cantidad} onChange={e => {
+                        const ni = [...datos.kitItems];
+                        ni[idx].cantidad = Math.max(1, parseInt(e.target.value) || 1);
+                        setDatos({...datos, kitItems: ni});
+                      }} />
+                      <button className="text-[#e04848]" onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_, i) => i !== idx)})}><X className="w-3 h-3"/></button>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
           </div>
 
         </div>
-        <div className="modal-foot">
-          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={handleSubmit}>{producto ? 'Actualizar' : 'Crear producto'}</button>
+        <div className="modal-foot py-3 px-5">
+          <button className="btn btn-sm btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-sm btn-primary" onClick={handleSubmit}>{producto ? 'Actualizar' : 'Crear producto'}</button>
         </div>
       </div>
     </div>
