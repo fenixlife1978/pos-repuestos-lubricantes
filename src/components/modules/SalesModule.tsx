@@ -204,7 +204,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             </div>
             <input 
               ref={searchInputRef}
-              className="form-input pl-14 py-3 text-base bg-[#131313] border-[#c8952e]/30 focus:border-[#c8952e] shadow-xl" 
+              className="form-input pl-14 py-2.5 text-base bg-[#131313] border-[#c8952e]/30 focus:border-[#c8952e] shadow-xl" 
               placeholder="Escanee o busque producto..." 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
@@ -215,7 +215,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             {matches.length > 0 && (
               <div className="absolute top-full left-0 right-0 bg-[#1e1e1e] border border-[#2a2a2a] rounded-b-lg shadow-2xl z-[100] mt-1 overflow-hidden">
                 {matches.map(p => (
-                  <div key={p.id} onClick={() => agregar(p.id)} className="flex items-center justify-between p-3 hover:bg-[#c8952e]/10 cursor-pointer border-b border-[#2a2a2a] last:border-0">
+                  <div key={p.id} onClick={() => agregar(p.id)} className="flex items-center justify-between p-2.5 hover:bg-[#c8952e]/10 cursor-pointer border-b border-[#2a2a2a] last:border-0">
                     <div>
                       <div className="font-bold text-xs">{p.nombre}</div>
                       <div className="text-[9px] text-[#5a5650] mono uppercase">{p.codigo} • {p.stock} uds.</div>
@@ -277,42 +277,56 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
             <div className="w-2/3 flex flex-col gap-2 overflow-hidden">
               <div className="card flex-1 flex flex-col overflow-hidden border-[#2a2a2a]">
-                <div className="card-head py-2 px-3 bg-[#131313]/50">
-                  <h3 className="flex items-center gap-2 text-xs">
-                    <ShoppingCart className="w-3.5 h-3.5 text-[#c8952e]" /> Carrito
-                  </h3>
-                  <button className="btn btn-sm h-7 text-[10px] btn-secondary text-[#e04848] border-none" onClick={() => { updateState({ carrito: [] }); setPagos([]); }}>
-                    <Trash2 className="w-3 h-3 mr-1" /> Vaciar
-                  </button>
+                
+                {/* Cabecera del Carrito */}
+                <div className="grid grid-cols-[1fr_85px_60px_80px_80px_85px_35px] gap-2 px-3 py-2 bg-[#131313] border-b border-[#2a2a2a] text-[8px] uppercase font-bold text-[#5a5650] tracking-widest">
+                  <div>Descripción</div>
+                  <div className="text-center">Cant</div>
+                  <div className="text-center">U.M.</div>
+                  <div className="text-right">Precio ($)</div>
+                  <div className="text-right">Precio (Bs)</div>
+                  <div className="text-right">Total</div>
+                  <div className="text-center"></div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-2">
+                <div className="flex-1 overflow-y-auto p-1.5">
                   {state.carrito.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center opacity-10">
-                      <ShoppingCart className="w-16 h-16 mb-2" />
-                      <p className="text-xs uppercase tracking-widest">Esperando Productos...</p>
+                      <ShoppingCart className="w-14 h-14 mb-2" />
+                      <p className="text-[10px] uppercase tracking-widest font-bold">Sin Productos</p>
                     </div>
                   ) : (
-                    <div className="space-y-1.5">
-                      {state.carrito.map((item, i) => (
-                        <div key={i} className="flex items-center gap-3 p-2 bg-[#0b0b0b] rounded-lg border border-[#2a2a2a] transition-colors">
-                          <div className="flex-1 min-w-0">
-                            <div className="truncate font-bold text-[10px] uppercase">{item.nombre}</div>
-                            <div className="text-[9px] text-[#5a5650] mono font-bold uppercase mt-0.5">{item.productoId} • {Utils.fmtUSD(item.precioUnitUSD)}</div>
+                    <div className="space-y-1">
+                      {state.carrito.map((item, i) => {
+                        const product = state.productos.find(p => p.id === item.productoId);
+                        return (
+                          <div key={i} className="grid grid-cols-[1fr_85px_60px_80px_80px_85px_35px] gap-2 items-center px-2 py-1 bg-[#0b0b0b] rounded border border-[#2a2a2a] hover:border-[#c8952e]/30 transition-colors">
+                            <div className="flex flex-col min-w-0">
+                              <div className="truncate font-bold text-[9px] uppercase text-[#ece7df]">{item.nombre}</div>
+                              <div className="text-[7px] text-[#5a5650] mono truncate">{item.productoId}</div>
+                            </div>
+                            
+                            <div className="flex items-center justify-center gap-1.5 bg-[#131313] rounded p-0.5 border border-[#2a2a2a]">
+                              <button className="h-4 w-4 flex items-center justify-center bg-[#181818] rounded text-[#8a847c] hover:text-[#ece7df]" onClick={() => updateQty(i, -1)}><Minus className="w-2 h-2" /></button>
+                              <span className="w-4 text-center text-[10px] font-black text-[#c8952e]">{item.cantidad}</span>
+                              <button className="h-4 w-4 flex items-center justify-center bg-[#181818] rounded text-[#8a847c] hover:text-[#ece7df]" onClick={() => updateQty(i, 1)}><Plus className="w-2 h-2" /></button>
+                            </div>
+                            
+                            <div className="text-center text-[8px] text-[#5a5650] uppercase font-bold">{product?.cantidad || '-'}</div>
+                            
+                            <div className="text-right text-[9px] mono font-bold text-[#ece7df]">{Utils.fmtUSD(item.precioUnitUSD)}</div>
+                            <div className="text-right text-[9px] mono font-medium text-[#5a5650]">{Utils.fmtBS(item.precioUnitUSD * state.tasa)}</div>
+                            
+                            <div className="text-right text-[10px] font-display font-black text-[#c8952e]">{Utils.fmtUSD(item.subtotalUSD)}</div>
+                            
+                            <div className="flex justify-center">
+                              <button className="text-[#5a5650] hover:text-[#e04848] transition-colors p-1" onClick={() => updateQty(i, -item.cantidad)}>
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 bg-[#131313] rounded-md p-1 border border-[#2a2a2a]">
-                            <button className="h-5 w-5 flex items-center justify-center bg-[#181818] rounded" onClick={() => updateQty(i, -1)}><Minus className="w-2.5 h-2.5" /></button>
-                            <span className="w-5 text-center text-xs font-black">{item.cantidad}</span>
-                            <button className="h-5 w-5 flex items-center justify-center bg-[#181818] rounded" onClick={() => updateQty(i, 1)}><Plus className="w-2.5 h-2.5" /></button>
-                          </div>
-                          <div className="text-right min-w-[80px]">
-                            <div className="font-display font-black text-[#c8952e] text-base">{Utils.fmtUSD(item.subtotalUSD)}</div>
-                          </div>
-                          <button className="text-[#5a5650] hover:text-[#e04848] p-1" onClick={() => updateQty(i, -item.cantidad)}>
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
