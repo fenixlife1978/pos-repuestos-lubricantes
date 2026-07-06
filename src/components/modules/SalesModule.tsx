@@ -13,12 +13,35 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [metodo, setMetodo] = useState('efectivo_usd');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Filtrado para la lista de resultados rápidos de búsqueda
-  const matches = search.length > 1 
-    ? state.productos.filter(p => 
-        p.activo && 
-        (p.nombre.toLowerCase().includes(search.toLowerCase()) || p.codigo.toLowerCase().includes(search.toLowerCase()))
-      ).slice(0, 5)
+  // Filtrado y ordenamiento inteligente para resultados rápidos
+  const matches = search.trim().length > 0 
+    ? state.productos
+        .filter(p => 
+          p.activo && 
+          (p.nombre.toLowerCase().includes(search.toLowerCase()) || p.codigo.toLowerCase().includes(search.toLowerCase()))
+        )
+        .sort((a, b) => {
+          const s = search.toLowerCase();
+          const aCode = a.codigo.toLowerCase();
+          const bCode = b.codigo.toLowerCase();
+          const aName = a.nombre.toLowerCase();
+          const bName = b.nombre.toLowerCase();
+
+          // 1. Coincidencia exacta de código
+          if (aCode === s && bCode !== s) return -1;
+          if (bCode === s && aCode !== s) return 1;
+
+          // 2. El código comienza con la búsqueda
+          if (aCode.startsWith(s) && !bCode.startsWith(s)) return -1;
+          if (bCode.startsWith(s) && !aCode.startsWith(s)) return 1;
+
+          // 3. El nombre comienza con la búsqueda
+          if (aName.startsWith(s) && !bName.startsWith(s)) return -1;
+          if (bName.startsWith(s) && !aName.startsWith(s)) return 1;
+
+          return 0;
+        })
+        .slice(0, 8)
     : [];
 
   const subtotalUSD = state.carrito.reduce((s, i) => s + i.subtotalUSD, 0);
@@ -116,9 +139,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     alert('Venta procesada con éxito');
   };
 
-  // Manejar Enter en la búsqueda para añadir el primer resultado (útil para escáneres)
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && matches.length === 1) {
+    if (e.key === 'Enter' && matches.length >= 1) {
       agregar(matches[0].id);
     }
   };
@@ -307,4 +329,3 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     </div>
   );
 }
-
