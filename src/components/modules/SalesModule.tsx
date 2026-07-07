@@ -22,7 +22,8 @@ import {
   User,
   ArrowLeft,
   Eye,
-  HandCoins
+  HandCoins,
+  Clock
 } from 'lucide-react';
 
 interface PagoRealizado {
@@ -45,6 +46,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   // Modales de Crédito
   const [showAbonoModal, setShowAbonoModal] = useState<string | null>(null); // cliente name
   const [showDetailsModal, setShowDetailsModal] = useState<any | null>(null); // record
+  const [showHistoryModal, setShowHistoryModal] = useState<any | null>(null); // record for payments history
   const [montoAbono, setMontoAbono] = useState('');
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -146,24 +148,35 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     alert('Venta procesada con éxito');
   };
 
-  // Lógica de Abono en Cascada (Deuda más antigua a más reciente)
   const procesarAbonoCascada = () => {
     const monto = parseFloat(montoAbono);
     if (isNaN(monto) || monto <= 0 || !showAbonoModal) return;
 
     let restante = monto;
+    const ahora = Utils.ahora();
     const nuevasDeudas = [...state.cxc].sort((a, b) => a.fecha.localeCompare(b.fecha));
     
     const actualizadas = nuevasDeudas.map(d => {
       if (d.cliente === showAbonoModal && d.estado !== 'pagada' && restante > 0) {
-        if (restante >= d.saldoUSD) {
-          restante -= d.saldoUSD;
-          return { ...d, abonadoUSD: d.abonadoUSD + d.saldoUSD, saldoUSD: 0, estado: 'pagada' };
-        } else {
-          const abonoParcial = restante;
-          restante = 0;
-          return { ...d, abonadoUSD: d.abonadoUSD + abonoParcial, saldoUSD: d.saldoUSD - abonoParcial, estado: 'parcial' };
-        }
+        const abonoAplicado = Math.min(restante, d.saldoUSD);
+        restante -= abonoAplicado;
+        
+        // Registrar el pago en el historial de la deuda
+        const historialPagos = d.historialPagos || [];
+        historialPagos.push({
+          fecha: ahora,
+          montoUSD: abonoAplicado,
+          montoBS: abonoAplicado * state.tasa
+        });
+
+        const nuevoSaldo = d.saldoUSD - abonoAplicado;
+        return { 
+          ...d, 
+          abonadoUSD: d.abonadoUSD + abonoAplicado, 
+          saldoUSD: nuevoSaldo, 
+          estado: nuevoSaldo <= 0 ? 'pagada' : 'parcial',
+          historialPagos
+        };
       }
       return d;
     });
@@ -394,6 +407,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                       <td className="text-center">
                         <div className="flex justify-center gap-2">
                           <button onClick={() => setShowDetailsModal(c)} className="btn-icon h-8 w-8 text-white hover:text-[#c8952e]" title="Ver Detalles"><Eye className="w-4 h-4"/></button>
+                          <button onClick={() => setShowHistoryModal(c)} className="btn-icon h-8 w-8 text-white hover:text-[#3a9bdc]" title="Historial de Abonos"><Clock className="w-4 h-4"/></button>
                           <button onClick={() => { setShowAbonoModal(c.cliente); setMontoAbono(''); }} className="btn btn-sm btn-primary font-black text-[9px] uppercase px-4">Abonar</button>
                         </div>
                       </td>
@@ -430,7 +444,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     <tr className="border-b border-white/10"><th className="text-white/40">Item</th><th className="text-white/40 text-center">Cant</th><th className="text-white/40 text-right">Subtotal</th></tr>
                   </thead>
                   <tbody>
-                    {/* Buscamos la venta original si existe para mostrar los items */}
                     {state.ventas.find(v => v.id === showDetailsModal.id || v.id === showDetailsModal.ventaId)?.items.map((it, idx) => (
                       <tr key={idx} className="border-b border-white/5">
                         <td className="text-white font-bold uppercase py-2">{it.nombre}</td>
@@ -439,6 +452,41 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                       </tr>
                     )) || (
                       <tr><td colSpan={3} className="text-center py-4 text-white/20 italic uppercase">Detalle de items no disponible (Deuda Directa)</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL HISTORIAL DE ABONOS */}
+      {showHistoryModal && (
+        <div className="modal show"><div className="modal-bg" onClick={() => setShowHistoryModal(null)}></div>
+          <div className="modal-box bg-[#1e1e1e] border-2 border-white/20 max-w-lg">
+            <div className="modal-head py-3 px-4 border-b border-white/10"><h3 className="text-white text-xs font-black uppercase">HISTORIAL DE PAGOS - {showHistoryModal.id}</h3><button onClick={() => setShowHistoryModal(null)}><X className="text-white"/></button></div>
+            <div className="modal-body p-4 space-y-4">
+              <div className="bg-black/40 p-3 rounded border border-white/5 space-y-1">
+                <div className="flex justify-between text-[10px] text-white/60"><span>CLIENTE:</span><span className="text-white font-black uppercase">{showHistoryModal.cliente}</span></div>
+                <div className="flex justify-between text-[10px] text-white/60"><span>SALDO PENDIENTE:</span><span className="text-[#3a9bdc] font-black">{Utils.fmtUSD(showHistoryModal.saldoUSD)}</span></div>
+              </div>
+              <div className="table-wrap max-h-60 overflow-y-auto">
+                <table className="text-[10px]">
+                  <thead>
+                    <tr className="border-b border-white/10"><th className="text-white/40">Fecha / Hora</th><th className="text-white/40 text-right">Abono (USD)</th><th className="text-white/40 text-right">Abono (BS)</th></tr>
+                  </thead>
+                  <tbody>
+                    {showHistoryModal.historialPagos && showHistoryModal.historialPagos.length > 0 ? (
+                      showHistoryModal.historialPagos.map((p: any, idx: number) => (
+                        <tr key={idx} className="border-b border-white/5">
+                          <td className="text-white font-bold py-2">{p.fecha.replace('T', ' ').slice(0, 16)}</td>
+                          <td className="text-[#27ae60] text-right font-black">{Utils.fmtUSD(p.montoUSD)}</td>
+                          <td className="text-white text-right font-black">{Utils.fmtBS(p.montoBS)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={3} className="text-center py-8 text-white/20 italic uppercase font-black">No se registran abonos aún</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -521,7 +569,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 <div className="flex justify-between"><span>BASE IMP (16%):</span><span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.baseImponibleUSD || 0)}</span></div>
                 <div className="flex justify-between font-bold"><span>IVA RECAUDADO:</span><span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.ivaUSD || 0)}</span></div>
                 <div className="flex justify-between font-black border-t border-black pt-2 text-sm"><span>TOTAL BRUTO:</span><span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.totalBrutoUSD || 0)}</span></div>
-                <div className="flex justify-between text-[8px] font-bold opacity-60 mt-4 uppercase"><span>ACUMULADO HISTÓRICO:</span><span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.acumuladoHistoricoUSD || 0)}</span></div>
+                <div className="flex justify-between text-[8px] font-bold opacity-60 mt-4 uppercase"><span>ACUMULADO HISTÓRICO:</span><span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.totalBrutoUSD || 0)}</span></div>
                 <p className="text-center mt-8 font-black uppercase text-[9px] tracking-widest border-t border-black pt-2">--- CIERRE DIARIO DEFINITIVO ---</p>
               </div>
             )}
@@ -535,3 +583,4 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     </div>
   );
 }
+
