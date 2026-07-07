@@ -402,7 +402,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                 value={datos.precioEstandarUSD} 
                 isActive={datos.tipoPrecioPrincipal === 'estandar'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'estandar'})}
-                onChange={(v) => {
+                onChange={(v: number) => {
                   setDatos({...datos, precioEstandarUSD: v});
                   if(datos.tipoPrecioPrincipal === 'estandar') recalcularDesdeUSD(v);
                 }}
@@ -412,7 +412,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                 value={datos.precioMayorUSD} 
                 isActive={datos.tipoPrecioPrincipal === 'mayor'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'mayor'})}
-                onChange={(v) => {
+                onChange={(v: number) => {
                   setDatos({...datos, precioMayorUSD: v});
                   if(datos.tipoPrecioPrincipal === 'mayor') recalcularDesdeUSD(v);
                 }}
@@ -422,7 +422,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                 value={datos.precioOfertaUSD} 
                 isActive={datos.tipoPrecioPrincipal === 'oferta'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'oferta'})}
-                onChange={(v) => {
+                onChange={(v: number) => {
                   setDatos({...datos, precioOfertaUSD: v});
                   if(datos.tipoPrecioPrincipal === 'oferta') recalcularDesdeUSD(v);
                 }}
@@ -432,7 +432,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                 value={datos.precioPromoUSD} 
                 isActive={datos.tipoPrecioPrincipal === 'promo'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'promo'})}
-                onChange={(v) => {
+                onChange={(v: number) => {
                   setDatos({...datos, precioPromoUSD: v});
                   if(datos.tipoPrecioPrincipal === 'promo') recalcularDesdeUSD(v);
                 }}
@@ -580,7 +580,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
   );
 }
 
-function PriceInput({ label, value, isActive, onSelect, onChange }: any) {
+function PriceInput({ label, value, isActive, onSelect, onChange }: { label: string, value: number, isActive: boolean, onSelect: () => void, onChange: (v: number) => void }) {
   return (
     <div className={`p-2 rounded border transition-all ${isActive ? 'bg-[#c8952e]/10 border-[#c8952e]' : 'bg-black border-[#2a2a2a]'}`}>
       <div className="flex justify-between items-center mb-1">
