@@ -24,7 +24,6 @@ export interface Product {
   proveedor: string;
   fechaCreacion: string;
   activo: boolean;
-  // Propiedades de Kit
   isKit?: boolean;
   kitType?: 'stock_propio' | 'stock_componentes';
   kitItems?: KitItem[];
@@ -52,72 +51,27 @@ export interface Sale {
   cuentaCobrarId?: string | null;
 }
 
-export interface Abono {
-  fecha: string;
-  montoUSD: number;
-  montoBS: number;
-  metodo: string;
-}
-
-export interface CxC {
+export interface ReportZ {
   id: string;
-  ventaId: string | null;
-  cliente: string;
-  montoUSD: number;
-  montoBS: number;
-  abonadoUSD: number;
-  saldoUSD: number;
   fecha: string;
-  fechaVencimiento: string;
-  estado: EntityStatus;
-  abonos: Abono[];
-  notas: string;
-}
-
-export interface CxP {
-  id: string;
-  proveedor: string;
-  concepto: string;
-  montoUSD: number;
-  montoBS: number;
-  abonadoUSD: number;
-  saldoUSD: number;
-  fecha: string;
-  fechaVencimiento: string;
-  estado: EntityStatus;
-  abonos: Abono[];
-}
-
-export interface Devolucion {
-  id: string;
-  ventaId: string;
-  fecha: string;
-  items: SaleItem[];
-  totalUSD: number;
-  totalBS: number;
-  motivo: string;
-  estado: EntityStatus;
-}
-
-export interface Movimiento {
-  id: string;
-  productoId: string;
-  tipo: 'compra' | 'venta' | 'devolucion' | 'ajuste_entrada' | 'ajuste_salida' | 'consumo' | 'colaboracion';
-  cantidad: number;
-  stockAntes: number;
-  stockDespues: number;
-  fecha: string;
-  referencia: string;
+  numeroZ: number;
+  desdeFactura: string;
+  hastaFactura: string;
+  baseImponibleUSD: number;
+  exentoUSD: number;
+  ivaUSD: number;
+  totalBrutoUSD: number;
+  acumuladoHistoricoUSD: number;
 }
 
 export interface AppState {
   tasa: number;
   productos: Product[];
   ventas: Sale[];
-  cxc: CxC[];
-  cxp: CxP[];
-  devoluciones: Devolucion[];
-  movimientos: Movimiento[];
+  cxc: any[];
+  cxp: any[];
+  devoluciones: any[];
+  movimientos: any[];
   carrito: SaleItem[];
   empresa: {
     nombre: string;
@@ -125,8 +79,10 @@ export interface AppState {
     direccion: string;
     telefono: string;
   };
-  // Listas de configuracion
   departamentos: string[];
   categorias: string[];
   marcas: string[];
+  reportesZ: ReportZ[];
+  ultimoZ: number;
+  acumuladoHistorico: number;
 }

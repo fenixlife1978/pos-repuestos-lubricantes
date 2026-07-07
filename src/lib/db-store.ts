@@ -14,6 +14,9 @@ export const initialState: AppState = {
   devoluciones: [],
   movimientos: [],
   carrito: [],
+  reportesZ: [],
+  ultimoZ: 0,
+  acumuladoHistorico: 0,
   empresa: { 
     nombre: 'Licorería El Buen Beber', 
     rif: 'J-12345678-9', 
