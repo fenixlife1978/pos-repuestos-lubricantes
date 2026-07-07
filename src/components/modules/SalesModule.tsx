@@ -20,7 +20,9 @@ import {
   History,
   ClipboardList,
   User,
-  ArrowLeft
+  ArrowLeft,
+  Eye,
+  HandCoins
 } from 'lucide-react';
 
 interface PagoRealizado {
@@ -40,6 +42,11 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [metodoActual, setMetodoActual] = useState<PaymentMethod>('efectivo_usd');
   const [montoInput, setMontoInput] = useState('');
   
+  // Modales de Crédito
+  const [showAbonoModal, setShowAbonoModal] = useState<string | null>(null); // cliente name
+  const [showDetailsModal, setShowDetailsModal] = useState<any | null>(null); // record
+  const [montoAbono, setMontoAbono] = useState('');
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const subtotalUSD = state.carrito.reduce((s, i) => s + i.subtotalUSD, 0);
@@ -107,7 +114,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const ejecutarVenta = () => {
     if (state.carrito.length === 0 || saldoRestanteUSD > 0.01) return;
     const ventaId = 'FAC-' + Store.uid().toUpperCase().slice(0, 6);
-    const hoy = Utils.hoy();
     const ahora = Utils.ahora();
     
     const nuevosProductos = state.productos.map(p => {
@@ -140,6 +146,34 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     alert('Venta procesada con éxito');
   };
 
+  // Lógica de Abono en Cascada (Deuda más antigua a más reciente)
+  const procesarAbonoCascada = () => {
+    const monto = parseFloat(montoAbono);
+    if (isNaN(monto) || monto <= 0 || !showAbonoModal) return;
+
+    let restante = monto;
+    const nuevasDeudas = [...state.cxc].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    
+    const actualizadas = nuevasDeudas.map(d => {
+      if (d.cliente === showAbonoModal && d.estado !== 'pagada' && restante > 0) {
+        if (restante >= d.saldoUSD) {
+          restante -= d.saldoUSD;
+          return { ...d, abonadoUSD: d.abonadoUSD + d.saldoUSD, saldoUSD: 0, estado: 'pagada' };
+        } else {
+          const abonoParcial = restante;
+          restante = 0;
+          return { ...d, abonadoUSD: d.abonadoUSD + abonoParcial, saldoUSD: d.saldoUSD - abonoParcial, estado: 'parcial' };
+        }
+      }
+      return d;
+    });
+
+    updateState({ cxc: actualizadas });
+    setShowAbonoModal(null);
+    setMontoAbono('');
+    alert('Abono procesado exitosamente');
+  };
+
   const emitirReporteZ = () => {
     if (!confirm('¿Desea realizar el CIERRE FISCAL Z? Esto bloqueará las ventas de hoy.')) return;
     const hoy = Utils.hoy();
@@ -161,16 +195,12 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setShowReport('Z');
   };
 
-  // Filtrado de ventas para hoy (Historial)
   const hoy = Utils.hoy();
   const ventasHoy = state.ventas.filter(v => v.fecha.startsWith(hoy)).sort((a,b) => b.fecha.localeCompare(a.fecha));
-
-  // Clientes con deudas activas (Consultar Créditos)
   const creditosActivos = state.cxc.filter(c => c.estado !== 'pagada');
 
   return (
     <div className="flex flex-col gap-2 h-[calc(100vh-100px)] max-w-7xl mx-auto w-full overflow-hidden">
-      {/* Pestañas Superiores */}
       <div className="flex gap-2 no-print shrink-0 overflow-x-auto pb-1">
         <button onClick={() => setView('pos')} className={`btn btn-sm ${view === 'pos' ? 'btn-primary' : 'btn-secondary text-white font-bold'}`}><ShoppingCart className="w-3.5 h-3.5"/> Punto de Venta</button>
         <button onClick={() => setView('history')} className={`btn btn-sm ${view === 'history' ? 'btn-primary' : 'btn-secondary text-white font-bold'}`}><History className="w-3.5 h-3.5"/> Historial</button>
@@ -182,7 +212,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
       {view === 'pos' ? (
         <div className="flex flex-col gap-2 flex-1 overflow-hidden animate-in fade-in duration-300">
-          {/* Barra de Búsqueda */}
           <div className="relative group shrink-0">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c8952e] z-10"><Barcode className="w-5 h-5" /></div>
             <input 
@@ -204,7 +233,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           </div>
 
           <div className="flex flex-1 gap-3 overflow-hidden">
-            {/* Panel Izquierdo 1/3 */}
             <div className="w-1/3 flex flex-col gap-2">
               <div className="card p-3 space-y-3 bg-[#131313] border-[#2a2a2a] h-full flex flex-col">
                 <div className="form-group mb-0">
@@ -239,14 +267,11 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
               </div>
             </div>
 
-            {/* Panel Derecho 2/3 (Carrito) */}
             <div className="w-2/3 flex flex-col gap-2 overflow-hidden">
               <div className="card flex-1 flex flex-col overflow-hidden bg-white border-none shadow-xl">
-                {/* Cabecera del Carrito */}
                 <div className="grid grid-cols-[1fr_80px_60px_70px_80px_80px_40px] gap-2 px-3 py-2 bg-[#131313] text-white text-[9px] font-black uppercase tracking-widest">
                   <div>Descripción</div><div className="text-center">Cant</div><div className="text-center">U.M.</div><div className="text-right">Precio ($)</div><div className="text-right">Precio (Bs)</div><div className="text-right">Total</div><div className="text-center"></div>
                 </div>
-                {/* Items del Carrito */}
                 <div className="flex-1 overflow-y-auto p-1 space-y-1">
                   {state.carrito.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-black/10"><ShoppingCart className="w-16 h-16 mb-2"/><p className="font-black uppercase text-[10px] tracking-tighter">Esperando Productos...</p></div>
@@ -270,7 +295,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     })
                   )}
                 </div>
-                {/* Total Factura (Inferior Carrito) */}
                 <div className="p-3 bg-[#131313] border-t border-[#2a2a2a] flex items-center justify-between">
                   <div className="space-y-1">
                     <label className="text-white text-[10px] font-black uppercase block">TOTAL FACTURA</label>
@@ -349,12 +373,13 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   <th className="text-white font-black text-[10px] uppercase">Cliente</th>
                   <th className="text-white font-black text-[10px] uppercase text-right">Monto Orig. USD</th>
                   <th className="text-white font-black text-[10px] uppercase text-right">Saldo Pend. USD</th>
+                  <th className="text-white font-black text-[10px] uppercase text-right">Saldo en Bs.</th>
                   <th className="text-white font-black text-[10px] uppercase text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {creditosActivos.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-24 text-white font-black uppercase italic opacity-30">No hay cuentas por cobrar activas</td></tr>
+                  <tr><td colSpan={7} className="text-center py-24 text-white font-black uppercase italic opacity-30">No hay cuentas por cobrar activas</td></tr>
                 ) : (
                   creditosActivos.map(c => (
                     <tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
@@ -365,8 +390,12 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                       <td className="text-white font-black text-xs uppercase">{c.cliente}</td>
                       <td className="text-white font-bold text-xs text-right">{Utils.fmtUSD(c.montoUSD)}</td>
                       <td className="text-[#3a9bdc] font-black text-xs text-right">{Utils.fmtUSD(c.saldoUSD)}</td>
+                      <td className="text-white font-bold text-xs text-right">{Utils.fmtBS(c.saldoUSD * state.tasa)}</td>
                       <td className="text-center">
-                        <button className="btn btn-sm btn-primary font-black text-[9px] uppercase px-4">Abonar</button>
+                        <div className="flex justify-center gap-2">
+                          <button onClick={() => setShowDetailsModal(c)} className="btn-icon h-8 w-8 text-white hover:text-[#c8952e]" title="Ver Detalles"><Eye className="w-4 h-4"/></button>
+                          <button onClick={() => { setShowAbonoModal(c.cliente); setMontoAbono(''); }} className="btn btn-sm btn-primary font-black text-[9px] uppercase px-4">Abonar</button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -384,11 +413,66 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* Modal Abono (Punto de Venta) */}
+      {/* MODAL DETALLES CREDITO */}
+      {showDetailsModal && (
+        <div className="modal show"><div className="modal-bg" onClick={() => setShowDetailsModal(null)}></div>
+          <div className="modal-box bg-[#1e1e1e] border-2 border-white/20 max-w-lg">
+            <div className="modal-head py-3 px-4 border-b border-white/10"><h3 className="text-white text-xs font-black uppercase">DETALLE DE CRÉDITO - {showDetailsModal.id}</h3><button onClick={() => setShowDetailsModal(null)}><X className="text-white"/></button></div>
+            <div className="modal-body p-4 space-y-4">
+              <div className="bg-black/40 p-3 rounded border border-white/5 space-y-1">
+                <div className="flex justify-between text-[10px] text-white/60"><span>CLIENTE:</span><span className="text-white font-black uppercase">{showDetailsModal.cliente}</span></div>
+                <div className="flex justify-between text-[10px] text-white/60"><span>EMISIÓN:</span><span className="text-white font-black">{Utils.fmtFecha(showDetailsModal.fecha)}</span></div>
+                <div className="flex justify-between text-sm font-black text-[#c8952e]"><span>TOTAL DEUDA:</span><span>{Utils.fmtUSD(showDetailsModal.montoUSD)}</span></div>
+              </div>
+              <div className="table-wrap max-h-48 overflow-y-auto">
+                <table className="text-[10px]">
+                  <thead>
+                    <tr className="border-b border-white/10"><th className="text-white/40">Item</th><th className="text-white/40 text-center">Cant</th><th className="text-white/40 text-right">Subtotal</th></tr>
+                  </thead>
+                  <tbody>
+                    {/* Buscamos la venta original si existe para mostrar los items */}
+                    {state.ventas.find(v => v.id === showDetailsModal.id || v.id === showDetailsModal.ventaId)?.items.map((it, idx) => (
+                      <tr key={idx} className="border-b border-white/5">
+                        <td className="text-white font-bold uppercase py-2">{it.nombre}</td>
+                        <td className="text-white text-center">{it.cantidad}</td>
+                        <td className="text-[#c8952e] text-right font-black">{Utils.fmtUSD(it.subtotalUSD)}</td>
+                      </tr>
+                    )) || (
+                      <tr><td colSpan={3} className="text-center py-4 text-white/20 italic uppercase">Detalle de items no disponible (Deuda Directa)</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ABONO GENERAL */}
+      {showAbonoModal && (
+        <div className="modal show"><div className="modal-bg" onClick={() => setShowAbonoModal(null)}></div>
+          <div className="modal-box max-w-[350px] bg-[#1e1e1e] border-2 border-white/20">
+            <div className="modal-head py-3 px-4 border-b border-white/10"><h3 className="text-white text-xs font-black uppercase">REGISTRAR ABONO - {showAbonoModal}</h3><button onClick={() => setShowAbonoModal(null)}><X className="text-white"/></button></div>
+            <div className="modal-body p-4 space-y-4">
+              <div className="bg-black p-3 rounded-lg text-center border border-white/10">
+                <p className="text-white/40 text-[9px] font-bold uppercase mb-1">DEUDA TOTAL CLIENTE</p>
+                <p className="text-2xl font-black text-[#3a9bdc]">{Utils.fmtUSD(state.cxc.filter(d => d.cliente === showAbonoModal && d.estado !== 'pagada').reduce((s, d) => s + d.saldoUSD, 0))}</p>
+              </div>
+              <div className="space-y-1"><label className="text-white text-[10px] font-bold uppercase">MONTO ABONO (USD)</label>
+                <input type="number" className="form-input h-12 text-lg font-black bg-[#0b0b0b] text-white border-white/20" placeholder="0.00" value={montoAbono} onChange={e => setMontoAbono(e.target.value)} onKeyDown={e => e.key === 'Enter' && procesarAbonoCascada()} autoFocus />
+              </div>
+              <p className="text-[9px] text-white/40 italic uppercase text-center leading-tight">Nota: El abono se aplicará automáticamente desde la deuda más antigua hasta la más reciente.</p>
+              <button className="btn btn-primary w-full h-12 font-black uppercase text-xs" onClick={procesarAbonoCascada}>CONFIRMAR ABONO EN CASCADA</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Multi-pago POS */}
       {showMultiModal && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowMultiModal(false)}></div>
           <div className="modal-box max-w-[350px] bg-[#1e1e1e] border-2 border-white/20">
-            <div className="modal-head py-3 px-4 border-b border-white/10"><h3 className="text-white text-xs font-black uppercase">REGISTRAR ABONO</h3><button onClick={() => setShowMultiModal(false)}><X className="text-white"/></button></div>
+            <div className="modal-head py-3 px-4 border-b border-white/10"><h3 className="text-white text-xs font-black uppercase">REGISTRAR PAGO</h3><button onClick={() => setShowMultiModal(false)}><X className="text-white"/></button></div>
             <div className="modal-body p-4 space-y-4">
               <div className="bg-black p-3 rounded-lg text-center border border-white/10"><p className="text-white/40 text-[9px] font-bold uppercase mb-1">Pendiente</p><p className="text-2xl font-black text-[#3a9bdc]">{Utils.fmtUSD(saldoRestanteUSD)}</p><p className="text-xs text-white/60 font-bold">{Utils.fmtBS(saldoRestanteBS)}</p></div>
               <div className="space-y-1"><label className="text-white text-[10px] font-bold uppercase">MÉTODO</label>
@@ -451,4 +535,3 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     </div>
   );
 }
-
