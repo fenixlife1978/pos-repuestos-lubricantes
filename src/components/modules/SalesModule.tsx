@@ -234,11 +234,14 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                       const product = state.productos.find(p => p.id === item.productoId);
                       return (
                         <div key={i} className="grid grid-cols-[1fr_80px_60px_70px_80px_80px_40px] gap-2 items-center px-2 py-1 bg-white border-b border-black/5 text-black">
-                          <div className="flex flex-col min-w-0"><div className="truncate font-black text-[10px] uppercase">{item.nombre}</div><div className="text-[8px] opacity-40 mono">{item.productoId}</div></div>
+                          <div className="flex flex-col min-w-0">
+                            <div className="truncate font-black text-[10px] uppercase text-black">{item.nombre}</div>
+                            <div className="text-[8px] font-bold text-black mono">{item.productoId}</div>
+                          </div>
                           <div className="flex items-center justify-center gap-1 bg-black/5 rounded p-0.5"><button onClick={() => updateQty(i, -1)} className="text-black font-bold text-xs"> - </button><span className="w-5 text-center text-[10px] font-black">{item.cantidad}</span><button onClick={() => updateQty(i, 1)} className="text-black font-bold text-xs"> + </button></div>
                           <div className="text-center text-[9px] font-bold">{product?.cantidad || '-'}</div>
                           <div className="text-right text-[10px] font-bold">{Utils.fmtUSD(item.precioUnitUSD)}</div>
-                          <div className="text-right text-[10px] opacity-60">{Utils.fmtBS(item.precioUnitUSD * state.tasa)}</div>
+                          <div className="text-right text-[10px] font-bold text-black">{Utils.fmtBS(item.precioUnitUSD * state.tasa)}</div>
                           <div className="text-right text-[11px] font-black">{Utils.fmtUSD(item.subtotalUSD)}</div>
                           <div className="flex justify-center"><button onClick={() => updateQty(i, -item.cantidad)} className="text-black/30 hover:text-red-600"><Trash2 className="w-3.5 h-3.5"/></button></div>
                         </div>
