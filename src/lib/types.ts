@@ -28,7 +28,12 @@ export interface Product {
   cantidad: string;
   marca: string;
   costoUSD: number;
-  precioUSD: number;
+  precioUSD: number; // Precio activo para el POS
+  precioEstandarUSD?: number;
+  precioMayorUSD?: number;
+  precioOfertaUSD?: number;
+  precioPromoUSD?: number;
+  tipoPrecioPrincipal?: 'estandar' | 'mayor' | 'oferta' | 'promo';
   margen: number;
   stock: number;
   stockMinimo: number;
