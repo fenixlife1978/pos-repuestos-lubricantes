@@ -8,6 +8,17 @@ export interface KitItem {
   cantidad: number;
 }
 
+export interface Movimiento {
+  id: string;
+  productoId: string;
+  tipo: 'compra' | 'venta' | 'devolucion' | 'ajuste_entrada' | 'ajuste_salida' | 'consumo' | 'colaboracion';
+  cantidad: number;
+  stockAntes: number;
+  stockDespues: number;
+  fecha: string;
+  referencia: string;
+}
+
 export interface Product {
   id: string;
   codigo: string;
@@ -64,6 +75,28 @@ export interface ReportZ {
   acumuladoHistoricoUSD: number;
 }
 
+export interface Customer {
+  id: string;
+  name: string;
+  cedula: string;
+  phone: string;
+  address: string;
+  debt: number;
+}
+
+export interface CashSession {
+  openDate: string;
+  openAmount: number;
+  openNotes: string;
+  closeDate: string | null;
+  closeAmount: number | null;
+  closeNotes: string | null;
+  totalSales: number;
+  totalCollections: number;
+  saleCount: number;
+  difference?: number;
+}
+
 export interface AppState {
   tasa: number;
   productos: Product[];
@@ -71,7 +104,7 @@ export interface AppState {
   cxc: any[];
   cxp: any[];
   devoluciones: any[];
-  movimientos: any[];
+  movimientos: Movimiento[];
   carrito: SaleItem[];
   empresa: {
     nombre: string;
