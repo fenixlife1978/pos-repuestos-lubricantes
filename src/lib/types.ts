@@ -40,6 +40,7 @@ export interface Product {
   proveedor: string;
   fechaCreacion: string;
   activo: boolean;
+  aplicaIVA?: boolean;
   isKit?: boolean;
   kitType?: 'stock_propio' | 'stock_componentes';
   kitItems?: KitItem[];
