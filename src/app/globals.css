@@ -3,27 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --bg: #000000;
-  --bg2: #0a0a0a;
-  --card: #111111;
-  --card2: #1a1a1a;
-  --border: #333333;
-  --border2: #444444;
-  --accent: #facc15;
-  --accent-l: #fef08a;
-  --accent-d: #ca8a04;
-  --accent-bg: rgba(250, 204, 21, 0.15);
-  --text: #ffffff;
+  --bg: #0b0b0b;
+  --bg2: #131313;
+  --card: #181818;
+  --card2: #222222;
+  --border: #2a2a2a;
+  --border2: #333333;
+  --accent: #c8952e;
+  --accent-l: #e0ac4a;
+  --accent-d: #a67b25;
+  --accent-bg: rgba(200, 149, 46, 0.1);
+  --text: #ece7df;
   --text2: #fafafa;
   --text3: #f5f5f5;
-  --ok: #2ecc71;
-  --ok-bg: rgba(46, 204, 113, 0.2);
-  --err: #ff4d4d;
-  --err-bg: rgba(255, 77, 77, 0.2);
+  --ok: #27ae60;
+  --ok-bg: rgba(39, 174, 96, 0.1);
+  --err: #e04848;
+  --err-bg: rgba(224, 72, 72, 0.1);
   --warn: #f1c40f;
-  --warn-bg: rgba(241, 196, 15, 0.2);
-  --info: #3498db;
-  --info-bg: rgba(52, 152, 219, 0.2);
+  --warn-bg: rgba(241, 196, 15, 0.1);
+  --info: #3a9bdc;
+  --info-bg: rgba(58, 155, 220, 0.1);
   --radius: 12px;
   --radius-sm: 8px;
   --font-display: 'Space Grotesk', sans-serif;
@@ -60,7 +60,7 @@ h1, h2, h3, .mono { font-family: var(--font-display); font-weight: 800; }
 
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 800; transition: all 0.2s; white-space: nowrap; cursor: pointer; border: none; text-transform: uppercase; letter-spacing: 0.5px; }
 .btn-primary { background: var(--accent); color: #000000; }
-.btn-primary:hover { background: var(--accent-l); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3); }
+.btn-primary:hover { background: var(--accent-l); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(200, 149, 46, 0.3); }
 .btn-secondary { background: var(--card2); color: var(--text); border: 2px solid var(--border); }
 .btn-secondary:hover { border-color: var(--accent); background: var(--bg2); }
 
