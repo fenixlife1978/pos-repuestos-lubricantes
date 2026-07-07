@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { AppState } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
-import { Plus, X, Save, HandCoins, Calendar } from 'lucide-react';
+import { Plus, X, Save, HandCoins, Calendar, CheckSquare, Square } from 'lucide-react';
 
 export default function CxCModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [showModal, setShowModal] = useState(false);
@@ -12,7 +12,8 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     cliente: '',
     montoUSD: 0,
     fecha: Utils.hoy(),
-    vencimiento: Utils.hoy()
+    vencimiento: Utils.hoy(),
+    sinVencimiento: false
   });
 
   const pendientes = state.cxc.filter(x => x.estado !== 'pagada');
@@ -27,7 +28,8 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     const nuevaEntrada = {
       id: 'DEU-' + Store.uid(),
       fecha: nuevaDeuda.fecha,
-      fechaVencimiento: nuevaDeuda.vencimiento,
+      // Si no tiene vencimiento, ponemos una fecha muy lejana
+      fechaVencimiento: nuevaDeuda.sinVencimiento ? '2099-12-31' : nuevaDeuda.vencimiento,
       cliente: nuevaDeuda.cliente,
       montoUSD: nuevaDeuda.montoUSD,
       abonadoUSD: 0,
@@ -40,7 +42,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     });
 
     setShowModal(false);
-    setNuevaDeuda({ cliente: '', montoUSD: 0, fecha: Utils.hoy(), vencimiento: Utils.hoy() });
+    setNuevaDeuda({ cliente: '', montoUSD: 0, fecha: Utils.hoy(), vencimiento: Utils.hoy(), sinVencimiento: false });
   };
 
   return (
@@ -92,7 +94,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                   <tr key={x.id} className="border-b border-white/5">
                     <td className="text-white font-bold text-xs">{Utils.fmtFecha(x.fecha)}</td>
                     <td className={`text-xs font-bold ${x.fechaVencimiento < Utils.hoy() && x.estado !== 'pagada' ? 'text-[#e04848]' : 'text-white'}`}>
-                      {Utils.fmtFecha(x.fechaVencimiento)}
+                      {x.fechaVencimiento === '2099-12-31' ? 'ABIERTA' : Utils.fmtFecha(x.fechaVencimiento)}
                     </td>
                     <td className="text-white font-black text-xs uppercase">{x.cliente}</td>
                     <td className="text-white font-bold text-xs text-right">{Utils.fmtUSD(x.montoUSD)}</td>
@@ -142,6 +144,20 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                   onChange={e => setNuevaDeuda({...nuevaDeuda, montoUSD: parseFloat(e.target.value) || 0})}
                 />
               </div>
+
+              <div className="flex items-center gap-2 mb-2 p-2 bg-[#0b0b0b] rounded border border-white/10">
+                <button 
+                  type="button"
+                  onClick={() => setNuevaDeuda({...nuevaDeuda, sinVencimiento: !nuevaDeuda.sinVencimiento})}
+                  className="text-[#c8952e]"
+                >
+                  {nuevaDeuda.sinVencimiento ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+                </button>
+                <label className="text-white text-[11px] font-black uppercase cursor-pointer" onClick={() => setNuevaDeuda({...nuevaDeuda, sinVencimiento: !nuevaDeuda.sinVencimiento})}>
+                  Sin fecha de vencimiento (Deuda abierta)
+                </label>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-group">
                   <label className="text-white text-[10px] font-black uppercase block mb-1">Fecha de Origen</label>
@@ -155,7 +171,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                     />
                   </div>
                 </div>
-                <div className="form-group">
+                <div className={`form-group transition-opacity ${nuevaDeuda.sinVencimiento ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                   <label className="text-white text-[10px] font-black uppercase block mb-1">Vencimiento</label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-[#e04848]" />
@@ -164,6 +180,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                       className="form-input bg-[#0b0b0b] text-white border-[#2a2a2a] h-10 pl-10 text-xs font-bold" 
                       value={nuevaDeuda.vencimiento} 
                       onChange={e => setNuevaDeuda({...nuevaDeuda, vencimiento: e.target.value})}
+                      disabled={nuevaDeuda.sinVencimiento}
                     />
                   </div>
                 </div>
