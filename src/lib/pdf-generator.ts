@@ -69,34 +69,62 @@ export const generarPDFInventarioSimple = (products: Product[], empresa: Company
   doc.save(`Inventario_Basico_${new Date().getTime()}.pdf`);
 };
 
-// 2. Reporte General (CPP y Valorización)
-export const exportarPDFInventarioGeneral = (data: any[], empresa: CompanyInfo, groupBy: string, totals: any) => {
+// 2. Reporte General (Detallado por Grupo)
+export const exportarPDFInventarioGeneral = (productos: Product[], empresa: CompanyInfo, groupBy: string, totals: any) => {
   const doc = new jsPDF('p', 'mm', 'letter');
-  drawHeader(doc, `Inventario por ${groupBy}`, empresa);
+  drawHeader(doc, `Inventario Detallado por ${groupBy}`, empresa);
 
+  // Resumen Ejecutivo en Cabecera
   doc.setFillColor(240, 240, 240);
-  doc.rect(15, 40, 186, 15, 'F');
+  doc.rect(15, 40, 186, 12, 'F');
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text(`VALOR TOTAL AL COSTO: ${fmt(totals.costo)}`, 20, 50);
-  doc.text(`VALOR TOTAL A LA VENTA: ${fmt(totals.venta)}`, 110, 50);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`VALOR TOTAL AL COSTO: ${fmt(totals.costo)}`, 20, 48);
+  doc.text(`VALOR TOTAL A LA VENTA: ${fmt(totals.venta)}`, 110, 48);
 
-  autoTable(doc, {
-    startY: 60,
-    head: [[groupBy.toUpperCase(), 'ITEMS', 'STOCK TOTAL', 'CPP PROMEDIO', 'VALOR COSTO', 'VALOR VENTA']],
-    body: data.map(r => [
-      r.label.toUpperCase(),
-      r.itemsCount,
-      r.stockTotal,
-      fmt(r.cpp),
-      fmt(r.valCosto),
-      fmt(r.valVenta)
-    ]),
-    headStyles: { fillColor: [30, 30, 30] },
-    styles: { fontSize: 8 }
+  const uniqueGroups = Array.from(new Set(productos.map(p => (p[groupBy as keyof Product] as string) || 'SIN ASIGNAR'))).sort();
+
+  let currentY = 55;
+
+  uniqueGroups.forEach((groupName) => {
+    const groupProds = productos.filter(p => ((p[groupBy as keyof Product] as string) || 'SIN ASIGNAR') === groupName);
+    
+    // Verificar salto de página manual si el espacio es poco
+    if (currentY > 240) {
+      doc.addPage();
+      drawHeader(doc, `Inventario Detallado por ${groupBy}`, empresa);
+      currentY = 40;
+    }
+
+    // Encabezado de Grupo
+    doc.setFillColor(60, 60, 60);
+    doc.rect(15, currentY, 186, 7, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`${groupBy.toUpperCase()}: ${groupName.toUpperCase()} (${groupProds.length} ÍTEMS)`, 18, currentY + 5);
+    
+    autoTable(doc, {
+      startY: currentY + 7,
+      head: [['CÓDIGO', 'PRODUCTO', 'COSTO UNIT.', 'PRECIO UNIT.', 'STOCK', 'SUBTOTAL COSTO']],
+      body: groupProds.map(p => [
+        p.codigo,
+        p.nombre.toUpperCase(),
+        fmt(p.costoUSD),
+        fmt(p.precioUSD),
+        p.stock,
+        fmt(p.costoUSD * p.stock)
+      ]),
+      headStyles: { fillColor: [100, 100, 100] },
+      styles: { fontSize: 7 },
+      margin: { left: 15, right: 15 },
+      theme: 'grid'
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 5;
   });
 
-  doc.save(`Reporte_General_${groupBy}_${new Date().getTime()}.pdf`);
+  doc.save(`Reporte_Inventario_Detallado_${groupBy}_${new Date().getTime()}.pdf`);
 };
 
 // 3. Reporte de Ventas Detallado

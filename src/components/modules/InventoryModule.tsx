@@ -627,15 +627,12 @@ function ReporteGeneral({ state }: { state: AppState }) {
   const uniqueKeys = Array.from(new Set(state.productos.map(p => (p[groupBy] as string) || 'Sin asignar'))).sort();
 
   const handleExportPDF = () => {
-    const data = uniqueKeys.map(key => {
-      const groupProds = state.productos.filter(p => ((p[groupBy] as string) || 'Sin asignar') === key);
-      const stockTotal = groupProds.reduce((s, p) => s + p.stock, 0);
-      const costTotal = groupProds.reduce((s, p) => s + (p.costoUSD * p.stock), 0);
-      const ventTotal = groupProds.reduce((s, p) => s + (p.precioUSD * p.stock), 0);
-      const cppPromedio = stockTotal > 0 ? costTotal / stockTotal : 0;
-      return { label: key, itemsCount: groupProds.length, stockTotal, cpp: cppPromedio, valCosto: costTotal, valVenta: ventTotal };
-    });
-    exportarPDFInventarioGeneral(data, state.empresa, groupBy, { costo: totalCosto, venta: totalVenta });
+    exportarPDFInventarioGeneral(
+      state.productos.filter(p => p.activo), 
+      state.empresa, 
+      groupBy, 
+      { costo: totalCosto, venta: totalVenta }
+    );
   };
 
   return (
