@@ -119,6 +119,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       }
     }
     
+    if (monto <= 0) return alert("El monto debe ser mayor a cero");
+
     let montoUSD = metodoActual === 'efectivo_usd' ? monto : monto / state.tasa;
     let montoBS = metodoActual === 'efectivo_usd' ? monto * state.tasa : monto;
     
@@ -131,6 +133,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       setShowMultiModal(false);
     }
     setMontoInput('');
+  };
+
+  const removeAbonoPago = (idx: number) => {
+    setAbonoPagos(abonoPagos.filter((_, i) => i !== idx));
   };
 
   const ejecutarVenta = () => {
@@ -591,8 +597,13 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 </div>
                 <div className="space-y-1 max-h-24 overflow-y-auto">
                   {abonoPagos.map((p, idx) => (
-                    <div key={idx} className="flex justify-between text-[9px] text-white font-bold border-b border-white/5 py-1">
-                      <span>{Utils.metodoLabel(p.metodo)}</span>
+                    <div key={idx} className="flex justify-between items-center text-[9px] text-white font-bold border-b border-white/5 py-1">
+                      <div className="flex items-center gap-2">
+                         <button onClick={() => removeAbonoPago(idx)} className="text-red-500 hover:text-red-400">
+                           <Trash2 className="w-3.5 h-3.5" />
+                         </button>
+                         <span>{Utils.metodoLabel(p.metodo)}</span>
+                      </div>
                       <span className="text-[#c8952e]">{Utils.fmtUSD(p.montoUSD)}</span>
                     </div>
                   ))}
@@ -695,7 +706,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             <div className="text-center mb-4"><h3 className="font-black text-xs uppercase">{state.empresa.nombre}</h3><p>RIF: {state.empresa.rif}</p><p>{state.empresa.direccion}</p></div>
             <div className="border-t border-dashed border-black my-2"></div>
             <div className="space-y-1">
-              <div className="flex justify-between font-bold"><span>RECIBO NRO:</span><span>{lastProcessedSale.id}</span></div>
+              <div className="flex justify-between font-bold"><span>{lastProcessedSale.type === 'COBRO DEUDA' ? 'INFORME' : 'RECIBO'} NRO:</span><span>{lastProcessedSale.id}</span></div>
               <div className="flex justify-between"><span>FECHA:</span><span>{Utils.fmtFecha(lastProcessedSale.fecha)}</span></div>
               <div className="flex justify-between"><span>HORA:</span><span>{lastProcessedSale.fecha.split('T')[1].slice(0, 5)}</span></div>
               <div className="flex justify-between"><span>CLIENTE:</span><span className="font-bold uppercase">{lastProcessedSale.cliente}</span></div>
