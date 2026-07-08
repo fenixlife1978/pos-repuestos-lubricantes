@@ -1223,7 +1223,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       {showReceiptModal && lastProcessedSale && (
         <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 no-print">
           <div className="bg-white rounded-xl max-w-sm w-full shadow-2xl overflow-hidden flex flex-col border border-gray-200">
-            <div className="bg-[#1A2C4E] p-3.5 flex justify-between items-center border-b border-gray-700">
+            <div className="bg-black p-3.5 flex justify-between items-center border-b border-gray-700">
               <h3 className="text-white font-bold text-sm flex items-center gap-2 tracking-wide">
                 <Printer size={16} className="text-amber-400" /> VISTA PREVIA DEL DOCUMENTO
               </h3>
@@ -1324,6 +1324,11 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
                 <div style={{ textAlign: 'center', marginTop: '12px', paddingTop: '6px', borderTop: '1px dashed #000', fontSize: '8px' }}>
                   <p style={{ margin: '2px 0', fontWeight: 'bold' }}>¡GRACIAS POR SU PREFERENCIA!</p>
+                  {lastProcessedSale.estado === 'pendiente' && (
+                    <p style={{ margin: '4px 0', fontWeight: 'bold', color: '#000', fontSize: '9px', border: '1px solid #000', padding: '2px' }}>
+                      EL MONTO EN BS. CAMBIA SEGUN LA TASA BCV DEL DIA DE PAGO
+                    </p>
+                  )}
                   <p style={{ margin: '2px 0' }}>CONSERVE ESTE TICKET COMO COMPROBANTE</p>
                   <p style={{ fontSize: '7px', marginTop: '6px', color: '#444' }}>Desarrollado por LicoreriaPOS v2.0</p>
                 </div>
