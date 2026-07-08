@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, Product, Movimiento, KitItem } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
-import { Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, Gift, Layers, Trash } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, Gift, Layers, Trash, ShoppingBag, TrendingUp } from 'lucide-react';
 
 export default function InventoryModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [activeTab, setActiveTab] = useState('productos');
@@ -697,6 +697,25 @@ function ReporteVentas({ state }: { state: AppState }) {
 
   const ventas = filtrarVentas();
 
+  // Cálculos para métricas solicitadas
+  const totalVendidos = ventas.reduce((acc, v) => 
+    acc + v.items.reduce((sum, item) => sum + item.cantidad, 0), 0
+  );
+
+  const statsMap: Record<string, { nombre: string, cantidad: number, precio: number }> = {};
+  ventas.forEach(v => {
+    v.items.forEach(item => {
+      if (!statsMap[item.productoId]) {
+        statsMap[item.productoId] = { nombre: item.nombre, cantidad: 0, precio: item.precioUnitUSD };
+      }
+      statsMap[item.productoId].cantidad += item.cantidad;
+    });
+  });
+
+  const top3 = Object.values(statsMap)
+    .sort((a, b) => b.cantidad - a.cantidad)
+    .slice(0, 3);
+
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
       <div className="filters flex flex-wrap gap-4 items-end bg-[#131313] p-4 rounded-lg border border-[#2a2a2a]">
@@ -722,8 +741,31 @@ function ReporteVentas({ state }: { state: AppState }) {
             </div>
           </>
         )}
+
+        {/* MÉTRICA: Total Vendidos */}
+        <div className="flex flex-col bg-black/40 px-4 py-1.5 rounded border border-white/5">
+          <span className="text-[8px] text-white/40 font-black uppercase">Volumen Total</span>
+          <span className="text-lg font-black text-[#c8952e]">{totalVendidos} <span className="text-[9px] text-white/60">UDS</span></span>
+        </div>
+
+        {/* MÉTRICA: Top 3 Productos */}
+        <div className="flex-1 flex gap-2 overflow-x-auto min-w-[240px]">
+          {top3.map((p, i) => (
+            <div key={i} className="flex flex-col bg-black/20 px-3 py-1.5 rounded border border-[#c8952e]/10 flex-1 min-w-[140px]">
+              <div className="flex justify-between items-center mb-0.5">
+                <span className="text-[8px] text-[#c8952e] font-black uppercase">#{i+1} TOP VENTAS</span>
+                <span className="text-[8px] text-white/40 font-bold">${p.precio} c/u</span>
+              </div>
+              <span className="text-[10px] text-white font-black uppercase truncate max-w-[130px]">{p.nombre}</span>
+              <span className="text-[10px] font-black text-white">{p.cantidad} <span className="text-[8px] text-white/40">VENDIDOS</span></span>
+            </div>
+          ))}
+          {top3.length === 0 && (
+             <div className="flex-1 flex items-center justify-center border border-dashed border-white/10 rounded italic text-white/20 text-[9px] uppercase font-black">Sin datos hoy</div>
+          )}
+        </div>
         
-        <button className="btn btn-secondary ml-auto text-white font-black text-xs uppercase" onClick={() => window.print()}>
+        <button className="btn btn-secondary text-white font-black text-xs uppercase" onClick={() => window.print()}>
           <FileText className="w-4 h-4" /> EXPORTAR PDF
         </button>
       </div>
