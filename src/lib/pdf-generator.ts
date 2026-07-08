@@ -24,32 +24,32 @@ const drawHeader = (doc: jsPDF, title: string, empresa: CompanyInfo) => {
   doc.setTextColor(20, 20, 20);
   const companyName = empresa.nombre.toUpperCase();
   // Se limita el ancho para evitar que choque con el título a la derecha
-  doc.text(companyName, margin, 20, { maxWidth: usableWidth * 0.55 });
+  doc.text(companyName, margin, 18, { maxWidth: usableWidth * 0.55 });
 
   // Datos secundarios de la empresa (Izquierda)
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 100);
-  doc.text(empresa.direccion.toUpperCase(), margin, 26, { maxWidth: usableWidth * 0.6 });
+  doc.text(empresa.direccion.toUpperCase(), margin, 25, { maxWidth: usableWidth * 0.55 });
   doc.text(`RIF: ${empresa.rif} | TEL: ${empresa.telefono}`, margin, 30);
 
   // Título del Reporte (Derecha)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(0, 0, 0);
-  // Se limita el ancho y se alinea a la derecha para evitar superposiciones
-  doc.text(title.toUpperCase(), pageWidth - margin, 20, { align: 'right', maxWidth: usableWidth * 0.4 });
+  // Se alinea a la derecha con un maxWidth que permite saltos de línea elegantes
+  doc.text(title.toUpperCase(), pageWidth - margin, 18, { align: 'right', maxWidth: usableWidth * 0.40 });
 
-  // Fecha de generación (Derecha, debajo del título)
+  // Fecha de generación (Derecha, debajo del título) - Movida más abajo para evitar pisar títulos largos
   const now = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(`GENERADO EL: ${now}`, pageWidth - margin, 26, { align: 'right' });
+  doc.text(`GENERADO EL: ${now}`, pageWidth - margin, 30, { align: 'right' });
 
   // Línea divisoria elegante
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.5);
-  doc.line(margin, 35, pageWidth - margin, 35);
+  doc.line(margin, 36, pageWidth - margin, 36);
 };
 
 // 1. Reporte de Inventario Simple (Listado)
@@ -67,7 +67,7 @@ export const generarPDFInventarioSimple = (products: Product[], empresa: Company
   ]);
 
   autoTable(doc, {
-    startY: 40,
+    startY: 42,
     head: [['CÓDIGO', 'NOMBRE', 'CATEGORÍA', 'COSTO', 'PRECIO', 'STOCK']],
     body: tableRows,
     headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
@@ -85,16 +85,16 @@ export const exportarPDFInventarioGeneral = (productos: Product[], empresa: Comp
 
   // Resumen Ejecutivo en Cabecera
   doc.setFillColor(240, 240, 240);
-  doc.rect(15, 40, 186, 12, 'F');
+  doc.rect(15, 42, 186, 12, 'F');
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text(`VALOR TOTAL AL COSTO: ${fmt(totals.costo)}`, 20, 48);
-  doc.text(`VALOR TOTAL A LA VENTA: ${fmt(totals.venta)}`, 110, 48);
+  doc.text(`VALOR TOTAL AL COSTO: ${fmt(totals.costo)}`, 20, 50);
+  doc.text(`VALOR TOTAL A LA VENTA: ${fmt(totals.venta)}`, 110, 50);
 
   const uniqueGroups = Array.from(new Set(productos.map(p => (p[groupBy as keyof Product] as string) || 'SIN ASIGNAR'))).sort();
 
-  let currentY = 55;
+  let currentY = 58;
 
   uniqueGroups.forEach((groupName) => {
     const groupProds = productos.filter(p => ((p[groupBy as keyof Product] as string) || 'SIN ASIGNAR') === groupName);
@@ -143,11 +143,11 @@ export const exportarPDFVentasDetallado = (ventas: any[], empresa: CompanyInfo, 
 
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text(`PERIODO: ${periodo.toUpperCase()}`, 15, 42);
-  doc.text(`VOLUMEN TOTAL: ${stats.totalVendidos} UNIDADES`, 15, 47);
+  doc.text(`PERIODO: ${periodo.toUpperCase()}`, 15, 45);
+  doc.text(`VOLUMEN TOTAL: ${stats.totalVendidos} UNIDADES`, 15, 50);
 
   autoTable(doc, {
-    startY: 55,
+    startY: 58,
     head: [['FECHA', 'PRODUCTO', 'MÉTODO', 'CANT.', 'PRECIO UNIT.', 'TOTAL (USD)']],
     body: ventas.flatMap(v => v.items.map((item: any, idx: number) => [
       idx === 0 ? v.fecha.slice(0, 10) : '',
@@ -172,12 +172,12 @@ export const exportarPDFKardex = (producto: Product, movimientos: Movimiento[], 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text(`PRODUCTO: ${producto.nombre.toUpperCase()}`, 15, 42);
+  doc.text(`PRODUCTO: ${producto.nombre.toUpperCase()}`, 15, 45);
   doc.setFont('helvetica', 'normal');
-  doc.text(`CÓDIGO: ${producto.codigo} | STOCK ACTUAL: ${producto.stock}`, 15, 47);
+  doc.text(`CÓDIGO: ${producto.codigo} | STOCK ACTUAL: ${producto.stock}`, 15, 50);
 
   autoTable(doc, {
-    startY: 55,
+    startY: 58,
     head: [['FECHA / HORA', 'TIPO MOVIMIENTO', 'CANT.', 'ANTES', 'DESPUÉS', 'REFERENCIA']],
     body: movimientos.map(m => [
       m.fecha.replace('T', ' ').slice(0, 16),
@@ -200,14 +200,14 @@ export const exportarPDFHistorialAjustes = (ajustes: any[], empresa: CompanyInfo
   drawHeader(doc, 'Historial Cronológico de Ajustes', empresa);
 
   doc.setFillColor(240, 240, 240);
-  doc.rect(15, 40, 186, 10, 'F');
+  doc.rect(15, 42, 186, 10, 'F');
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text(`EFECTO NETO EN VALOR INVENTARIO: ${fmt(efectoNeto)}`, 20, 46.5);
+  doc.text(`EFECTO NETO EN VALOR INVENTARIO: ${fmt(efectoNeto)}`, 20, 48.5);
 
   autoTable(doc, {
-    startY: 55,
+    startY: 58,
     head: [['FECHA', 'PRODUCTO', 'TIPO', 'CANT.', 'ANTES', 'DESPUÉS', 'REFERENCIA']],
     body: ajustes.map(m => [
       m.fecha.replace('T', ' ').slice(0, 16),
@@ -231,15 +231,15 @@ export const exportarPDFConsumoInterno = (movs: any[], empresa: CompanyInfo, tot
   drawHeader(doc, 'Consumo Interno y Colaboraciones', empresa);
 
   doc.setFillColor(255, 235, 235);
-  doc.rect(15, 40, 186, 10, 'F');
+  doc.rect(15, 42, 186, 10, 'F');
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(200, 0, 0);
-  doc.text(`COSTO TOTAL DE SALIDA (PÉRDIDA): ${fmt(totalPerdida)}`, 20, 46.5);
+  doc.text(`COSTO TOTAL DE SALIDA (PÉRDIDA): ${fmt(totalPerdida)}`, 20, 48.5);
   doc.setTextColor(0, 0, 0);
 
   autoTable(doc, {
-    startY: 55,
+    startY: 58,
     head: [['FECHA', 'PRODUCTO', 'TIPO', 'CANTIDAD', 'COSTO UNIT.', 'SUBTOTAL PÉRDIDA']],
     body: movs.map(m => [
       m.fecha.slice(0, 10),
