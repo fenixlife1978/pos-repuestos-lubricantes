@@ -12,50 +12,70 @@ interface CompanyInfo {
   telefono: string;
 }
 
-// Función base para dibujar el encabezado profesional
-const drawHeader = (doc: jsPDF, title: string, empresa: CompanyInfo) => {
+/**
+ * Dibuja el encabezado profesional de forma dinámica
+ * Retorna la coordenada Y donde termina la cabecera para que el contenido empiece correctamente.
+ */
+const drawHeader = (doc: jsPDF, title: string, empresa: CompanyInfo): number => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   const usableWidth = pageWidth - (margin * 2);
 
-  // Nombre de la Empresa (Izquierda)
+  // 1. Bloque Izquierdo: Datos de la Empresa
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(20, 20, 20);
+  
   const companyName = empresa.nombre.toUpperCase();
-  // Se limita el ancho para evitar que choque con el título a la derecha
-  doc.text(companyName, margin, 18, { maxWidth: usableWidth * 0.55 });
+  const companyLines = doc.splitTextToSize(companyName, usableWidth * 0.55);
+  doc.text(companyLines, margin, 18);
+  
+  // Calculamos el Y dinámico después del nombre (aprox 6.5mm por línea de 16pt)
+  let leftY = 18 + (companyLines.length * 6.5);
 
-  // Datos secundarios de la empresa (Izquierda)
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 100, 100);
-  doc.text(empresa.direccion.toUpperCase(), margin, 25, { maxWidth: usableWidth * 0.55 });
-  doc.text(`RIF: ${empresa.rif} | TEL: ${empresa.telefono}`, margin, 30);
+  
+  const address = empresa.direccion.toUpperCase();
+  const addressLines = doc.splitTextToSize(address, usableWidth * 0.55);
+  doc.text(addressLines, margin, leftY);
+  
+  // El RIF y Teléfono se colocan después de las líneas de dirección (aprox 3.5mm por línea de 8pt)
+  leftY += (addressLines.length * 3.5);
+  doc.text(`RIF: ${empresa.rif} | TEL: ${empresa.telefono}`, margin, leftY);
+  leftY += 5; // Margen de seguridad inferior
 
-  // Título del Reporte (Derecha)
+  // 2. Bloque Derecho: Título y Fecha
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(0, 0, 0);
-  // Se alinea a la derecha con un maxWidth que permite saltos de línea elegantes
-  doc.text(title.toUpperCase(), pageWidth - margin, 18, { align: 'right', maxWidth: usableWidth * 0.40 });
-
-  // Fecha de generación (Derecha, debajo del título) - Movida más abajo para evitar pisar títulos largos
+  
+  const titleLines = doc.splitTextToSize(title.toUpperCase(), usableWidth * 0.40);
+  doc.text(titleLines, pageWidth - margin, 18, { align: 'right' });
+  
+  // La fecha se coloca después del título
+  let rightY = 18 + (titleLines.length * 5.5);
+  
   const now = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(`GENERADO EL: ${now}`, pageWidth - margin, 30, { align: 'right' });
+  doc.text(`GENERADO EL: ${now}`, pageWidth - margin, rightY, { align: 'right' });
+  rightY += 5;
 
-  // Línea divisoria elegante
+  // 3. Línea divisoria basada en el punto más bajo de ambos bloques
+  const headerBottomY = Math.max(leftY, rightY) + 2;
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.5);
-  doc.line(margin, 36, pageWidth - margin, 36);
+  doc.line(margin, headerBottomY, pageWidth - margin, headerBottomY);
+  
+  return headerBottomY + 5; // Retornamos el punto de inicio para el contenido
 };
 
 // 1. Reporte de Inventario Simple (Listado)
 export const generarPDFInventarioSimple = (products: Product[], empresa: CompanyInfo) => {
   const doc = new jsPDF('p', 'mm', 'letter');
-  drawHeader(doc, 'Listado de Productos', empresa);
+  const startY = drawHeader(doc, 'Listado de Productos', empresa);
 
   const tableRows = products.map(p => [
     p.codigo,
@@ -67,7 +87,7 @@ export const generarPDFInventarioSimple = (products: Product[], empresa: Company
   ]);
 
   autoTable(doc, {
-    startY: 42,
+    startY: startY,
     head: [['CÓDIGO', 'NOMBRE', 'CATEGORÍA', 'COSTO', 'PRECIO', 'STOCK']],
     body: tableRows,
     headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
@@ -81,32 +101,29 @@ export const generarPDFInventarioSimple = (products: Product[], empresa: Company
 // 2. Reporte General (Detallado por Grupo)
 export const exportarPDFInventarioGeneral = (productos: Product[], empresa: CompanyInfo, groupBy: string, totals: any) => {
   const doc = new jsPDF('p', 'mm', 'letter');
-  drawHeader(doc, `Inventario Detallado por ${groupBy}`, empresa);
+  const headerY = drawHeader(doc, `Inventario Detallado por ${groupBy}`, empresa);
 
-  // Resumen Ejecutivo en Cabecera
+  // Resumen Ejecutivo
   doc.setFillColor(240, 240, 240);
-  doc.rect(15, 42, 186, 12, 'F');
+  doc.rect(15, headerY, 186, 12, 'F');
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text(`VALOR TOTAL AL COSTO: ${fmt(totals.costo)}`, 20, 50);
-  doc.text(`VALOR TOTAL A LA VENTA: ${fmt(totals.venta)}`, 110, 50);
+  doc.text(`VALOR TOTAL AL COSTO: ${fmt(totals.costo)}`, 20, headerY + 8);
+  doc.text(`VALOR TOTAL A LA VENTA: ${fmt(totals.venta)}`, 110, headerY + 8);
 
   const uniqueGroups = Array.from(new Set(productos.map(p => (p[groupBy as keyof Product] as string) || 'SIN ASIGNAR'))).sort();
 
-  let currentY = 58;
+  let currentY = headerY + 16;
 
   uniqueGroups.forEach((groupName) => {
     const groupProds = productos.filter(p => ((p[groupBy as keyof Product] as string) || 'SIN ASIGNAR') === groupName);
     
-    // Verificar salto de página manual si el espacio es poco
     if (currentY > 240) {
       doc.addPage();
-      drawHeader(doc, `Inventario Detallado por ${groupBy}`, empresa);
-      currentY = 40;
+      currentY = drawHeader(doc, `Inventario Detallado por ${groupBy}`, empresa);
     }
 
-    // Encabezado de Grupo
     doc.setFillColor(60, 60, 60);
     doc.rect(15, currentY, 186, 7, 'F');
     doc.setFontSize(8);
@@ -139,15 +156,15 @@ export const exportarPDFInventarioGeneral = (productos: Product[], empresa: Comp
 // 3. Reporte de Ventas Detallado
 export const exportarPDFVentasDetallado = (ventas: any[], empresa: CompanyInfo, periodo: string, stats: any) => {
   const doc = new jsPDF('p', 'mm', 'letter');
-  drawHeader(doc, 'Reporte de Ventas Detallado', empresa);
+  const startY = drawHeader(doc, 'Reporte de Ventas Detallado', empresa);
 
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text(`PERIODO: ${periodo.toUpperCase()}`, 15, 45);
-  doc.text(`VOLUMEN TOTAL: ${stats.totalVendidos} UNIDADES`, 15, 50);
+  doc.text(`PERIODO: ${periodo.toUpperCase()}`, 15, startY + 5);
+  doc.text(`VOLUMEN TOTAL: ${stats.totalVendidos} UNIDADES`, 15, startY + 10);
 
   autoTable(doc, {
-    startY: 58,
+    startY: startY + 18,
     head: [['FECHA', 'PRODUCTO', 'MÉTODO', 'CANT.', 'PRECIO UNIT.', 'TOTAL (USD)']],
     body: ventas.flatMap(v => v.items.map((item: any, idx: number) => [
       idx === 0 ? v.fecha.slice(0, 10) : '',
@@ -161,23 +178,23 @@ export const exportarPDFVentasDetallado = (ventas: any[], empresa: CompanyInfo, 
     styles: { fontSize: 7 }
   });
 
-  doc.save(`Ventas_${periodo}_${new Date().getTime()}.pdf`);
+  doc.save(`Ventas_${periodo.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
 };
 
 // 4. Reporte de Kardex (Ficha de Producto)
 export const exportarPDFKardex = (producto: Product, movimientos: Movimiento[], empresa: CompanyInfo) => {
   const doc = new jsPDF('p', 'mm', 'letter');
-  drawHeader(doc, 'Kardex de Movimientos', empresa);
+  const startY = drawHeader(doc, 'Kardex de Movimientos', empresa);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text(`PRODUCTO: ${producto.nombre.toUpperCase()}`, 15, 45);
+  doc.text(`PRODUCTO: ${producto.nombre.toUpperCase()}`, 15, startY + 5);
   doc.setFont('helvetica', 'normal');
-  doc.text(`CÓDIGO: ${producto.codigo} | STOCK ACTUAL: ${producto.stock}`, 15, 50);
+  doc.text(`CÓDIGO: ${producto.codigo} | STOCK ACTUAL: ${producto.stock}`, 15, startY + 10);
 
   autoTable(doc, {
-    startY: 58,
+    startY: startY + 18,
     head: [['FECHA / HORA', 'TIPO MOVIMIENTO', 'CANT.', 'ANTES', 'DESPUÉS', 'REFERENCIA']],
     body: movimientos.map(m => [
       m.fecha.replace('T', ' ').slice(0, 16),
@@ -197,17 +214,17 @@ export const exportarPDFKardex = (producto: Product, movimientos: Movimiento[], 
 // 5. Historial de Ajustes
 export const exportarPDFHistorialAjustes = (ajustes: any[], empresa: CompanyInfo, efectoNeto: number) => {
   const doc = new jsPDF('p', 'mm', 'letter');
-  drawHeader(doc, 'Historial Cronológico de Ajustes', empresa);
+  const startY = drawHeader(doc, 'Historial Cronológico de Ajustes', empresa);
 
   doc.setFillColor(240, 240, 240);
-  doc.rect(15, 42, 186, 10, 'F');
+  doc.rect(15, startY, 186, 10, 'F');
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(0, 0, 0);
-  doc.text(`EFECTO NETO EN VALOR INVENTARIO: ${fmt(efectoNeto)}`, 20, 48.5);
+  doc.text(`EFECTO NETO EN VALOR INVENTARIO: ${fmt(efectoNeto)}`, 20, startY + 6.5);
 
   autoTable(doc, {
-    startY: 58,
+    startY: startY + 15,
     head: [['FECHA', 'PRODUCTO', 'TIPO', 'CANT.', 'ANTES', 'DESPUÉS', 'REFERENCIA']],
     body: ajustes.map(m => [
       m.fecha.replace('T', ' ').slice(0, 16),
@@ -228,18 +245,18 @@ export const exportarPDFHistorialAjustes = (ajustes: any[], empresa: CompanyInfo
 // 6. Reporte de Consumo y Colaboraciones
 export const exportarPDFConsumoInterno = (movs: any[], empresa: CompanyInfo, totalPerdida: number) => {
   const doc = new jsPDF('p', 'mm', 'letter');
-  drawHeader(doc, 'Consumo Interno y Colaboraciones', empresa);
+  const startY = drawHeader(doc, 'Consumo Interno y Colaboraciones', empresa);
 
   doc.setFillColor(255, 235, 235);
-  doc.rect(15, 42, 186, 10, 'F');
+  doc.rect(15, startY, 186, 10, 'F');
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(200, 0, 0);
-  doc.text(`COSTO TOTAL DE SALIDA (PÉRDIDA): ${fmt(totalPerdida)}`, 20, 48.5);
+  doc.text(`COSTO TOTAL DE SALIDA (PÉRDIDA): ${fmt(totalPerdida)}`, 20, startY + 6.5);
   doc.setTextColor(0, 0, 0);
 
   autoTable(doc, {
-    startY: 58,
+    startY: startY + 15,
     head: [['FECHA', 'PRODUCTO', 'TIPO', 'CANTIDAD', 'COSTO UNIT.', 'SUBTOTAL PÉRDIDA']],
     body: movs.map(m => [
       m.fecha.slice(0, 10),
@@ -256,7 +273,7 @@ export const exportarPDFConsumoInterno = (movs: any[], empresa: CompanyInfo, tot
   doc.save(`Reporte_Consumo_${new Date().getTime()}.pdf`);
 };
 
-// Mantenemos la función original para compatibilidad si se requiere en otros módulos
+// Mantenemos la función original para compatibilidad
 export const generarPDFInventario = async (products: Product[]) => {
   const doc = new jsPDF('l', 'mm', 'letter');
   autoTable(doc, {
