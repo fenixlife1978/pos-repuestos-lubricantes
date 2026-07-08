@@ -67,6 +67,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const reportPrintRef = useRef<HTMLDivElement>(null);
 
   // Cálculos para el abono dinámico
   const deudaInicialUSD = showAbonoModal ? state.cxc.filter(d => d.cliente === showAbonoModal && d.estado !== 'pagada').reduce((s, d) => s + d.saldoUSD, 0) : 0;
@@ -274,8 +275,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   // ========== LÓGICA DE IMPRESIÓN ==========
 
-  const handlePrint = () => {
-    const printContent = printRef.current?.innerHTML;
+  const handlePrint = (ref: React.RefObject<HTMLDivElement>) => {
+    const printContent = ref.current?.innerHTML;
     if (!printContent) return;
 
     const printWindow = window.open('', '_blank');
@@ -307,15 +308,15 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     printWindow?.document.close();
   };
 
-  const handleNativePrint = async () => {
-    if (!lastProcessedSale) return;
+  const handleNativePrint = async (sale: any) => {
+    if (!sale) return;
     
     if (!window.electronAPI) {
-      handlePrint();
+      handlePrint(printRef);
       return;
     }
 
-    const title = lastProcessedSale.type === 'COBRO DEUDA' ? 'INFORME' : 'RECIBO';
+    const title = sale.type === 'COBRO DEUDA' ? 'INFORME' : 'RECIBO';
     const printData = [
       { type: 'text', value: state.empresa.nombre.toUpperCase(), style: { fontWeight: "700", textAlign: 'center', fontSize: "16px" } },
       { type: 'text', value: `RIF: ${state.empresa.rif}`, style: { textAlign: 'center', fontSize: "10px" } },
@@ -323,13 +324,13 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       { type: 'text', value: '--------------------------------', style: { textAlign: 'center' } },
       { type: 'text', value: title, style: { textAlign: 'center', fontWeight: "700", fontSize: "14px" } },
       { type: 'text', value: '--------------------------------', style: { textAlign: 'center' } },
-      { type: 'text', value: `${title} N: ${lastProcessedSale.id}`, style: { textAlign: 'left', fontSize: "10px" } },
-      { type: 'text', value: `FECHA: ${Utils.fmtFecha(lastProcessedSale.fecha)}`, style: { textAlign: 'left', fontSize: "10px" } },
-      { type: 'text', value: `CLIENTE: ${lastProcessedSale.cliente.toUpperCase()}`, style: { textAlign: 'left', fontSize: "10px" } },
+      { type: 'text', value: `${title} N: ${sale.id}`, style: { textAlign: 'left', fontSize: "10px" } },
+      { type: 'text', value: `FECHA: ${Utils.fmtFecha(sale.fecha)}`, style: { textAlign: 'left', fontSize: "10px" } },
+      { type: 'text', value: `CLIENTE: ${sale.cliente.toUpperCase()}`, style: { textAlign: 'left', fontSize: "10px" } },
       { type: 'text', value: '--------------------------------', style: { textAlign: 'center' } }
     ];
 
-    lastProcessedSale.items.forEach((item: any) => {
+    sale.items.forEach((item: any) => {
       printData.push({
         type: 'text',
         value: `${item.qty || item.cantidad}x ${item.nombre.toUpperCase().slice(0, 20)}`,
@@ -345,12 +346,12 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
     printData.push({ 
       type: 'text', 
-      value: `TOTAL BS: ${Utils.fmtBS(lastProcessedSale.totalBS)}`, 
+      value: `TOTAL BS: ${Utils.fmtBS(sale.totalBS)}`, 
       style: { textAlign: 'right', fontWeight: "700", fontSize: "14px" } 
     });
     printData.push({ 
       type: 'text', 
-      value: `REF USD: ${Utils.fmtUSD(lastProcessedSale.totalUSD)}`, 
+      value: `REF USD: ${Utils.fmtUSD(sale.totalUSD)}`, 
       style: { textAlign: 'right', fontSize: "12px" } 
     });
 
@@ -361,7 +362,65 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     try {
       await window.electronAPI.printTicket(printData);
     } catch (e) {
-      handlePrint();
+      handlePrint(printRef);
+    }
+  };
+
+  const handleNativeReportPrint = async (type: 'Y' | 'Z') => {
+    if (!window.electronAPI) {
+      handlePrint(reportPrintRef);
+      return;
+    }
+
+    const hoy = Utils.hoy();
+    const ahora = Utils.ahora();
+    const ventasHoy = state.ventas.filter(v => v.fecha.startsWith(hoy));
+    const vDirectas = ventasHoy.filter(v => v.type === 'VENTA').reduce((s, v) => s + v.totalUSD, 0);
+    const vCobros = ventasHoy.filter(v => v.type === 'COBRO DEUDA').reduce((s, v) => s + v.totalUSD, 0);
+    const total = vDirectas + vCobros;
+
+    const printData = [
+      { type: 'text', value: state.empresa.nombre.toUpperCase(), style: { fontWeight: "700", textAlign: 'center', fontSize: "16px" } },
+      { type: 'text', value: `RIF: ${state.empresa.rif}`, style: { textAlign: 'center', fontSize: "10px" } },
+      { type: 'text', value: state.empresa.direccion, style: { textAlign: 'center', fontSize: "10px" } },
+      { type: 'text', value: '--------------------------------', style: { textAlign: 'center' } },
+      { type: 'text', value: `REPORTE "${type}"`, style: { textAlign: 'center', fontWeight: "700", fontSize: "14px" } },
+      { type: 'text', value: '--------------------------------', style: { textAlign: 'center' } },
+      { type: 'text', value: `FECHA: ${Utils.fmtFecha(hoy)}`, style: { textAlign: 'left', fontSize: "10px" } },
+      { type: 'text', value: `HORA: ${ahora.split('T')[1].slice(0, 8)}`, style: { textAlign: 'left', fontSize: "10px" } }
+    ];
+
+    if (type === 'Z') {
+      const z = state.reportesZ[state.reportesZ.length - 1];
+      printData.push({ type: 'text', value: `REPORTE Z #: ${String(z.numeroZ).padStart(4, '0')}`, style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
+      printData.push({ type: 'text', value: `DESDE FACT: ${z.desdeFactura}`, style: { textAlign: 'left', fontSize: "10px" } });
+      printData.push({ type: 'text', value: `HASTA FACT: ${z.hastaFactura}`, style: { textAlign: 'left', fontSize: "10px" } });
+    }
+
+    printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
+    printData.push({ type: 'text', value: 'RESUMEN POR PAGO:', style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
+    printData.push({ type: 'text', value: `VENTAS DIRECTAS:      ${Utils.fmtUSD(vDirectas)}`, style: { textAlign: 'left', fontSize: "10px" } });
+    printData.push({ type: 'text', value: `COBROS DEUDA:         ${Utils.fmtUSD(vCobros)}`, style: { textAlign: 'left', fontSize: "10px" } });
+    printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
+    printData.push({ type: 'text', value: `TOTAL CAJA:           ${Utils.fmtUSD(total)}`, style: { textAlign: 'left', fontSize: "12px", fontWeight: "700" } });
+
+    if (type === 'Z') {
+      const z = state.reportesZ[state.reportesZ.length - 1];
+      printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
+      printData.push({ type: 'text', value: `BASE IMPONIBLE:      ${Utils.fmtUSD(z.baseImponibleUSD)}`, style: { textAlign: 'left', fontSize: "10px" } });
+      printData.push({ type: 'text', value: `IVA (16%):           ${Utils.fmtUSD(z.ivaUSD)}`, style: { textAlign: 'left', fontSize: "10px" } });
+      printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
+      printData.push({ type: 'text', value: `TOTAL BRUTO:         ${Utils.fmtUSD(z.totalBrutoUSD)}`, style: { textAlign: 'left', fontSize: "12px", fontWeight: "700" } });
+      printData.push({ type: 'text', value: `ACUMULADO HISTORICO: ${Utils.fmtUSD(z.acumuladoHistoricoUSD)}`, style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
+    }
+
+    printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
+    printData.push({ type: 'text', value: 'DOCUMENTO FISCAL', style: { textAlign: 'center', fontWeight: "700", fontSize: "10px" } });
+
+    try {
+      await window.electronAPI.printTicket(printData);
+    } catch (e) {
+      handlePrint(reportPrintRef);
     }
   };
 
@@ -374,10 +433,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           text: `Resumen de recibo nro ${lastProcessedSale.id} por un total de ${Utils.fmtBS(lastProcessedSale.totalBS)}`,
         });
       } catch (err) {
-        handlePrint();
+        handlePrint(printRef);
       }
     } else {
-      handlePrint();
+      handlePrint(printRef);
     }
   };
 
@@ -403,6 +462,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   };
 
   const hoy = Utils.hoy();
+  const ahora = Utils.ahora();
   const ventasHoyList = state.ventas.filter(v => v.fecha.startsWith(hoy)).sort((a,b) => b.fecha.localeCompare(a.fecha));
   const creditosActivos = state.cxc.filter(c => c.estado !== 'pagada');
 
@@ -831,41 +891,108 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* Modal Reportes Y/Z */}
+      {/* Modal Reportes Y/Z (Formato Recibo 80mm) */}
       {showReport && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowReport(null)}></div>
-          <div className="modal-box bg-white text-black max-w-[80mm] font-mono p-4 text-[11px] leading-tight rounded shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="text-center space-y-1 mb-4">
-              <h3 className="font-black text-sm uppercase tracking-tighter">{state.empresa.nombre}</h3>
-              <p className="font-bold">RIF: {state.empresa.rif}</p>
-              <p className="text-[10px]">{state.empresa.direccion}</p>
-              <h4 className="font-black border-y border-black py-1 mt-2 text-xs uppercase tracking-widest">REPORTE "{showReport}"</h4>
+          <div className="modal-box bg-white text-black max-w-sm rounded shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-[#131313] p-3 flex justify-between items-center border-b border-white/10">
+              <h3 className="text-white font-bold text-xs uppercase tracking-widest">Vista Previa Reporte</h3>
+              <button onClick={() => setShowReport(null)}><X className="text-white h-4 w-4"/></button>
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between font-bold"><span>FECHA:</span><span>{Utils.fmtFecha(Utils.hoy())}</span></div>
-              <div className="flex justify-between font-bold"><span>HORA:</span><span>{Utils.ahora().split('T')[1].slice(0, 8)}</span></div>
-              <div className="border-t border-dashed border-black my-2"></div>
-              {showReport === 'Y' ? (
-                <>
-                  <div className="font-black uppercase text-xs mb-1">RESUMEN POR PAGO:</div>
-                  <div className="flex justify-between"><span>VENTAS DIRECTAS:</span><span>{Utils.fmtUSD(state.ventas.filter(v => v.fecha.startsWith(Utils.hoy()) && v.type === 'VENTA').reduce((s, v) => s + v.totalUSD, 0))}</span></div>
-                  <div className="flex justify-between"><span>COBROS DEUDA:</span><span>{Utils.fmtUSD(state.ventas.filter(v => v.fecha.startsWith(Utils.hoy()) && v.type === 'COBRO DEUDA').reduce((s, v) => s + v.totalUSD, 0))}</span></div>
-                  <div className="border-t border-dashed border-black my-2"></div>
-                  <div className="flex justify-between font-black text-sm"><span>TOTAL CAJA:</span><span>{Utils.fmtUSD(state.ventas.filter(v => v.fecha.startsWith(Utils.hoy())).reduce((s, v) => s + v.totalUSD, 0))}</span></div>
-                </>
-              ) : (
-                <>
-                  <div className="flex justify-between font-black text-xs"><span>REPORTE Z #:</span><span>{String(state.ultimoZ).padStart(4, '0')}</span></div>
-                  <div className="flex justify-between"><span>DESDE FACT:</span><span>{state.reportesZ[state.reportesZ.length-1]?.desdeFactura || 'N/A'}</span></div>
-                  <div className="flex justify-between"><span>HASTA FACT:</span><span>{state.reportesZ[state.reportesZ.length-1]?.hastaFactura || 'N/A'}</span></div>
-                  <div className="border-t border-dashed border-black my-2"></div>
-                  <div className="flex justify-between font-black text-sm"><span>TOTAL BRUTO:</span><span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.totalBrutoUSD || 0)}</span></div>
-                </>
-              )}
+            
+            <div className="p-4 max-h-[70vh] overflow-y-auto bg-gray-100 flex justify-center">
+              <div 
+                ref={reportPrintRef} 
+                className="bg-white p-5 shadow-sm text-black font-mono select-none"
+                style={{ width: '72mm', boxSizing: 'border-box', color: '#000' }}
+              >
+                <div className="text-center" style={{ marginBottom: '6px', paddingBottom: '6px', borderBottom: '1px dashed #000' }}>
+                  <h1 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0 0 2px 0', letterSpacing: '1px' }}>{state.empresa.nombre.toUpperCase()}</h1>
+                  <p style={{ fontSize: '10px', margin: '2px 0', fontWeight: 'bold' }}>{state.empresa.direccion}</p>
+                  <p style={{ fontSize: '9px', margin: '2px 0' }}>RIF: {state.empresa.rif}</p>
+                </div>
+
+                <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                  <span style={{ background: '#000', color: 'white', padding: '3px 12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-block' }}>
+                    REPORTE "{showReport}"
+                  </span>
+                </div>
+
+                <div style={{ margin: '8px 0', fontSize: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                    <span>FECHA:</span><span style={{ fontWeight: 'bold' }}>{Utils.fmtFecha(Utils.hoy())}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                    <span>HORA:</span><span style={{ fontWeight: 'bold' }}>{ahora.split('T')[1].slice(0, 8)}</span>
+                  </div>
+                  {showReport === 'Z' && (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                        <span>REPORTE Z #:</span><span style={{ fontWeight: 'bold' }}>{String(state.ultimoZ).padStart(4, '0')}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                        <span>DESDE FACT:</span><span style={{ fontWeight: 'bold' }}>{state.reportesZ[state.reportesZ.length-1]?.desdeFactura || 'N/A'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                        <span>HASTA FACT:</span><span style={{ fontWeight: 'bold' }}>{state.reportesZ[state.reportesZ.length-1]?.hastaFactura || 'N/A'}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '6px' }}>RESUMEN POR PAGO:</div>
+                
+                <div style={{ fontSize: '10px', spaceY: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>VENTAS DIRECTAS:</span>
+                    <span style={{ fontWeight: 'bold' }}>{Utils.fmtUSD(state.ventas.filter(v => v.fecha.startsWith(Utils.hoy()) && v.type === 'VENTA').reduce((s, v) => s + v.totalUSD, 0))}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>COBROS DEUDA:</span>
+                    <span style={{ fontWeight: 'bold' }}>{Utils.fmtUSD(state.ventas.filter(v => v.fecha.startsWith(Utils.hoy()) && v.type === 'COBRO DEUDA').reduce((s, v) => s + v.totalUSD, 0))}</span>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid #000', marginTop: '10px', paddingTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'bold' }}>
+                    <span>TOTAL CAJA:</span>
+                    <span>{Utils.fmtUSD(state.ventas.filter(v => v.fecha.startsWith(Utils.hoy())).reduce((s, v) => s + v.totalUSD, 0))}</span>
+                  </div>
+                </div>
+
+                {showReport === 'Z' && (
+                  <div style={{ marginTop: '12px', borderTop: '1px dashed #000', paddingTop: '8px', fontSize: '9px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>BASE IMPONIBLE:</span>
+                      <span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.baseImponibleUSD || 0)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>IVA (16%):</span>
+                      <span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.ivaUSD || 0)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', marginTop: '4px', borderTop: '1px solid #000', paddingTop: '4px' }}>
+                      <span>TOTAL BRUTO:</span>
+                      <span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.totalBrutoUSD || 0)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', marginTop: '6px', fontStyle: 'italic' }}>
+                      <span>ACUMULADO HISTORICO:</span>
+                      <span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.acumuladoHistoricoUSD || 0)}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ textAlign: 'center', marginTop: '20px', paddingTop: '6px', borderTop: '1px dashed #000', fontSize: '9px', fontWeight: 'bold' }}>
+                  *** DOCUMENTO FISCAL ***
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2 mt-6 no-print">
-              <button onClick={() => setShowReport(null)} className="btn btn-sm btn-secondary flex-1 font-black uppercase text-[10px]">Cerrar</button>
-              <button onClick={handlePrint} className="btn btn-sm btn-primary flex-1 font-black uppercase text-[10px]">Imprimir</button>
+
+            <div className="p-3 bg-gray-50 border-t border-gray-200 flex gap-2">
+              <button onClick={() => setShowReport(null)} className="flex-1 py-3 bg-gray-800 text-white font-black text-xs rounded-lg uppercase tracking-wider">Cerrar</button>
+              <button onClick={() => handleNativeReportPrint(showReport)} className="flex-1 py-3 bg-[#c8952e] text-black font-black text-xs rounded-lg uppercase tracking-wider flex items-center justify-center gap-2">
+                <Printer size={14} /> IMPRIMIR
+              </button>
             </div>
           </div>
         </div>
@@ -988,8 +1115,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 <button onClick={handleSharePDF} className="flex-1 py-2 bg-green-600 text-white font-bold text-xs rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 uppercase tracking-wider shadow-sm"><Share2 size={14} /> Compartir</button>
               </div>
               <div className="flex gap-2">
-                 <button onClick={handlePrint} className="flex-1 py-2 bg-gray-800 text-white font-bold text-xs rounded-lg hover:bg-black transition-colors flex items-center justify-center gap-2 uppercase tracking-wider shadow-sm"><Printer size={14} /> Estándar</button>
-                 <button onClick={handleNativePrint} className="flex-1 py-2 bg-[#D4A017] text-slate-950 font-black text-xs rounded-lg hover:bg-[#C4940F] transition-colors flex items-center justify-center gap-2 uppercase tracking-wider shadow-sm border-2 border-black/10">
+                 <button onClick={() => handlePrint(printRef)} className="flex-1 py-2 bg-gray-800 text-white font-bold text-xs rounded-lg hover:bg-black transition-colors flex items-center justify-center gap-2 uppercase tracking-wider shadow-sm"><Printer size={14} /> Estándar</button>
+                 <button onClick={() => handleNativePrint(lastProcessedSale)} className="flex-1 py-2 bg-[#D4A017] text-slate-950 font-black text-xs rounded-lg hover:bg-[#C4940F] transition-colors flex items-center justify-center gap-2 uppercase tracking-wider shadow-sm border-2 border-black/10">
                    <Zap size={14} className="fill-current" /> IMPRESIÓN USB
                  </button>
               </div>
