@@ -1,219 +1,227 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Product, normalizeProductForPDF, getProductBarcode, getProductPrice } from './types';
+import { Product, Movimiento, Sale } from './types';
+
+// Helper para formatear moneda en USD
+const fmt = (v: number) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 interface CompanyInfo {
-  name: string;
-  address: string;
+  nombre: string;
+  direccion: string;
   rif: string;
-  phone: string;
+  telefono: string;
 }
 
-const companyInfo: CompanyInfo = {
-  name: 'LICORERÍA EL BUEN BEBER',
-  address: 'AV. PRINCIPAL, LOCAL 5',
-  rif: 'J-12345678-9',
-  phone: '0412-1234567'
-};
-
-export const generarPDFInventario = async (products: Product[]) => {
-  const doc = new jsPDF('landscape', 'mm', 'letter');
+// Función base para dibujar el encabezado profesional
+const drawHeader = (doc: jsPDF, title: string, empresa: CompanyInfo) => {
   const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 15;
 
-  // Configurar fuente
-  doc.setFont('helvetica');
-
-  // --- ENCABEZADO ---
-  // Nombre de la empresa
-  doc.setFontSize(22);
-  doc.setTextColor('#1a1a1a');
   doc.setFont('helvetica', 'bold');
-  doc.text(companyInfo.name, margin, 20);
-
-  // Detalles de la empresa
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor('#666666');
-  doc.text(companyInfo.address, margin, 28);
-  doc.text(`RIF: ${companyInfo.rif} | Tel: ${companyInfo.phone}`, margin, 34);
-
-  // Línea decorativa
-  doc.setDrawColor('#e0e0e0');
-  doc.setLineWidth(0.5);
-  doc.line(margin, 38, pageWidth - margin, 38);
-
-  // --- TÍTULO ---
   doc.setFontSize(18);
-  doc.setTextColor('#1a1a1a');
-  doc.setFont('helvetica', 'bold');
-  doc.text('REPORTE DE INVENTARIO', pageWidth / 2, 48, { align: 'center' });
+  doc.setTextColor(20, 20, 20);
+  doc.text(empresa.nombre.toUpperCase(), margin, 20);
 
-  // Fecha
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('es-VE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor('#666666');
-  doc.text(`Fecha de emisión: ${dateStr}`, pageWidth - margin, 48, { align: 'right' });
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.text(empresa.direccion.toUpperCase(), margin, 26);
+  doc.text(`RIF: ${empresa.rif} | TEL: ${empresa.telefono}`, margin, 31);
 
-  // --- ESTADÍSTICAS RESUMEN ---
-  const totalProducts = products.length;
-  const totalValue = products.reduce((sum, p) => sum + (getProductPrice(p) * (p.stock || 0)), 0);
-  const lowStockItems = products.filter(p => (p.stock || 0) <= (p.stockMinimo || 0)).length;
-  const categories = new Set(products.map(p => p.categoria)).size;
-
-  const statsY = 58;
-  const statsX = margin;
-  const statWidth = (pageWidth - margin * 2) / 4;
-
-  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor('#333333');
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
+  doc.text(title.toUpperCase(), pageWidth - margin, 20, { align: 'right' });
 
-  // Tarjetas de estadísticas
-  const stats = [
-    { label: 'Total Productos', value: totalProducts.toString() },
-    { label: 'Valor Inventario', value: `Bs. ${totalValue.toFixed(2)}` },
-    { label: 'Stock Bajo', value: lowStockItems.toString() },
-    { label: 'Categorías', value: categories.toString() }
-  ];
+  const now = new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`GENERADO EL: ${now}`, pageWidth - margin, 26, { align: 'right' });
 
-  stats.forEach((stat, index) => {
-    const x = statsX + (index * statWidth);
-    // Fondo de la tarjeta
-    doc.setFillColor('#f8f9fa');
-    doc.rect(x, statsY - 2, statWidth - 5, 20, 'F');
-    
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor('#666666');
-    doc.text(stat.label, x + 5, statsY + 5);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor('#1a1a1a');
-    doc.text(stat.value, x + 5, statsY + 13);
-  });
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.5);
+  doc.line(margin, 35, pageWidth - margin, 35);
+};
 
-  // --- TABLA DE PRODUCTOS ---
-  const tableColumns = ['Código', 'Producto', 'Categoría', 'Precio (Bs.)', 'Stock', 'Stock Mín.', 'Estado'];
-  const tableRows = products.map(p => {
-    const barcode = getProductBarcode(p);
-    const price = getProductPrice(p);
-    const stock = p.stock || 0;
-    const minStock = p.stockMinimo || 0;
-    
-    return [
-      barcode || 'N/A',
-      p.nombre,
-      p.categoria,
-      price.toFixed(2),
-      stock.toString(),
-      minStock.toString(),
-      stock <= minStock ? '⚠ Stock Bajo' : '✓ Disponible'
-    ];
-  });
+// 1. Reporte de Inventario Simple (Listado)
+export const generarPDFInventarioSimple = (products: Product[], empresa: CompanyInfo) => {
+  const doc = new jsPDF('p', 'mm', 'letter');
+  drawHeader(doc, 'Listado de Productos', empresa);
+
+  const tableRows = products.map(p => [
+    p.codigo,
+    p.nombre.toUpperCase(),
+    p.categoria.toUpperCase(),
+    fmt(p.costoUSD),
+    fmt(p.precioUSD),
+    p.stock.toString()
+  ]);
 
   autoTable(doc, {
-    head: [tableColumns],
+    startY: 40,
+    head: [['CÓDIGO', 'NOMBRE', 'CATEGORÍA', 'COSTO', 'PRECIO', 'STOCK']],
     body: tableRows,
-    startY: statsY + 25,
-    margin: { left: margin, right: margin },
-    tableWidth: 'auto',
-    styles: {
-      fontSize: 8,
-      cellPadding: 3,
-      lineColor: '#e0e0e0',
-      lineWidth: 0.1,
-    },
-    headStyles: {
-      fillColor: '#2c3e50',
-      textColor: '#ffffff',
-      fontStyle: 'bold',
-      halign: 'center',
-      fontSize: 9,
-    },
-    bodyStyles: {
-      textColor: '#333333',
-      halign: 'center',
-    },
-    columnStyles: {
-      0: { cellWidth: 25, halign: 'center' },
-      1: { cellWidth: 40, halign: 'left' },
-      2: { cellWidth: 25, halign: 'center' },
-      3: { cellWidth: 30, halign: 'right' },
-      4: { cellWidth: 20, halign: 'center' },
-      5: { cellWidth: 25, halign: 'center' },
-      6: { cellWidth: 30, halign: 'center' },
-    },
-    didParseCell: function(data) {
-      // Colorear filas con stock bajo
-      if (data.section === 'body' && data.column.index === 6) {
-        const cellData = data.cell.raw as string;
-        if (cellData.includes('⚠')) {
-          data.cell.styles.textColor = '#dc3545';
-          data.cell.styles.fontStyle = 'bold';
-        }
-      }
-    },
-    didDrawPage: function(data) {
-      // Pie de página
-      const pageNumber = doc.internal.getNumberOfPages();
-      doc.setFontSize(8);
-      doc.setTextColor('#999999');
-      doc.setFont('helvetica', 'normal');
-      doc.text(
-        `Página ${pageNumber} de ${doc.internal.getNumberOfPages()}`,
-        pageWidth / 2,
-        pageHeight - 10,
-        { align: 'center' }
-      );
-      
-      // Línea de pie de página
-      doc.setDrawColor('#e0e0e0');
-      doc.setLineWidth(0.3);
-      doc.line(margin, pageHeight - 14, pageWidth - margin, pageHeight - 14);
-    }
+    headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255] },
+    styles: { fontSize: 8 },
+    margin: { left: 15, right: 15 }
   });
 
-  // --- SECCIÓN DE FIRMA ---
-  const finalY = (doc as any).lastAutoTable.finalY + 10;
-  
-  if (finalY < pageHeight - 30) {
-    doc.setFontSize(9);
-    doc.setTextColor('#666666');
-    doc.setFont('helvetica', 'normal');
-    
-    const signatureY = Math.max(finalY + 10, pageHeight - 40);
-    doc.text('_________________________', pageWidth / 2 - 30, signatureY);
-    doc.text('Firma Autorizada', pageWidth / 2 - 20, signatureY + 6);
-    
-    // Texto adicional
-    doc.setFontSize(8);
-    doc.setTextColor('#999999');
-    doc.text(
-      'Este documento es un reporte oficial del inventario de la licorería.',
-      pageWidth / 2,
-      signatureY + 15,
-      { align: 'center' }
-    );
-  }
+  doc.save(`Inventario_Basico_${new Date().getTime()}.pdf`);
+};
 
-  // --- METADATOS DEL PDF ---
-  doc.setProperties({
-    title: 'Reporte de Inventario',
-    subject: 'Inventario de Productos',
-    author: companyInfo.name,
-    keywords: 'inventario, productos, reporte, licorería',
-    creator: companyInfo.name,
+// 2. Reporte General (CPP y Valorización)
+export const exportarPDFInventarioGeneral = (data: any[], empresa: CompanyInfo, groupBy: string, totals: any) => {
+  const doc = new jsPDF('p', 'mm', 'letter');
+  drawHeader(doc, `Inventario por ${groupBy}`, empresa);
+
+  doc.setFillColor(240, 240, 240);
+  doc.rect(15, 40, 186, 15, 'F');
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`VALOR TOTAL AL COSTO: ${fmt(totals.costo)}`, 20, 50);
+  doc.text(`VALOR TOTAL A LA VENTA: ${fmt(totals.venta)}`, 110, 50);
+
+  autoTable(doc, {
+    startY: 60,
+    head: [[groupBy.toUpperCase(), 'ITEMS', 'STOCK TOTAL', 'CPP PROMEDIO', 'VALOR COSTO', 'VALOR VENTA']],
+    body: data.map(r => [
+      r.label.toUpperCase(),
+      r.itemsCount,
+      r.stockTotal,
+      fmt(r.cpp),
+      fmt(r.valCosto),
+      fmt(r.valVenta)
+    ]),
+    headStyles: { fillColor: [30, 30, 30] },
+    styles: { fontSize: 8 }
   });
 
-  // Guardar el PDF
-  doc.save(`inventario_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.pdf`);
+  doc.save(`Reporte_General_${groupBy}_${new Date().getTime()}.pdf`);
+};
+
+// 3. Reporte de Ventas Detallado
+export const exportarPDFVentasDetallado = (ventas: any[], empresa: CompanyInfo, periodo: string, stats: any) => {
+  const doc = new jsPDF('p', 'mm', 'letter');
+  drawHeader(doc, 'Reporte de Ventas Detallado', empresa);
+
+  doc.setFontSize(10);
+  doc.text(`PERIODO: ${periodo.toUpperCase()}`, 15, 42);
+  doc.text(`VOLUMEN TOTAL: ${stats.totalVendidos} UNIDADES`, 15, 47);
+
+  autoTable(doc, {
+    startY: 55,
+    head: [['FECHA', 'PRODUCTO', 'MÉTODO', 'CANT.', 'PRECIO UNIT.', 'TOTAL (USD)']],
+    body: ventas.flatMap(v => v.items.map((item: any, idx: number) => [
+      idx === 0 ? v.fecha.slice(0, 10) : '',
+      item.nombre.toUpperCase(),
+      v.metodoPago.toUpperCase(),
+      item.cantidad,
+      fmt(item.precioUnitUSD),
+      fmt(item.subtotalUSD)
+    ])),
+    headStyles: { fillColor: [30, 30, 30] },
+    styles: { fontSize: 7 }
+  });
+
+  doc.save(`Ventas_${periodo}_${new Date().getTime()}.pdf`);
+};
+
+// 4. Reporte de Kardex (Ficha de Producto)
+export const exportarPDFKardex = (producto: Product, movimientos: Movimiento[], empresa: CompanyInfo) => {
+  const doc = new jsPDF('p', 'mm', 'letter');
+  drawHeader(doc, 'Kardex de Movimientos', empresa);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`PRODUCTO: ${producto.nombre.toUpperCase()}`, 15, 42);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`CÓDIGO: ${producto.codigo} | STOCK ACTUAL: ${producto.stock}`, 15, 47);
+
+  autoTable(doc, {
+    startY: 55,
+    head: [['FECHA / HORA', 'TIPO MOVIMIENTO', 'CANT.', 'ANTES', 'DESPUÉS', 'REFERENCIA']],
+    body: movimientos.map(m => [
+      m.fecha.replace('T', ' ').slice(0, 16),
+      m.tipo.replace('_', ' ').toUpperCase(),
+      m.cantidad > 0 ? `+${m.cantidad}` : m.cantidad,
+      m.stockAntes,
+      m.stockDespues,
+      m.referencia
+    ]),
+    headStyles: { fillColor: [30, 30, 30] },
+    styles: { fontSize: 7 }
+  });
+
+  doc.save(`Kardex_${producto.codigo}_${new Date().getTime()}.pdf`);
+};
+
+// 5. Historial de Ajustes
+export const exportarPDFHistorialAjustes = (ajustes: any[], empresa: CompanyInfo, efectoNeto: number) => {
+  const doc = new jsPDF('p', 'mm', 'letter');
+  drawHeader(doc, 'Historial Cronológico de Ajustes', empresa);
+
+  doc.setFillColor(240, 240, 240);
+  doc.rect(15, 40, 186, 10, 'F');
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`EFECTO NETO EN VALOR INVENTARIO: ${fmt(efectoNeto)}`, 20, 46.5);
+
+  autoTable(doc, {
+    startY: 55,
+    head: [['FECHA', 'PRODUCTO', 'TIPO', 'CANT.', 'ANTES', 'DESPUÉS', 'REFERENCIA']],
+    body: ajustes.map(m => [
+      m.fecha.replace('T', ' ').slice(0, 16),
+      m.nombreProd.toUpperCase(),
+      m.tipo.toUpperCase(),
+      m.cantidad > 0 ? `+${m.cantidad}` : m.cantidad,
+      m.stockAntes,
+      m.stockDespues,
+      m.referencia
+    ]),
+    headStyles: { fillColor: [30, 30, 30] },
+    styles: { fontSize: 7 }
+  });
+
+  doc.save(`Historial_Ajustes_${new Date().getTime()}.pdf`);
+};
+
+// 6. Reporte de Consumo y Colaboraciones
+export const exportarPDFConsumoInterno = (movs: any[], empresa: CompanyInfo, totalPerdida: number) => {
+  const doc = new jsPDF('p', 'mm', 'letter');
+  drawHeader(doc, 'Consumo Interno y Colaboraciones', empresa);
+
+  doc.setFillColor(255, 235, 235);
+  doc.rect(15, 40, 186, 10, 'F');
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(200, 0, 0);
+  doc.text(`COSTO TOTAL DE SALIDA (PÉRDIDA): ${fmt(totalPerdida)}`, 20, 46.5);
+  doc.setTextColor(0, 0, 0);
+
+  autoTable(doc, {
+    startY: 55,
+    head: [['FECHA', 'PRODUCTO', 'TIPO', 'CANTIDAD', 'COSTO UNIT.', 'SUBTOTAL PÉRDIDA']],
+    body: movs.map(m => [
+      m.fecha.slice(0, 10),
+      m.nombreProd.toUpperCase(),
+      m.tipo.toUpperCase(),
+      Math.abs(m.cantidad),
+      fmt(m.costoUnit),
+      fmt(m.subtotal)
+    ]),
+    headStyles: { fillColor: [30, 30, 30] },
+    styles: { fontSize: 8 }
+  });
+
+  doc.save(`Reporte_Consumo_${new Date().getTime()}.pdf`);
+};
+
+// Mantenemos la función original para compatibilidad si se requiere en otros módulos
+export const generarPDFInventario = async (products: Product[]) => {
+  const doc = new jsPDF('l', 'mm', 'letter');
+  autoTable(doc, {
+    head: [['CÓDIGO', 'PRODUCTO', 'CATEGORÍA', 'PRECIO', 'STOCK']],
+    body: products.map(p => [p.codigo, p.nombre, p.categoria, p.precioUSD, p.stock]),
+  });
+  doc.save('inventario.pdf');
 };

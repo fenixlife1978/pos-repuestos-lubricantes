@@ -4,6 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { AppState, Product, Movimiento, KitItem } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, Gift, Layers, Trash, ShoppingBag, TrendingUp, Printer } from 'lucide-react';
+import { 
+  generarPDFInventarioSimple, 
+  exportarPDFInventarioGeneral, 
+  exportarPDFVentasDetallado, 
+  exportarPDFKardex, 
+  exportarPDFHistorialAjustes, 
+  exportarPDFConsumoInterno 
+} from '@/lib/pdf-generator';
 
 export default function InventoryModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [activeTab, setActiveTab] = useState('productos');
@@ -26,6 +34,10 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
     updateState({ productos: nuevos });
   };
 
+  const handleDownloadBasicInv = () => {
+    generarPDFInventarioSimple(prods, state.empresa);
+  };
+
   const renderContent = () => {
     switch(activeTab) {
       case 'productos': return (
@@ -41,7 +53,10 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
                 {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <button className="btn btn-primary" onClick={() => setShowProducto('nuevo')}><Plus className="w-4 h-4" /> Nuevo Producto</button>
+            <div className="flex gap-2">
+              <button className="btn btn-secondary text-white" onClick={handleDownloadBasicInv}><FileText className="w-4 h-4" /> PDF</button>
+              <button className="btn btn-primary" onClick={() => setShowProducto('nuevo')}><Plus className="w-4 h-4" /> Nuevo Producto</button>
+            </div>
           </div>
 
           <div className="card">
@@ -192,24 +207,6 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
           }}
         />
       )}
-    </div>
-  );
-}
-
-function ReportHeader({ title, empresa }: { title: string, empresa: any }) {
-  return (
-    <div className="hidden print:block report-letter border-b-2 border-black pb-4 mb-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-black uppercase mb-1">{empresa.nombre}</h1>
-          <p className="text-xs font-bold uppercase">{empresa.direccion}</p>
-          <p className="text-xs font-bold mt-0.5">RIF: {empresa.rif} | Tel: {empresa.telefono}</p>
-        </div>
-        <div className="text-right">
-          <h2 className="text-xl font-black text-black uppercase">{title}</h2>
-          <p className="text-[10px] font-bold mt-1 uppercase">FECHA EMISIÓN: {new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })}</p>
-        </div>
-      </div>
     </div>
   );
 }
@@ -629,10 +626,20 @@ function ReporteGeneral({ state }: { state: AppState }) {
   
   const uniqueKeys = Array.from(new Set(state.productos.map(p => (p[groupBy] as string) || 'Sin asignar'))).sort();
 
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 report-letter">
-      <ReportHeader title={`Reporte General de Inventario (${groupBy.toUpperCase()})`} empresa={state.empresa} />
+  const handleExportPDF = () => {
+    const data = uniqueKeys.map(key => {
+      const groupProds = state.productos.filter(p => ((p[groupBy] as string) || 'Sin asignar') === key);
+      const stockTotal = groupProds.reduce((s, p) => s + p.stock, 0);
+      const costTotal = groupProds.reduce((s, p) => s + (p.costoUSD * p.stock), 0);
+      const ventTotal = groupProds.reduce((s, p) => s + (p.precioUSD * p.stock), 0);
+      const cppPromedio = stockTotal > 0 ? costTotal / stockTotal : 0;
+      return { label: key, itemsCount: groupProds.length, stockTotal, cpp: cppPromedio, valCosto: costTotal, valVenta: ventTotal };
+    });
+    exportarPDFInventarioGeneral(data, state.empresa, groupBy, { costo: totalCosto, venta: totalVenta });
+  };
 
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="kpi amber p-6 rounded-xl border">
           <div className="text-[10px] font-black uppercase mb-1">Valor al Costo (CPP Total)</div>
@@ -646,20 +653,20 @@ function ReporteGeneral({ state }: { state: AppState }) {
         </div>
       </div>
       
-      <div className="card border-none shadow-none">
-        <div className="card-head no-print">
+      <div className="card">
+        <div className="card-head">
           <h3 className="text-white font-black uppercase text-xs">Resumen por {groupBy} y CPP</h3>
           <div className="flex gap-2">
             <button className={`btn btn-sm ${groupBy === 'categoria' ? 'btn-primary' : 'btn-secondary text-white'}`} onClick={() => setGroupBy('categoria')}>Categoría</button>
             <button className={`btn btn-sm ${groupBy === 'departamento' ? 'btn-primary' : 'btn-secondary text-white'}`} onClick={() => setGroupBy('departamento')}>Departamento</button>
             <button className={`btn btn-sm ${groupBy === 'proveedor' ? 'btn-primary' : 'btn-secondary text-white'}`} onClick={() => setGroupBy('proveedor')}>Proveedor</button>
-            <button className="btn btn-secondary text-white font-black text-xs uppercase ml-4" onClick={() => window.print()}>
-              <Printer className="w-4 h-4" /> PDF PROFESIONAL
+            <button className="btn btn-secondary text-white font-black text-xs uppercase ml-4" onClick={handleExportPDF}>
+              <FileText className="w-4 h-4" /> PDF PROFESIONAL
             </button>
           </div>
         </div>
         <div className="table-wrap">
-          <table className="print:text-black">
+          <table>
             <thead>
               <tr>
                 <th className="uppercase">{groupBy}</th>
@@ -717,10 +724,7 @@ function ReporteVentas({ state }: { state: AppState }) {
   };
 
   const ventas = filtrarVentas();
-
-  const totalVendidos = ventas.reduce((acc, v) => 
-    acc + v.items.reduce((sum, item) => sum + item.cantidad, 0), 0
-  );
+  const totalVendidos = ventas.reduce((acc, v) => acc + v.items.reduce((sum, item) => sum + item.cantidad, 0), 0);
 
   const statsMap: Record<string, { nombre: string, cantidad: number, precio: number }> = {};
   ventas.forEach(v => {
@@ -732,15 +736,16 @@ function ReporteVentas({ state }: { state: AppState }) {
     });
   });
 
-  const top3 = Object.values(statsMap)
-    .sort((a, b) => b.cantidad - a.cantidad)
-    .slice(0, 3);
+  const top3 = Object.values(statsMap).sort((a, b) => b.cantidad - a.cantidad).slice(0, 3);
+
+  const handleExportPDF = () => {
+    const periodo = filter === 'custom' ? `${desde} a ${hasta}` : filter;
+    exportarPDFVentasDetallado(ventas, state.empresa, periodo, { totalVendidos });
+  };
 
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 report-letter">
-      <ReportHeader title="Reporte Detallado de Ventas e Ingresos" empresa={state.empresa} />
-
-      <div className="filters flex flex-wrap gap-4 items-end bg-[#131313] p-4 rounded-lg border border-[#2a2a2a] no-print">
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+      <div className="filters flex flex-wrap gap-4 items-end bg-[#131313] p-4 rounded-lg border border-[#2a2a2a]">
         <div className="form-group mb-0">
           <label className="text-white text-[10px] font-black uppercase mb-1 block">Filtrar por:</label>
           <select className="form-select w-auto bg-black text-white" value={filter} onChange={e => setFilter(e.target.value)}>
@@ -769,22 +774,22 @@ function ReporteVentas({ state }: { state: AppState }) {
           <span className="text-lg font-black text-[#c8952e]">{totalVendidos} <span className="text-[9px] text-white/60">UDS</span></span>
         </div>
 
-        <button className="btn btn-secondary text-white font-black text-xs uppercase ml-auto" onClick={() => window.print()}>
-          <Printer className="w-4 h-4" /> EXPORTAR PDF
+        <button className="btn btn-secondary text-white font-black text-xs uppercase ml-auto" onClick={handleExportPDF}>
+          <FileText className="w-4 h-4" /> EXPORTAR PDF
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 print:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {top3.map((p, i) => (
-          <div key={i} className="flex flex-col p-3 rounded border print:bg-gray-50 flex-1">
-            <span className="text-[8px] font-black uppercase mb-1">Top {i+1} Ventas</span>
-            <span className="text-xs font-black uppercase truncate">{p.nombre}</span>
-            <span className="text-lg font-black">{p.cantidad} <span className="text-[10px] opacity-50">UNIDADES</span></span>
+          <div key={i} className="flex flex-col p-3 rounded border border-white/10 bg-[#181818] flex-1">
+            <span className="text-[8px] font-black uppercase mb-1 text-[#c8952e]">Top {i+1} Ventas</span>
+            <span className="text-xs font-black uppercase truncate text-white">{p.nombre}</span>
+            <span className="text-lg font-black text-white">{p.cantidad} <span className="text-[10px] opacity-50">UNIDADES</span></span>
           </div>
         ))}
       </div>
 
-      <div className="card shadow-none border-none">
+      <div className="card">
         <div className="table-wrap">
           <table>
             <thead>
@@ -829,17 +834,17 @@ function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selec
   const movs = selectedId ? state.movimientos.filter(m => m.productoId === selectedId).sort((a, b) => b.fecha.localeCompare(a.fecha)) : [];
 
   const filtered = search.trim().length > 0 
-    ? products.filter(p => 
-        p.nombre.toLowerCase().includes(search.toLowerCase()) || 
-        p.codigo.toLowerCase().includes(search.toLowerCase())
-      ).slice(0, 15)
+    ? products.filter(p => p.nombre.toLowerCase().includes(search.toLowerCase()) || p.codigo.toLowerCase().includes(search.toLowerCase())).slice(0, 15)
     : [];
 
-  return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 report-letter">
-      <ReportHeader title={`Kardex de Inventario: ${selectedProd?.nombre || 'General'}`} empresa={state.empresa} />
+  const handleExportPDF = () => {
+    if (!selectedProd) return;
+    exportarPDFKardex(selectedProd, movs, state.empresa);
+  };
 
-      <div className="flex gap-4 flex-wrap items-center no-print">
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+      <div className="flex gap-4 flex-wrap items-center">
         <div className="form-group mb-0 flex-1 min-w-[300px] relative">
           <label className="text-white text-[10px] font-black uppercase mb-1 block">SELECCIONAR PRODUCTO (Búsqueda Inteligente)</label>
           <div className="relative">
@@ -849,69 +854,40 @@ function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selec
               className="form-input pl-10 pr-10 py-2 bg-black border-[#2a2a2a] text-white font-black uppercase text-xs" 
               placeholder="Escriba código o nombre del producto..." 
               value={selectedProd ? `${selectedProd.codigo} - ${selectedProd.nombre}` : search}
-              onChange={(e) => {
-                if (selectedId) onSelect('');
-                setSearch(e.target.value);
-                setShowResults(true);
-              }}
+              onChange={(e) => { if (selectedId) onSelect(''); setSearch(e.target.value); setShowResults(true); }}
               onFocus={() => setShowResults(true)}
               onBlur={() => setTimeout(() => setShowResults(false), 200)}
             />
             {(selectedId || search) && (
-              <button 
-                onClick={() => { onSelect(''); setSearch(''); }} 
-                className="absolute right-3 top-2.5 text-white/40 hover:text-[#e04848]"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <button onClick={() => { onSelect(''); setSearch(''); }} className="absolute right-3 top-2.5 text-white/40 hover:text-[#e04848]"><X className="w-4 h-4" /></button>
             )}
           </div>
-
           {showResults && (search.length > 0) && (
             <div className="absolute top-full left-0 right-0 bg-[#1e1e1e] border border-[#333] rounded shadow-2xl z-[100] mt-1 max-h-60 overflow-y-auto">
-              {filtered.length === 0 ? (
-                <div className="p-4 text-center text-white/40 text-[10px] font-black uppercase">Sin resultados</div>
-              ) : (
-                filtered.map(p => (
-                  <div 
-                    key={p.id} 
-                    className="p-3 hover:bg-[#c8952e]/20 cursor-pointer border-b border-white/5 flex justify-between items-center transition-colors"
-                    onMouseDown={() => {
-                      onSelect(p.id);
-                      setSearch('');
-                      setShowResults(false);
-                    }}
-                  >
-                    <div className="flex flex-col">
-                      <span className="text-white font-black text-xs uppercase">{p.nombre}</span>
-                      <span className="text-[9px] text-white/40 mono">{p.codigo}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[#c8952e] font-black text-xs">{Utils.fmtUSD(p.precioUSD)}</div>
-                      <div className="text-[8px] text-white/60 font-bold uppercase">{p.categoria}</div>
-                    </div>
-                  </div>
-                ))
-              )}
+              {filtered.length === 0 ? <div className="p-4 text-center text-white/40 text-[10px] font-black uppercase">Sin resultados</div> : filtered.map(p => (
+                <div key={p.id} className="p-3 hover:bg-[#c8952e]/20 cursor-pointer border-b border-white/5 flex justify-between items-center transition-colors" onMouseDown={() => { onSelect(p.id); setSearch(''); setShowResults(false); }}>
+                  <div className="flex flex-col"><span className="text-white font-black text-xs uppercase">{p.nombre}</span><span className="text-[9px] text-white/40 mono">{p.codigo}</span></div>
+                  <div className="text-right"><div className="text-[#c8952e] font-black text-xs">{Utils.fmtUSD(p.precioUSD)}</div><div className="text-[8px] text-white/60 font-bold uppercase">{p.categoria}</div></div>
+                </div>
+              ))}
             </div>
           )}
         </div>
-        
-        <button className="btn btn-secondary text-white font-black text-xs h-10 px-4 uppercase" onClick={() => window.print()}>
-          <Printer className="w-4 h-4" /> DESCARGAR PDF
+        <button disabled={!selectedProd} className="btn btn-secondary text-white font-black text-xs h-10 px-4 uppercase disabled:opacity-30" onClick={handleExportPDF}>
+          <FileText className="w-4 h-4" /> DESCARGAR PDF
         </button>
       </div>
 
       {selectedProd && (
-        <div className="p-6 rounded-xl border flex gap-12 bg-gray-50 print:mb-6">
-          <div><p className="text-[10px] font-black uppercase opacity-60">Producto</p><p className="text-lg font-black uppercase">{selectedProd.nombre}</p></div>
-          <div><p className="text-[10px] font-black uppercase opacity-60">Código</p><p className="text-lg font-black mono">{selectedProd.codigo}</p></div>
-          <div><p className="text-[10px] font-black uppercase opacity-60">Stock Actual</p><p className="text-2xl font-black text-blue-600">{selectedProd.stock}</p></div>
-          <div><p className="text-[10px] font-black uppercase opacity-60">Costo (CPP)</p><p className="text-2xl font-black">{Utils.fmtUSD(selectedProd.costoUSD)}</p></div>
+        <div className="p-6 rounded-xl border border-white/10 bg-[#181818] flex gap-12">
+          <div><p className="text-[10px] font-black uppercase opacity-60">Producto</p><p className="text-lg font-black uppercase text-white">{selectedProd.nombre}</p></div>
+          <div><p className="text-[10px] font-black uppercase opacity-60">Código</p><p className="text-lg font-black mono text-white">{selectedProd.codigo}</p></div>
+          <div><p className="text-[10px] font-black uppercase opacity-60">Stock Actual</p><p className="text-2xl font-black text-[#3a9bdc]">{selectedProd.stock}</p></div>
+          <div><p className="text-[10px] font-black uppercase opacity-60">Costo (CPP)</p><p className="text-2xl font-black text-white">{Utils.fmtUSD(selectedProd.costoUSD)}</p></div>
         </div>
       )}
 
-      <div className="card shadow-none border-none">
+      <div className="card">
         <div className="table-wrap">
           <table>
             <thead>
@@ -937,7 +913,7 @@ function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selec
                     <tr key={m.id}>
                       <td className="text-[11px] font-bold">{m.fecha.replace('T', ' ').slice(0, 16)}</td>
                       <td><span className="font-bold uppercase text-[9px]">{m.tipo.replace('_', ' ')}</span></td>
-                      <td className={`mono font-black text-sm ${isEntry ? 'text-green-600' : 'text-red-600'}`}>{displayCant}</td>
+                      <td className={`mono font-black text-sm ${isEntry ? 'text-[#27ae60]' : 'text-[#e04848]'}`}>{displayCant}</td>
                       <td className="mono opacity-60">{m.stockAntes}</td>
                       <td className="mono font-black">{m.stockDespues}</td>
                       <td className="text-[10px] italic">{m.referencia}</td>
@@ -954,9 +930,7 @@ function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selec
 }
 
 function HistorialAjustes({ state }: { state: AppState }) {
-  const ajustes = state.movimientos.filter(m => 
-    ['ajuste_entrada', 'ajuste_salida', 'consumo', 'colaboracion', 'compra'].includes(m.tipo)
-  ).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const ajustes = state.movimientos.filter(m => ['ajuste_entrada', 'ajuste_salida', 'consumo', 'colaboracion', 'compra'].includes(m.tipo)).sort((a, b) => b.fecha.localeCompare(a.fecha));
 
   const efectoNetoUSD = ajustes.reduce((acc, m) => {
     const p = state.productos.find(prod => prod.id === m.productoId);
@@ -965,23 +939,29 @@ function HistorialAjustes({ state }: { state: AppState }) {
     return acc + (esEntrada ? (m.cantidad * costo) : -(Math.abs(m.cantidad) * costo));
   }, 0);
 
-  return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 report-letter">
-      <ReportHeader title="Historial Cronológico de Ajustes e Ingresos" empresa={state.empresa} />
+  const handleExportPDF = () => {
+    const data = ajustes.map(m => {
+      const p = state.productos.find(prod => prod.id === m.productoId);
+      return { ...m, nombreProd: p?.nombre || 'N/A' };
+    });
+    exportarPDFHistorialAjustes(data, state.empresa, efectoNetoUSD);
+  };
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:mb-6">
-        <div className={`kpi p-6 rounded-xl border ${efectoNetoUSD >= 0 ? 'bg-amber-50' : 'bg-red-50'}`}>
-          <div className="text-[10px] font-black uppercase mb-1">Efecto Neto en Valor Inventario ($)</div>
-          <div className="text-3xl font-black">{Utils.fmtUSD(efectoNetoUSD)}</div>
-          <div className="text-sm font-bold mt-1 italic">{Utils.fmtBS(efectoNetoUSD * state.tasa)}</div>
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className={`kpi p-6 rounded-xl border ${efectoNetoUSD >= 0 ? 'bg-[#c8952e]/10 border-[#c8952e]/20' : 'bg-[#e04848]/10 border-[#e04848]/20'}`}>
+          <div className="text-[10px] font-black uppercase mb-1 text-white/60">Efecto Neto en Valor Inventario ($)</div>
+          <div className="text-3xl font-black text-white">{Utils.fmtUSD(efectoNetoUSD)}</div>
+          <div className="text-sm font-bold mt-1 italic text-white/40">{Utils.fmtBS(efectoNetoUSD * state.tasa)}</div>
         </div>
       </div>
 
-      <div className="card shadow-none border-none">
-        <div className="card-head no-print">
+      <div className="card">
+        <div className="card-head">
           <h3 className="text-white font-black uppercase text-xs">Ajustes Realizados</h3>
-          <button className="btn btn-secondary text-white font-black text-xs uppercase" onClick={() => window.print()}>
-            <Printer className="w-4 h-4" /> EXPORTAR PDF
+          <button className="btn btn-secondary text-white font-black text-xs uppercase" onClick={handleExportPDF}>
+            <FileText className="w-4 h-4" /> EXPORTAR PDF
           </button>
         </div>
         <div className="table-wrap">
@@ -1006,7 +986,7 @@ function HistorialAjustes({ state }: { state: AppState }) {
                     <td className="text-[11px]">{m.fecha.replace('T', ' ').slice(0, 16)}</td>
                     <td className="font-bold uppercase">{p?.nombre || 'N/A'}</td>
                     <td><span className="uppercase text-[9px] font-bold">{m.tipo}</span></td>
-                    <td className={`mono font-black ${isEntry ? 'text-green-600' : 'text-red-600'}`}>{isEntry ? '+' : ''}{m.cantidad}</td>
+                    <td className={`mono font-black ${isEntry ? 'text-[#27ae60]' : 'text-[#e04848]'}`}>{isEntry ? '+' : ''}{m.cantidad}</td>
                     <td className="mono opacity-60">{m.stockAntes}</td>
                     <td className="mono font-bold">{m.stockDespues}</td>
                     <td className="text-[10px] italic">{m.referencia}</td>
@@ -1023,36 +1003,42 @@ function HistorialAjustes({ state }: { state: AppState }) {
 
 function ReporteConsumo({ state }: { state: AppState }) {
   const movs = state.movimientos.filter(m => m.tipo === 'consumo' || m.tipo === 'colaboracion');
-  
   const totalPerdidaUSD = movs.reduce((acc, m) => {
     const p = state.productos.find(prod => prod.id === m.productoId);
     return acc + (Math.abs(m.cantidad) * (p?.costoUSD || 0));
   }, 0);
 
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 report-letter">
-      <ReportHeader title="Reporte de Consumo Interno y Colaboraciones" empresa={state.empresa} />
+  const handleExportPDF = () => {
+    const data = movs.map(m => {
+      const p = state.productos.find(prod => prod.id === m.productoId);
+      const costo = p?.costoUSD || 0;
+      return { ...m, nombreProd: p?.nombre || 'N/A', costoUnit: costo, subtotal: Math.abs(m.cantidad) * costo };
+    });
+    exportarPDFConsumoInterno(data, state.empresa, totalPerdidaUSD);
+  };
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 print:mb-6">
-        <div className="kpi p-4 rounded-xl border bg-gray-50">
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="kpi p-4 rounded-xl border border-white/10 bg-[#181818]">
           <div className="text-[10px] font-black uppercase mb-1">Total Colaboraciones</div>
-          <div className="text-3xl font-black">{movs.filter(m => m.tipo === 'colaboracion').length}</div>
+          <div className="text-3xl font-black text-white">{movs.filter(m => m.tipo === 'colaboracion').length}</div>
         </div>
-        <div className="kpi p-4 rounded-xl border bg-gray-50">
+        <div className="kpi p-4 rounded-xl border border-white/10 bg-[#181818]">
           <div className="text-[10px] font-black uppercase mb-1">Total Consumo Interno</div>
-          <div className="text-3xl font-black">{movs.filter(m => m.tipo === 'consumo').length}</div>
+          <div className="text-3xl font-black text-white">{movs.filter(m => m.tipo === 'consumo').length}</div>
         </div>
-        <div className="kpi p-4 rounded-xl border bg-red-50">
-          <div className="text-[10px] font-black uppercase mb-1 text-red-600">Costo Total (Pérdida)</div>
-          <div className="text-3xl font-black text-red-600">{Utils.fmtUSD(totalPerdidaUSD)}</div>
+        <div className="kpi p-4 rounded-xl border border-[#e04848]/20 bg-[#e04848]/5">
+          <div className="text-[10px] font-black uppercase mb-1 text-[#e04848]">Costo Total (Pérdida)</div>
+          <div className="text-3xl font-black text-[#e04848]">{Utils.fmtUSD(totalPerdidaUSD)}</div>
         </div>
       </div>
       
-      <div className="card shadow-none border-none">
-        <div className="card-head no-print">
+      <div className="card">
+        <div className="card-head">
           <h3 className="text-white font-black uppercase text-xs">Detalle de Salidas</h3>
-          <button className="btn btn-secondary text-white font-black text-xs uppercase" onClick={() => window.print()}>
-            <Printer className="w-4 h-4" /> DESCARGAR REPORTE
+          <button className="btn btn-secondary text-white font-black text-xs uppercase" onClick={handleExportPDF}>
+            <FileText className="w-4 h-4" /> DESCARGAR REPORTE
           </button>
         </div>
         <div className="table-wrap">
@@ -1078,7 +1064,7 @@ function ReporteConsumo({ state }: { state: AppState }) {
                     <td><span className="uppercase text-[9px] font-bold">{m.tipo}</span></td>
                     <td className="font-black mono">{Math.abs(m.cantidad)}</td>
                     <td className="mono opacity-60">{Utils.fmtUSD(p?.costoUSD || 0)}</td>
-                    <td className="mono font-black text-red-600">{Utils.fmtUSD(subPerdida)}</td>
+                    <td className="mono font-black text-[#e04848]">{Utils.fmtUSD(subPerdida)}</td>
                   </tr>
                 );
               })}
