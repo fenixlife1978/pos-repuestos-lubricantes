@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, Movimiento } from '@/lib/types';
+import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, Movimiento, PagoRealizado } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
   Search, 
@@ -34,12 +34,6 @@ declare global {
   }
 }
 
-interface PagoRealizado {
-  metodo: PaymentMethod;
-  montoUSD: number;
-  montoBS: number;
-}
-
 export default function SalesModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const ahora = Utils.ahora();
   const [search, setSearch] = useState('');
@@ -63,11 +57,11 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const printRef = useRef<HTMLDivElement>(null);
-  const reportPrintRef = useRef<HTMLDivElement>(null);
+  const printRef = useRef<HTMLDivElement | null>(null);
+  const reportPrintRef = useRef<HTMLDivElement | null>(null);
 
   // Cálculos para el abono dinámico
-  const deudaInicialUSD = showAbonoModal ? state.cxc.filter(d => d.cliente === showAbonoModal && d.estado !== 'pagada').reduce((s, d) => s + d.saldoUSD, 0) : 0;
+  const deudaInicialUSD = showAbonoModal ? state.cxc.filter((d: any) => d.cliente === showAbonoModal && d.estado !== 'pagada').reduce((s: number, d: any) => s + d.saldoUSD, 0) : 0;
   const pagosUSD_Abono = abonoPagos.filter(p => p.metodo === 'efectivo_usd' || p.metodo === 'zelle').reduce((s, p) => s + p.montoUSD, 0);
   const pagosBS_Abono = abonoPagos.filter(p => p.metodo !== 'efectivo_usd' && p.metodo !== 'zelle').reduce((s, p) => s + p.montoBS, 0);
   
@@ -212,9 +206,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const reciboId = String(state.proximoRecibo).padStart(9, '0');
     const ahoraStr = Utils.ahora();
     let restante = totalAbonoUSD;
-    const nuevasDeudas = [...state.cxc].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const nuevasDeudas = [...state.cxc].sort((a: any, b: any) => a.fecha.localeCompare(b.fecha));
     
-    const actualizadas = nuevasDeudas.map(d => {
+    const actualizadas = nuevasDeudas.map((d: any) => {
       if (d.cliente === showAbonoModal && d.estado !== 'pagada' && restante > 0) {
         const abonoAplicado = Math.min(restante, d.saldoUSD);
         restante -= abonoAplicado;
@@ -278,7 +272,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
     ventasHoy.forEach(v => {
       const payments = v.payments && v.payments.length > 0 ? v.payments : [{ metodo: v.metodoPago, montoUSD: v.totalUSD, montoBS: v.totalBS }];
-      payments.forEach(p => {
+      payments.forEach((p: PagoRealizado) => {
         const metodo = p.metodo;
         if (!breakdown[metodo]) breakdown[metodo] = { usd: 0, bs: 0 };
         breakdown[metodo].usd += p.montoUSD;
@@ -295,7 +289,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     return { breakdown, totalBS, totalUSD, ventasHoy };
   };
 
-  const handlePrint = (ref: React.RefObject<HTMLDivElement>) => {
+  const handlePrint = (ref: React.RefObject<HTMLDivElement | null>) => {
     const printContent = ref.current?.innerHTML;
     if (!printContent) return;
 
@@ -321,7 +315,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           ${printContent}
           <script>
             window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
-          </script>
+          <\/script>
         </body>
       </html>
     `);
@@ -658,7 +652,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 </tr>
               </thead>
               <tbody>
-                {state.cxc.filter(c => c.estado !== 'pagada').map(c => (
+                {state.cxc.filter((c: any) => c.estado !== 'pagada').map((c: any) => (
                   <tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
                     <td className="text-white font-bold text-xs">{Utils.fmtFecha(c.fecha)}</td>
                     <td className={`text-xs font-bold ${c.fechaVencimiento < Utils.hoy() && c.estado !== 'pagada' ? 'text-[#e04848]' : 'text-white'}`}>
@@ -677,7 +671,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     </td>
                   </tr>
                 ))}
-                {state.cxc.filter(c => c.estado !== 'pagada').length === 0 && (
+                {state.cxc.filter((c: any) => c.estado !== 'pagada').length === 0 && (
                   <tr><td colSpan={7} className="text-center py-24 text-white font-black uppercase italic opacity-30">No hay cuentas por cobrar activas</td></tr>
                 )}
               </tbody>
@@ -845,7 +839,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             <div className="modal-body p-4 space-y-4">
               <div className="bg-black p-3 rounded-lg text-center border border-white/10"><p className="text-white/40 text-[9px] font-bold uppercase mb-1">Pendiente</p><p className="text-2xl font-black text-[#3a9bdc]">{Utils.fmtUSD(saldoRestanteUSD)}</p><p className="text-xs text-white/60 font-bold">{Utils.fmtBS(saldoRestanteBS)}</p></div>
               <div className="space-y-1"><label className="text-white text-[10px] font-bold uppercase">MÉTODO</label>
-                <select className="form-select h-10 bg-[#0b0b0b] text-white border-white/20 font-black uppercase text-xs" value={metodoActual} onChange={e => setMetodoActual(e.target.value as any)}>
+                <select className="form-select h-10 bg-[#0b0b0b] text-white border-white/20 font-black uppercase text-xs" value={metodoActual} onChange={e => setMetodoActual(e.target.value as PaymentMethod)}>
                   <option value="efectivo_usd">Efectivo USD</option><option value="efectivo_bs">Efectivo BS</option><option value="punto_venta">Punto de Venta</option><option value="pagomovil">Pago Movil</option><option value="biopago">Biopago</option><option value="zelle">Zelle</option>
                 </select>
               </div>
@@ -877,7 +871,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             <div className="modal-head py-3 px-4 border-b border-white/10"><h3 className="text-white text-xs font-black uppercase">AÑADIR MÉTODO DE PAGO</h3><button onClick={() => setShowAbonoMultiModal(false)}><X className="text-white"/></button></div>
             <div className="modal-body p-4 space-y-4">
               <div className="space-y-1"><label className="text-white text-[10px] font-bold uppercase">MÉTODO</label>
-                <select className="form-select h-10 bg-[#0b0b0b] text-white border-white/20 font-black uppercase text-xs" value={metodoActual} onChange={e => setMetodoActual(e.target.value as any)}>
+                <select className="form-select h-10 bg-[#0b0b0b] text-white border-white/20 font-black uppercase text-xs" value={metodoActual} onChange={e => setMetodoActual(e.target.value as PaymentMethod)}>
                   <option value="efectivo_usd">Efectivo USD</option><option value="efectivo_bs">Efectivo BS</option><option value="punto_venta">Punto de Venta</option><option value="pagomovil">Pago Movil</option><option value="biopago">Biopago</option><option value="zelle">Zelle</option>
                 </select>
               </div>

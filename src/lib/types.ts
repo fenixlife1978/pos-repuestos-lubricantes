@@ -1,4 +1,3 @@
-
 export type PaymentMethod = 'efectivo_usd' | 'efectivo_bs' | 'punto_venta' | 'biopago' | 'pagomovil' | 'zelle' | 'credito' | 'mixto';
 export type EntityStatus = 'completada' | 'cancelada' | 'pendiente' | 'parcial' | 'pagada' | 'parcialmente_devuelta' | 'totalmente_devuelta' | 'procesada';
 
@@ -44,6 +43,15 @@ export interface Product {
   isKit?: boolean;
   kitType?: 'stock_propio' | 'stock_componentes';
   kitItems?: KitItem[];
+  // Alias para compatibilidad con código existente
+  codigoBarras?: string;
+  precio?: number;
+}
+
+export interface PagoRealizado {
+  metodo: PaymentMethod;
+  montoUSD: number;
+  montoBS: number;
 }
 
 export interface SaleItem {
@@ -70,6 +78,7 @@ export interface Sale {
   change?: number;
   customerName?: string;
   cuentaCobrarId?: string | null;
+  payments?: PagoRealizado[]; // ✅ AGREGADO: para soportar múltiples métodos de pago
 }
 
 export interface ReportZ {
@@ -131,4 +140,93 @@ export interface AppState {
   ultimoZ: number;
   proximoRecibo: number;
   acumuladoHistorico: number;
+}
+
+// Funciones de ayuda para trabajar con Product
+export function getProductDisplayName(product: Product): string {
+  return product.nombre;
+}
+
+export function getProductBarcode(product: Product): string {
+  return product.codigoBarras || product.codigo || '';
+}
+
+export function getProductPrice(product: Product): number {
+  return product.precio || product.precioUSD || 0;
+}
+
+export function getProductCategory(product: Product): string {
+  return product.categoria;
+}
+
+export function getProductMinStock(product: Product): number {
+  return product.stockMinimo || 0;
+}
+
+export function getProductStock(product: Product): number {
+  return product.stock || 0;
+}
+
+// Helper para convertir Product a formato esperado por el PDF
+export function normalizeProductForPDF(product: Product): {
+  id: string;
+  nombre: string;
+  codigoBarras: string;
+  categoria: string;
+  precio: number;
+  stock: number;
+  stockMinimo: number;
+} {
+  return {
+    id: product.id,
+    nombre: product.nombre,
+    codigoBarras: getProductBarcode(product),
+    categoria: product.categoria,
+    precio: getProductPrice(product),
+    stock: product.stock || 0,
+    stockMinimo: product.stockMinimo || 0,
+  };
+}
+
+// Función helper para obtener el label del método de pago
+export function getMetodoLabel(metodo: PaymentMethod): string {
+  const labels: Record<PaymentMethod, string> = {
+    'efectivo_usd': 'Efectivo USD',
+    'efectivo_bs': 'Efectivo BS',
+    'punto_venta': 'Punto de Venta',
+    'biopago': 'Biopago',
+    'pagomovil': 'Pago Móvil',
+    'zelle': 'Zelle',
+    'credito': 'Crédito',
+    'mixto': 'Mixto'
+  };
+  return labels[metodo] || metodo;
+}
+
+// Función helper para formatear moneda
+export function fmtUSD(amount: number): string {
+  return `$${amount.toFixed(2)}`;
+}
+
+export function fmtBS(amount: number): string {
+  return `Bs. ${amount.toFixed(2)}`;
+}
+
+export function fmtFecha(fecha: string): string {
+  if (!fecha) return '';
+  const d = new Date(fecha);
+  return d.toLocaleDateString('es-VE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+}
+
+// Funciones de utilidad para fechas
+export function hoy(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+export function ahora(): string {
+  return new Date().toISOString();
 }
