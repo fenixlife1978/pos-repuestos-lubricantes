@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -192,7 +193,7 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
                   const costoNuevo = nuevoCosto || p.costoUSD;
                   const stockTotal = stockActual + cantidadNueva;
                   if (stockTotal > 0) {
-                    finalCosto = ((stockActual * p.costoUSD) + (cantidadNueva * costoNuevo)) / stockTotal;
+                    finalCosto = Utils.round(((stockActual * p.costoUSD) + (cantidadNueva * costoNuevo)) / stockTotal);
                   }
                 }
                 return { ...p, stock: mov.stockDespues, costoUSD: finalCosto };
@@ -219,15 +220,15 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     departamento: producto?.departamento || state.departamentos[0] || '',
     cantidad: producto?.cantidad || state.presentaciones[0] || '750ml',
     marca: producto?.marca || state.marcas[0] || '',
-    costoUSD: producto?.costoUSD || 0,
-    precioUSD: producto?.precioUSD || 0,
-    precioEstandarUSD: producto?.precioEstandarUSD || producto?.precioUSD || 0,
-    precioMayorUSD: producto?.precioMayorUSD || 0,
-    precioOfertaUSD: producto?.precioOfertaUSD || 0,
-    precioPromoUSD: producto?.precioPromoUSD || 0,
+    costoUSD: Utils.round(producto?.costoUSD || 0),
+    precioUSD: Utils.round(producto?.precioUSD || 0),
+    precioEstandarUSD: Utils.round(producto?.precioEstandarUSD || producto?.precioUSD || 0),
+    precioMayorUSD: Utils.round(producto?.precioMayorUSD || 0),
+    precioOfertaUSD: Utils.round(producto?.precioOfertaUSD || 0),
+    precioPromoUSD: Utils.round(producto?.precioPromoUSD || 0),
     tipoPrecioPrincipal: producto?.tipoPrecioPrincipal || 'estandar',
     margen: producto?.margen || 0,
-    precioBS: (producto?.precioUSD || 0) * state.tasa,
+    precioBS: Utils.round((producto?.precioUSD || 0) * state.tasa),
     stock: producto?.stock || 0,
     stockMinimo: producto?.stockMinimo || 3,
     proveedor: producto?.proveedor || '',
@@ -242,33 +243,38 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
   const [kitSearch, setKitSearch] = useState('');
 
   const updateSelectedPrice = (usd: number) => {
+    const rUSD = Utils.round(usd);
     setDatos(d => {
-      const update: any = { precioUSD: usd, precioBS: usd * state.tasa };
-      if (d.tipoPrecioPrincipal === 'estandar') update.precioEstandarUSD = usd;
-      else if (d.tipoPrecioPrincipal === 'mayor') update.precioMayorUSD = usd;
-      else if (d.tipoPrecioPrincipal === 'oferta') update.precioOfertaUSD = usd;
-      else if (d.tipoPrecioPrincipal === 'promo') update.precioPromoUSD = usd;
+      const update: any = { precioUSD: rUSD, precioBS: Utils.round(rUSD * state.tasa) };
+      if (d.tipoPrecioPrincipal === 'estandar') update.precioEstandarUSD = rUSD;
+      else if (d.tipoPrecioPrincipal === 'mayor') update.precioMayorUSD = rUSD;
+      else if (d.tipoPrecioPrincipal === 'oferta') update.precioOfertaUSD = rUSD;
+      else if (d.tipoPrecioPrincipal === 'promo') update.precioPromoUSD = rUSD;
       return { ...d, ...update };
     });
   };
 
   const recalcularDesdeUSD = (usd: number, costo: number = datos.costoUSD) => {
-    const nuevoMargen = usd > 0 ? ((usd - costo) / usd) * 100 : 0;
-    setDatos(d => ({ ...d, precioUSD: usd, margen: nuevoMargen, precioBS: usd * state.tasa, costoUSD: costo }));
-    updateSelectedPrice(usd);
+    const rUSD = Utils.round(usd);
+    const rCosto = Utils.round(costo);
+    const nuevoMargen = rUSD > 0 ? ((rUSD - rCosto) / rUSD) * 100 : 0;
+    setDatos(d => ({ ...d, precioUSD: rUSD, margen: nuevoMargen, precioBS: Utils.round(rUSD * state.tasa), costoUSD: rCosto }));
+    updateSelectedPrice(rUSD);
   };
 
   const recalcularDesdeMargen = (m: number, costo: number = datos.costoUSD) => {
+    const rCosto = Utils.round(costo);
     const factor = (1 - (m / 100));
-    const usd = factor > 0 ? costo / factor : 0;
-    setDatos(d => ({ ...d, margen: m, precioUSD: usd, precioBS: usd * state.tasa, costoUSD: costo }));
+    const usd = factor > 0 ? Utils.round(rCosto / factor) : 0;
+    setDatos(d => ({ ...d, margen: m, precioUSD: usd, precioBS: Utils.round(usd * state.tasa), costoUSD: rCosto }));
     updateSelectedPrice(usd);
   };
 
   const recalcularDesdeBS = (bs: number) => {
-    const usd = bs / state.tasa;
-    const nuevoMargen = usd > 0 ? ((usd - datos.costoUSD) / usd) * 100 : 0;
-    setDatos(d => ({ ...d, precioBS: bs, precioUSD: usd, margen: nuevoMargen }));
+    const usd = Utils.round(bs / state.tasa);
+    const rCosto = Utils.round(datos.costoUSD);
+    const nuevoMargen = usd > 0 ? ((usd - rCosto) / usd) * 100 : 0;
+    setDatos(d => ({ ...d, precioBS: Utils.round(bs), precioUSD: usd, margen: nuevoMargen }));
     updateSelectedPrice(usd);
   };
 
@@ -278,8 +284,10 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     if (datos.tipoPrecioPrincipal === 'oferta') p = datos.precioOfertaUSD;
     if (datos.tipoPrecioPrincipal === 'promo') p = datos.precioPromoUSD;
     
-    const m = p > 0 ? ((p - datos.costoUSD) / p) * 100 : 0;
-    setDatos(d => ({ ...d, precioUSD: p, precioBS: p * state.tasa, margen: m }));
+    p = Utils.round(p);
+    const rCosto = Utils.round(datos.costoUSD);
+    const m = p > 0 ? ((p - rCosto) / p) * 100 : 0;
+    setDatos(d => ({ ...d, precioUSD: p, precioBS: Utils.round(p * state.tasa), margen: m }));
   }, [datos.tipoPrecioPrincipal]);
 
   const handleSubmit = () => {
@@ -392,7 +400,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   className="form-input py-1.5 text-sm text-[#c8952e] font-black bg-black" 
                   type="number" 
                   step="0.01" 
-                  value={Math.round(datos.precioUSD * 100) / 100} 
+                  value={Utils.round(datos.precioUSD)} 
                   onChange={e => recalcularDesdeUSD(parseFloat(e.target.value) || 0)}
                 />
               </div>
@@ -402,7 +410,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   className="form-input py-1.5 text-sm font-bold bg-black" 
                   type="number" 
                   step="0.01" 
-                  value={Math.round(datos.precioBS * 100) / 100} 
+                  value={Utils.round(datos.precioBS)} 
                   onChange={e => recalcularDesdeBS(parseFloat(e.target.value) || 0)}
                 />
               </div>
@@ -414,41 +422,41 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
             <div className="grid grid-cols-4 gap-3">
               <PriceInput 
                 label="ESTÁNDAR" 
-                value={datos.precioEstandarUSD} 
+                value={Utils.round(datos.precioEstandarUSD)} 
                 isActive={datos.tipoPrecioPrincipal === 'estandar'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'estandar'})}
                 onChange={(v: number) => {
-                  setDatos({...datos, precioEstandarUSD: v});
+                  setDatos({...datos, precioEstandarUSD: Utils.round(v)});
                   if(datos.tipoPrecioPrincipal === 'estandar') recalcularDesdeUSD(v);
                 }}
               />
               <PriceInput 
                 label="AL MAYOR" 
-                value={datos.precioMayorUSD} 
+                value={Utils.round(datos.precioMayorUSD)} 
                 isActive={datos.tipoPrecioPrincipal === 'mayor'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'mayor'})}
                 onChange={(v: number) => {
-                  setDatos({...datos, precioMayorUSD: v});
+                  setDatos({...datos, precioMayorUSD: Utils.round(v)});
                   if(datos.tipoPrecioPrincipal === 'mayor') recalcularDesdeUSD(v);
                 }}
               />
               <PriceInput 
                 label="OFERTA" 
-                value={datos.precioOfertaUSD} 
+                value={Utils.round(datos.precioOfertaUSD)} 
                 isActive={datos.tipoPrecioPrincipal === 'oferta'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'oferta'})}
                 onChange={(v: number) => {
-                  setDatos({...datos, precioOfertaUSD: v});
+                  setDatos({...datos, precioOfertaUSD: Utils.round(v)});
                   if(datos.tipoPrecioPrincipal === 'oferta') recalcularDesdeUSD(v);
                 }}
               />
               <PriceInput 
                 label="PROMO" 
-                value={datos.precioPromoUSD} 
+                value={Utils.round(datos.precioPromoUSD)} 
                 isActive={datos.tipoPrecioPrincipal === 'promo'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'promo'})}
                 onChange={(v: number) => {
-                  setDatos({...datos, precioPromoUSD: v});
+                  setDatos({...datos, precioPromoUSD: Utils.round(v)});
                   if(datos.tipoPrecioPrincipal === 'promo') recalcularDesdeUSD(v);
                 }}
               />
@@ -611,7 +619,7 @@ function PriceInput({ label, value, isActive, onSelect, onChange }: { label: str
         type="number" 
         step="0.01"
         className="w-full bg-transparent text-white font-bold text-xs outline-none" 
-        value={value} 
+        value={Utils.round(value)} 
         onChange={e => onChange(parseFloat(e.target.value) || 0)}
       />
     </div>
@@ -621,8 +629,8 @@ function PriceInput({ label, value, isActive, onSelect, onChange }: { label: str
 function ReporteGeneral({ state }: { state: AppState }) {
   const [groupBy, setGroupBy] = useState<'categoria' | 'departamento' | 'proveedor'>('categoria');
   
-  const totalCosto = state.productos.reduce((acc, p) => acc + (p.costoUSD * p.stock), 0);
-  const totalVenta = state.productos.reduce((acc, p) => acc + (p.precioUSD * p.stock), 0);
+  const totalCosto = Utils.round(state.productos.reduce((acc, p) => acc + (p.costoUSD * p.stock), 0));
+  const totalVenta = Utils.round(state.productos.reduce((acc, p) => acc + (p.precioUSD * p.stock), 0));
   
   const uniqueKeys = Array.from(new Set(state.productos.map(p => (p[groupBy] as string) || 'Sin asignar'))).sort();
 
@@ -678,9 +686,9 @@ function ReporteGeneral({ state }: { state: AppState }) {
               {uniqueKeys.map(key => {
                 const groupProds = state.productos.filter(p => ((p[groupBy] as string) || 'Sin asignar') === key);
                 const stockTotal = groupProds.reduce((s, p) => s + p.stock, 0);
-                const costTotal = groupProds.reduce((s, p) => s + (p.costoUSD * p.stock), 0);
-                const ventTotal = groupProds.reduce((s, p) => s + (p.precioUSD * p.stock), 0);
-                const cppPromedio = stockTotal > 0 ? costTotal / stockTotal : 0;
+                const costTotal = Utils.round(groupProds.reduce((s, p) => s + (p.costoUSD * p.stock), 0));
+                const ventTotal = Utils.round(groupProds.reduce((s, p) => s + (p.precioUSD * p.stock), 0));
+                const cppPromedio = stockTotal > 0 ? Utils.round(costTotal / stockTotal) : 0;
                 
                 return (
                   <tr key={key}>
@@ -929,12 +937,12 @@ function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selec
 function HistorialAjustes({ state }: { state: AppState }) {
   const ajustes = state.movimientos.filter(m => ['ajuste_entrada', 'ajuste_salida', 'consumo', 'colaboracion', 'compra'].includes(m.tipo)).sort((a, b) => b.fecha.localeCompare(a.fecha));
 
-  const efectoNetoUSD = ajustes.reduce((acc, m) => {
+  const efectoNetoUSD = Utils.round(ajustes.reduce((acc, m) => {
     const p = state.productos.find(prod => prod.id === m.productoId);
     const costo = p?.costoUSD || 0;
     const esEntrada = m.tipo.includes('entrada') || m.tipo === 'compra' || m.tipo === 'devolucion';
     return acc + (esEntrada ? (m.cantidad * costo) : -(Math.abs(m.cantidad) * costo));
-  }, 0);
+  }, 0));
 
   const handleExportPDF = () => {
     const data = ajustes.map(m => {
@@ -1000,16 +1008,16 @@ function HistorialAjustes({ state }: { state: AppState }) {
 
 function ReporteConsumo({ state }: { state: AppState }) {
   const movs = state.movimientos.filter(m => m.tipo === 'consumo' || m.tipo === 'colaboracion');
-  const totalPerdidaUSD = movs.reduce((acc, m) => {
+  const totalPerdidaUSD = Utils.round(movs.reduce((acc, m) => {
     const p = state.productos.find(prod => prod.id === m.productoId);
     return acc + (Math.abs(m.cantidad) * (p?.costoUSD || 0));
-  }, 0);
+  }, 0));
 
   const handleExportPDF = () => {
     const data = movs.map(m => {
       const p = state.productos.find(prod => prod.id === m.productoId);
       const costo = p?.costoUSD || 0;
-      return { ...m, nombreProd: p?.nombre || 'N/A', costoUnit: costo, subtotal: Math.abs(m.cantidad) * costo };
+      return { ...m, nombreProd: p?.nombre || 'N/A', costoUnit: costo, subtotal: Utils.round(Math.abs(m.cantidad) * costo) };
     });
     exportarPDFConsumoInterno(data, state.empresa, totalPerdidaUSD);
   };
@@ -1053,7 +1061,7 @@ function ReporteConsumo({ state }: { state: AppState }) {
             <tbody>
               {movs.map(m => {
                 const p = state.productos.find(prod => prod.id === m.productoId);
-                const subPerdida = Math.abs(m.cantidad) * (p?.costoUSD || 0);
+                const subPerdida = Utils.round(Math.abs(m.cantidad) * (p?.costoUSD || 0));
                 return (
                   <tr key={m.id}>
                     <td className="text-[11px]">{m.fecha.slice(0, 10)}</td>
@@ -1076,7 +1084,7 @@ function ReporteConsumo({ state }: { state: AppState }) {
 function ModalAjuste({ producto, onClose, onSave }: { producto: Product, onClose: () => void, onSave: (m: Movimiento, nuevoCosto?: number) => void }) {
   const [tipo, setTipo] = useState<'ajuste_entrada' | 'ajuste_salida' | 'consumo' | 'colaboracion'>('ajuste_entrada');
   const [cantidad, setCantidad] = useState(1);
-  const [nuevoCosto, setNuevoCosto] = useState(producto.costoUSD);
+  const [nuevoCosto, setNuevoCosto] = useState(Utils.round(producto.costoUSD));
   const [ref, setRef] = useState('');
 
   const handleSave = () => {
@@ -1091,9 +1099,9 @@ function ModalAjuste({ producto, onClose, onSave }: { producto: Product, onClose
       stockAntes: producto.stock,
       stockDespues: tipo === 'ajuste_entrada' ? producto.stock + cantidad : producto.stock - Math.abs(cantidad),
       fecha: Utils.ahora(),
-      referencia: tipo === 'ajuste_entrada' ? `${ref || 'Entrada manual'} - Costo unit: $${nuevoCosto}` : (ref || 'Ajuste manual')
+      referencia: tipo === 'ajuste_entrada' ? `${ref || 'Entrada manual'} - Costo unit: $${Utils.round(nuevoCosto)}` : (ref || 'Ajuste manual')
     };
-    onSave(mov, tipo === 'ajuste_entrada' ? nuevoCosto : undefined);
+    onSave(mov, tipo === 'ajuste_entrada' ? Utils.round(nuevoCosto) : undefined);
   };
 
   return (

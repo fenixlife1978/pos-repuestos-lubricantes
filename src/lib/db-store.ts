@@ -83,6 +83,8 @@ export const Utils = {
   },
   hoy: () => Utils.getVzlaDate().slice(0, 10),
   ahora: () => Utils.getVzlaDate(),
+  // Redondeo de precisión financiera (EPSILON evita errores de aproximación en JS)
+  round: (v: number) => Math.round((v + Number.EPSILON) * 100) / 100,
   fmtUSD: (v: number) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   fmtBS: (v: number) => 'Bs. ' + Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   fmtFecha: (f: string) => {
