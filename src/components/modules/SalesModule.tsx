@@ -8,7 +8,6 @@ import {
   ShoppingCart, 
   Trash2, 
   Plus, 
-  Minus, 
   Receipt, 
   Barcode, 
   Wallet, 
@@ -18,13 +17,10 @@ import {
   RotateCcw,
   History,
   ClipboardList,
-  User,
   ArrowLeft,
   Eye,
-  HandCoins,
   Clock,
   Printer,
-  Download,
   Zap,
   Share2
 } from 'lucide-react';
@@ -128,8 +124,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   const addPago = (isAbono: boolean = false) => {
     let monto = parseFloat(montoInput);
-    
-    // Validación estricta: No permite montos en cero o inválidos
     if (isNaN(monto) || monto <= 0) {
       alert("El monto debe ser mayor a cero");
       return;
@@ -273,6 +267,35 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setAbonoPagos([]);
   };
 
+  // ========== LÓGICA DE AGREGACIÓN PARA REPORTES ==========
+
+  const getReportSummary = () => {
+    const hoy = Utils.hoy();
+    const ventasHoy = state.ventas.filter(v => v.fecha.startsWith(hoy));
+    
+    const breakdown: Record<string, { usd: number, bs: number }> = {};
+    let totalBS = 0;
+    let totalUSD = 0;
+
+    ventasHoy.forEach(v => {
+      const payments = v.payments && v.payments.length > 0 ? v.payments : [{ metodo: v.metodoPago, montoUSD: v.totalUSD, montoBS: v.totalBS }];
+      payments.forEach(p => {
+        const metodo = p.metodo;
+        if (!breakdown[metodo]) breakdown[metodo] = { usd: 0, bs: 0 };
+        breakdown[metodo].usd += p.montoUSD;
+        breakdown[metodo].bs += p.montoBS;
+        
+        if (metodo === 'efectivo_usd' || metodo === 'zelle') {
+          totalUSD += p.montoUSD;
+        } else {
+          totalBS += p.montoBS;
+        }
+      });
+    });
+
+    return { breakdown, totalBS, totalUSD, ventasHoy };
+  };
+
   // ========== LÓGICA DE IMPRESIÓN ==========
 
   const handlePrint = (ref: React.RefObject<HTMLDivElement>) => {
@@ -333,7 +356,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     sale.items.forEach((item: any) => {
       printData.push({
         type: 'text',
-        value: `${item.qty || item.cantidad}x ${item.nombre.toUpperCase().slice(0, 20)}`,
+        value: `${item.cantidad}x ${item.nombre.toUpperCase().slice(0, 20)}`,
         style: { fontWeight: "700", textAlign: 'left', fontSize: "10px" }
       });
       printData.push({
@@ -344,20 +367,11 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     });
 
     printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-    printData.push({ 
-      type: 'text', 
-      value: `TOTAL BS: ${Utils.fmtBS(sale.totalBS)}`, 
-      style: { textAlign: 'right', fontWeight: "700", fontSize: "14px" } 
-    });
-    printData.push({ 
-      type: 'text', 
-      value: `REF USD: ${Utils.fmtUSD(sale.totalUSD)}`, 
-      style: { textAlign: 'right', fontSize: "12px" } 
-    });
+    printData.push({ type: 'text', value: `TOTAL BS: ${Utils.fmtBS(sale.totalBS)}`, style: { textAlign: 'right', fontWeight: "700", fontSize: "14px" } });
+    printData.push({ type: 'text', value: `REF USD: ${Utils.fmtUSD(sale.totalUSD)}`, style: { textAlign: 'right', fontSize: "12px" } });
 
     printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
     printData.push({ type: 'text', value: '¡GRACIAS POR SU PREFERENCIA!', style: { textAlign: 'center', fontWeight: "700", fontSize: "12px" } });
-    printData.push({ type: 'text', value: 'Desarrollado por LicoreriaPOS v2.0', style: { textAlign: 'center', fontSize: "8px" } });
 
     try {
       await window.electronAPI.printTicket(printData);
@@ -372,12 +386,11 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       return;
     }
 
+    const { breakdown, totalBS, totalUSD, ventasHoy } = getReportSummary();
     const hoy = Utils.hoy();
     const ahora = Utils.ahora();
-    const ventasHoy = state.ventas.filter(v => v.fecha.startsWith(hoy));
     const vDirectas = ventasHoy.filter(v => v.type === 'VENTA').reduce((s, v) => s + v.totalUSD, 0);
     const vCobros = ventasHoy.filter(v => v.type === 'COBRO DEUDA').reduce((s, v) => s + v.totalUSD, 0);
-    const total = vDirectas + vCobros;
 
     const printData = [
       { type: 'text', value: state.empresa.nombre.toUpperCase(), style: { fontWeight: "700", textAlign: 'center', fontSize: "16px" } },
@@ -393,29 +406,35 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     if (type === 'Z') {
       const z = state.reportesZ[state.reportesZ.length - 1];
       printData.push({ type: 'text', value: `REPORTE Z #: ${String(z.numeroZ).padStart(4, '0')}`, style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
-      printData.push({ type: 'text', value: `DESDE FACT: ${z.desdeFactura}`, style: { textAlign: 'left', fontSize: "10px" } });
-      printData.push({ type: 'text', value: `HASTA FACT: ${z.hastaFactura}`, style: { textAlign: 'left', fontSize: "10px" } });
     }
 
     printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-    printData.push({ type: 'text', value: 'RESUMEN POR PAGO:', style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
+    printData.push({ type: 'text', value: 'RESUMEN POR OPERACIÓN:', style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
     printData.push({ type: 'text', value: `VENTAS DIRECTAS:      ${Utils.fmtUSD(vDirectas)}`, style: { textAlign: 'left', fontSize: "10px" } });
     printData.push({ type: 'text', value: `COBROS DEUDA:         ${Utils.fmtUSD(vCobros)}`, style: { textAlign: 'left', fontSize: "10px" } });
+    
     printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-    printData.push({ type: 'text', value: `TOTAL CAJA:           ${Utils.fmtUSD(total)}`, style: { textAlign: 'left', fontSize: "12px", fontWeight: "700" } });
+    printData.push({ type: 'text', value: 'DESGLOSE POR MÉTODO:', style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
+    
+    Object.entries(breakdown).forEach(([metodo, montos]) => {
+      const isUSD = metodo === 'efectivo_usd' || metodo === 'zelle';
+      const label = Utils.metodoLabel(metodo).toUpperCase();
+      const val = isUSD ? Utils.fmtUSD(montos.usd) : Utils.fmtBS(montos.bs);
+      printData.push({ type: 'text', value: `${label.padEnd(20)} ${val}`, style: { textAlign: 'left', fontSize: "9px" } });
+    });
+
+    printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
+    printData.push({ type: 'text', value: `TOTAL CAJA BS:  ${Utils.fmtBS(totalBS)}`, style: { textAlign: 'left', fontSize: "12px", fontWeight: "700" } });
+    printData.push({ type: 'text', value: `TOTAL CAJA USD: ${Utils.fmtUSD(totalUSD)}`, style: { textAlign: 'left', fontSize: "12px", fontWeight: "700" } });
 
     if (type === 'Z') {
       const z = state.reportesZ[state.reportesZ.length - 1];
       printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-      printData.push({ type: 'text', value: `BASE IMPONIBLE:      ${Utils.fmtUSD(z.baseImponibleUSD)}`, style: { textAlign: 'left', fontSize: "10px" } });
-      printData.push({ type: 'text', value: `IVA (16%):           ${Utils.fmtUSD(z.ivaUSD)}`, style: { textAlign: 'left', fontSize: "10px" } });
-      printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-      printData.push({ type: 'text', value: `TOTAL BRUTO:         ${Utils.fmtUSD(z.totalBrutoUSD)}`, style: { textAlign: 'left', fontSize: "12px", fontWeight: "700" } });
       printData.push({ type: 'text', value: `ACUMULADO HISTORICO: ${Utils.fmtUSD(z.acumuladoHistoricoUSD)}`, style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
     }
 
     printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-    printData.push({ type: 'text', value: 'DOCUMENTO FISCAL', style: { textAlign: 'center', fontWeight: "700", fontSize: "10px" } });
+    printData.push({ type: 'text', value: '*** DOCUMENTO FISCAL ***', style: { textAlign: 'center', fontWeight: "700", fontSize: "10px" } });
 
     try {
       await window.electronAPI.printTicket(printData);
@@ -424,24 +443,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     }
   };
 
-  const handleSharePDF = async () => {
-    if (!lastProcessedSale) return;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Recibo ${lastProcessedSale.id}`,
-          text: `Resumen de recibo nro ${lastProcessedSale.id} por un total de ${Utils.fmtBS(lastProcessedSale.totalBS)}`,
-        });
-      } catch (err) {
-        handlePrint(printRef);
-      }
-    } else {
-      handlePrint(printRef);
-    }
-  };
-
   const emitirReporteZ = () => {
-    if (!confirm('¿Desea realizar el CIERRE FISCAL Z? Esto bloqueará las ventas de hoy.')) return;
+    if (!confirm('¿Desea realizar el CIERRE FISCAL Z?')) return;
     const hoy = Utils.hoy();
     const ventasHoy = state.ventas.filter(v => v.fecha.startsWith(hoy));
     const totalHoy = ventasHoy.reduce((s, v) => s + v.totalUSD, 0);
@@ -461,10 +464,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setShowReport('Z');
   };
 
-  const hoy = Utils.hoy();
-  const ahora = Utils.ahora();
-  const ventasHoyList = state.ventas.filter(v => v.fecha.startsWith(hoy)).sort((a,b) => b.fecha.localeCompare(a.fecha));
-  const creditosActivos = state.cxc.filter(c => c.estado !== 'pagada');
+  const { breakdown, totalBS: rTotalBS, totalUSD: rTotalUSD, ventasHoy: rVentasHoy } = getReportSummary();
+  const rVDirectas = rVentasHoy.filter(v => v.type === 'VENTA').reduce((s, v) => s + v.totalUSD, 0);
+  const rVCobros = rVentasHoy.filter(v => v.type === 'COBRO DEUDA').reduce((s, v) => s + v.totalUSD, 0);
 
   return (
     <div className="flex flex-col gap-2 h-[calc(100vh-100px)] max-w-7xl mx-auto w-full overflow-hidden">
@@ -602,20 +604,19 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 </tr>
               </thead>
               <tbody>
-                {ventasHoyList.length === 0 ? (
+                {getReportSummary().ventasHoy.sort((a,b) => b.fecha.localeCompare(a.fecha)).map(v => (
+                  <tr key={v.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="text-white font-black text-xs mono">{v.id}</td>
+                    <td className="text-white font-bold text-xs">{v.fecha.split('T')[1]?.slice(0, 5) || '-'}</td>
+                    <td className="text-white font-black text-xs uppercase truncate max-w-[150px]">{v.cliente}</td>
+                    <td className="text-white font-black text-[9px] uppercase"><span className={`badge ${v.type === 'COBRO DEUDA' ? 'badge-info' : 'badge-neutral'}`}>{v.type || 'VENTA'}</span></td>
+                    <td className="text-[#c8952e] font-black text-xs text-right">{Utils.fmtUSD(v.totalUSD)}</td>
+                    <td className="text-white font-bold text-[10px] uppercase">{Utils.metodoLabel(v.metodoPago)}</td>
+                    <td className="text-center"><span className="badge badge-ok font-black text-[9px] uppercase">{v.estado}</span></td>
+                  </tr>
+                ))}
+                {getReportSummary().ventasHoy.length === 0 && (
                   <tr><td colSpan={7} className="text-center py-24 text-white font-black uppercase italic opacity-30">No se registran transacciones para el día de hoy</td></tr>
-                ) : (
-                  ventasHoyList.map(v => (
-                    <tr key={v.id} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="text-white font-black text-xs mono">{v.id}</td>
-                      <td className="text-white font-bold text-xs">{v.fecha.includes('T') ? v.fecha.split('T')[1].slice(0, 5) : '-'}</td>
-                      <td className="text-white font-black text-xs uppercase truncate max-w-[150px]">{v.cliente}</td>
-                      <td className="text-white font-black text-[9px] uppercase"><span className={`badge ${v.type === 'COBRO DEUDA' ? 'badge-info' : 'badge-neutral'}`}>{v.type || 'VENTA'}</span></td>
-                      <td className="text-[#c8952e] font-black text-xs text-right">{Utils.fmtUSD(v.totalUSD)}</td>
-                      <td className="text-white font-bold text-[10px] uppercase">{Utils.metodoLabel(v.metodoPago)}</td>
-                      <td className="text-center"><span className="badge badge-ok font-black text-[9px] uppercase">{v.estado}</span></td>
-                    </tr>
-                  ))
                 )}
               </tbody>
             </table>
@@ -645,28 +646,27 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 </tr>
               </thead>
               <tbody>
-                {creditosActivos.length === 0 ? (
+                {state.cxc.filter(c => c.estado !== 'pagada').map(c => (
+                  <tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="text-white font-bold text-xs">{Utils.fmtFecha(c.fecha)}</td>
+                    <td className={`text-xs font-bold ${c.fechaVencimiento < Utils.hoy() && c.estado !== 'pagada' ? 'text-[#e04848]' : 'text-white'}`}>
+                      {c.fechaVencimiento === '2099-12-31' ? 'ABIERTA' : Utils.fmtFecha(c.fechaVencimiento)}
+                    </td>
+                    <td className="text-white font-black text-xs uppercase">{c.cliente}</td>
+                    <td className="text-white font-bold text-xs text-right">{Utils.fmtUSD(c.montoUSD)}</td>
+                    <td className="text-[#3a9bdc] font-black text-xs text-right">{Utils.fmtUSD(c.saldoUSD)}</td>
+                    <td className="text-white font-bold text-xs text-right">{Utils.fmtBS(c.saldoUSD * state.tasa)}</td>
+                    <td className="text-center">
+                      <div className="flex justify-center gap-2">
+                        <button onClick={() => setShowDetailsModal(c)} className="btn-icon h-8 w-8 text-white hover:text-[#c8952e]" title="Ver Detalles"><Eye className="w-4 h-4"/></button>
+                        <button onClick={() => setShowHistoryModal(c)} className="btn-icon h-8 w-8 text-white hover:text-[#3a9bdc]" title="Historial de Abonos"><Clock className="w-4 h-4"/></button>
+                        <button onClick={() => { setShowAbonoModal(c.cliente); setAbonoPagos([]); }} className="btn btn-sm btn-primary font-black text-[9px] uppercase px-4">Abonar</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {state.cxc.filter(c => c.estado !== 'pagada').length === 0 && (
                   <tr><td colSpan={7} className="text-center py-24 text-white font-black uppercase italic opacity-30">No hay cuentas por cobrar activas</td></tr>
-                ) : (
-                  creditosActivos.map(c => (
-                    <tr key={c.id} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="text-white font-bold text-xs">{Utils.fmtFecha(c.fecha)}</td>
-                      <td className={`text-xs font-bold ${c.fechaVencimiento < Utils.hoy() && c.estado !== 'pagada' ? 'text-[#e04848]' : 'text-white'}`}>
-                        {c.fechaVencimiento === '2099-12-31' ? 'ABIERTA' : Utils.fmtFecha(c.fechaVencimiento)}
-                      </td>
-                      <td className="text-white font-black text-xs uppercase">{c.cliente}</td>
-                      <td className="text-white font-bold text-xs text-right">{Utils.fmtUSD(c.montoUSD)}</td>
-                      <td className="text-[#3a9bdc] font-black text-xs text-right">{Utils.fmtUSD(c.saldoUSD)}</td>
-                      <td className="text-white font-bold text-xs text-right">{Utils.fmtBS(c.saldoUSD * state.tasa)}</td>
-                      <td className="text-center">
-                        <div className="flex justify-center gap-2">
-                          <button onClick={() => setShowDetailsModal(c)} className="btn-icon h-8 w-8 text-white hover:text-[#c8952e]" title="Ver Detalles"><Eye className="w-4 h-4"/></button>
-                          <button onClick={() => setShowHistoryModal(c)} className="btn-icon h-8 w-8 text-white hover:text-[#3a9bdc]" title="Historial de Abonos"><Clock className="w-4 h-4"/></button>
-                          <button onClick={() => { setShowAbonoModal(c.cliente); setAbonoPagos([]); }} className="btn btn-sm btn-primary font-black text-[9px] uppercase px-4">Abonar</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
                 )}
               </tbody>
             </table>
@@ -926,56 +926,58 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     <span>HORA:</span><span style={{ fontWeight: 'bold' }}>{ahora.split('T')[1].slice(0, 8)}</span>
                   </div>
                   {showReport === 'Z' && (
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                        <span>REPORTE Z #:</span><span style={{ fontWeight: 'bold' }}>{String(state.ultimoZ).padStart(4, '0')}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                        <span>DESDE FACT:</span><span style={{ fontWeight: 'bold' }}>{state.reportesZ[state.reportesZ.length-1]?.desdeFactura || 'N/A'}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                        <span>HASTA FACT:</span><span style={{ fontWeight: 'bold' }}>{state.reportesZ[state.reportesZ.length-1]?.hastaFactura || 'N/A'}</span>
-                      </div>
-                    </>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                      <span>REPORTE Z #:</span><span style={{ fontWeight: 'bold' }}>{String(state.ultimoZ).padStart(4, '0')}</span>
+                    </div>
                   )}
                 </div>
 
                 <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '6px' }}>RESUMEN POR PAGO:</div>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '6px' }}>RESUMEN POR OPERACIÓN:</div>
                 
-                <div style={{ fontSize: '10px', spaceY: '4px' }}>
+                <div style={{ fontSize: '10px', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>VENTAS DIRECTAS:</span>
-                    <span style={{ fontWeight: 'bold' }}>{Utils.fmtUSD(state.ventas.filter(v => v.fecha.startsWith(Utils.hoy()) && v.type === 'VENTA').reduce((s, v) => s + v.totalUSD, 0))}</span>
+                    <span style={{ fontWeight: 'bold' }}>{Utils.fmtUSD(rVDirectas)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>COBROS DEUDA:</span>
-                    <span style={{ fontWeight: 'bold' }}>{Utils.fmtUSD(state.ventas.filter(v => v.fecha.startsWith(Utils.hoy()) && v.type === 'COBRO DEUDA').reduce((s, v) => s + v.totalUSD, 0))}</span>
+                    <span style={{ fontWeight: 'bold' }}>{Utils.fmtUSD(rVCobros)}</span>
                   </div>
                 </div>
 
+                <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '6px' }}>DESGLOSE POR MÉTODO:</div>
+                
+                <div style={{ fontSize: '10px', marginBottom: '10px' }}>
+                  {Object.entries(breakdown).map(([metodo, montos]) => {
+                    const isUSD = metodo === 'efectivo_usd' || metodo === 'zelle';
+                    const label = Utils.metodoLabel(metodo).toUpperCase();
+                    const valueDisplay = isUSD ? Utils.fmtUSD(montos.usd) : Utils.fmtBS(montos.bs);
+                    return (
+                      <div key={metodo} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <span>{label}:</span>
+                        <span style={{ fontWeight: 'bold' }}>{valueDisplay}</span>
+                      </div>
+                    );
+                  })}
+                  {Object.keys(breakdown).length === 0 && <div className="text-center italic py-2">Sin movimientos</div>}
+                </div>
+
                 <div style={{ borderTop: '1px solid #000', marginTop: '10px', paddingTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>
+                    <span>TOTAL CAJA BS:</span>
+                    <span>{Utils.fmtBS(rTotalBS)}</span>
+                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'bold' }}>
-                    <span>TOTAL CAJA:</span>
-                    <span>{Utils.fmtUSD(state.ventas.filter(v => v.fecha.startsWith(Utils.hoy())).reduce((s, v) => s + v.totalUSD, 0))}</span>
+                    <span>TOTAL CAJA USD:</span>
+                    <span>{Utils.fmtUSD(rTotalUSD)}</span>
                   </div>
                 </div>
 
                 {showReport === 'Z' && (
                   <div style={{ marginTop: '12px', borderTop: '1px dashed #000', paddingTop: '8px', fontSize: '9px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>BASE IMPONIBLE:</span>
-                      <span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.baseImponibleUSD || 0)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>IVA (16%):</span>
-                      <span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.ivaUSD || 0)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', marginTop: '4px', borderTop: '1px solid #000', paddingTop: '4px' }}>
-                      <span>TOTAL BRUTO:</span>
-                      <span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.totalBrutoUSD || 0)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', marginTop: '6px', fontStyle: 'italic' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold' }}>
                       <span>ACUMULADO HISTORICO:</span>
                       <span>{Utils.fmtUSD(state.reportesZ[state.reportesZ.length-1]?.acumuladoHistoricoUSD || 0)}</span>
                     </div>
