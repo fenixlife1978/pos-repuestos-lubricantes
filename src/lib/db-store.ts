@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AppState } from './types';
@@ -11,6 +10,7 @@ export const initialState: AppState = {
   ventas: [],
   cxc: [],
   cxp: [],
+  clientes: [],
   devoluciones: [],
   movimientos: [],
   carrito: [],
@@ -46,7 +46,8 @@ export const Store = {
         marcas: parsed.marcas || initialState.marcas,
         presentaciones: parsed.presentaciones || initialState.presentaciones,
         proveedores: parsed.proveedores || initialState.proveedores,
-        proximoRecibo: parsed.proximoRecibo || initialState.proximoRecibo
+        proximoRecibo: parsed.proximoRecibo || initialState.proximoRecibo,
+        clientes: parsed.clientes || []
       };
     } catch {
       return initialState;

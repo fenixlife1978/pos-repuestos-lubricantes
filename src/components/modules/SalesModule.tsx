@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, Movimiento, PagoRealizado } from '@/lib/types';
+import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, Movimiento, PagoRealizado, Customer } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
   Search, 
@@ -22,7 +22,9 @@ import {
   Clock,
   Printer,
   Zap,
-  Share2
+  Share2,
+  UserPlus,
+  User
 } from 'lucide-react';
 
 // ✅ Declarar el tipo de electronAPI en Window para soporte de impresión nativa
@@ -56,6 +58,13 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [lastProcessedSale, setLastProcessedSale] = useState<any | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
+  // Estados para Carga de Crédito
+  const [isCreditView, setIsCreditView] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [newClient, setNewClient] = useState({ name: '', cedula: 'V-', phone: '', address: '' });
+
   const searchInputRef = useRef<HTMLInputElement>(null);
   const printRef = useRef<HTMLDivElement | null>(null);
   const reportPrintRef = useRef<HTMLDivElement | null>(null);
@@ -83,6 +92,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           if (a.codigo.toLowerCase().startsWith(s)) return -1;
           return 0;
         }).slice(0, 8)
+    : [];
+
+  const filteredClients = clientSearch.trim().length > 0
+    ? (state.clientes || []).filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.cedula.includes(clientSearch))
     : [];
 
   const agregar = (pid: string) => {
@@ -199,6 +212,94 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setCliente('Consumidor final');
   };
 
+  const ejecutarVentaACredito = () => {
+    let finalClient = selectedClient;
+    
+    if (showNewClientForm) {
+      if (!newClient.name || !newClient.cedula) return alert('Nombre y Cédula requeridos');
+      const nc: Customer = {
+        id: Store.uid(),
+        name: newClient.name,
+        cedula: newClient.cedula,
+        phone: newClient.phone,
+        address: newClient.address,
+        debt: subtotalUSD
+      };
+      updateState({ clientes: [...(state.clientes || []), nc] });
+      finalClient = nc;
+    }
+
+    if (!finalClient) return alert('Seleccione un cliente');
+
+    const reciboId = String(state.proximoRecibo).padStart(9, '0');
+    const ahoraStr = Utils.ahora();
+    
+    const nuevosProductos = state.productos.map(p => {
+      const item = state.carrito.find(i => i.productoId === p.id);
+      return item ? { ...p, stock: p.stock - item.cantidad } : p;
+    });
+
+    const nuevosMovimientos: Movimiento[] = state.carrito.map(item => {
+      const p = state.productos.find(prod => prod.id === item.productoId);
+      return {
+        id: Store.uid(),
+        productoId: item.productoId,
+        tipo: 'venta',
+        cantidad: -Math.abs(item.cantidad),
+        stockAntes: p?.stock || 0,
+        stockDespues: (p?.stock || 0) - item.cantidad,
+        fecha: ahoraStr,
+        referencia: `CRÉDITO ${reciboId}`
+      };
+    });
+
+    const nuevaVenta: Sale = {
+      id: reciboId,
+      fecha: ahoraStr,
+      cliente: finalClient.name,
+      items: [...state.carrito],
+      subtotalUSD,
+      descuentoUSD: 0,
+      totalUSD: subtotalUSD,
+      totalBS,
+      metodoPago: 'credito',
+      estado: 'pendiente',
+      type: 'VENTA',
+      received: 0,
+      change: 0
+    };
+
+    const nuevaCxC = {
+      id: reciboId,
+      fecha: Utils.hoy(),
+      fechaVencimiento: '2099-12-31',
+      cliente: finalClient.name,
+      montoUSD: subtotalUSD,
+      abonadoUSD: 0,
+      saldoUSD: subtotalUSD,
+      estado: 'pendiente',
+      ventaId: reciboId
+    };
+
+    updateState({
+      productos: nuevosProductos,
+      ventas: [...state.ventas, nuevaVenta],
+      cxc: [...state.cxc, nuevaCxC],
+      movimientos: [...state.movimientos, ...nuevosMovimientos],
+      carrito: [],
+      proximoRecibo: state.proximoRecibo + 1,
+      clientes: (state.clientes || []).map(c => c.id === finalClient?.id ? { ...c, debt: (c.debt || 0) + subtotalUSD } : c)
+    });
+
+    setLastProcessedSale(nuevaVenta);
+    setShowReceiptModal(true);
+    setShowMultiModal(false);
+    setIsCreditView(false);
+    setSelectedClient(null);
+    setShowNewClientForm(false);
+    setNewClient({ name: '', cedula: 'V-', phone: '', address: '' });
+  };
+
   const procesarAbonoCascada = () => {
     if (abonoPagos.length === 0 || !showAbonoModal) return;
     
@@ -253,7 +354,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     updateState({ 
       cxc: actualizadas, 
       ventas: [...state.ventas, registroAbono],
-      proximoRecibo: state.proximoRecibo + 1
+      proximoRecibo: state.proximoRecibo + 1,
+      clientes: (state.clientes || []).map(c => c.name === showAbonoModal ? { ...c, debt: Math.max(0, (c.debt || 0) - totalAbonoUSD) } : c)
     });
 
     setLastProcessedSale(registroAbono);
@@ -280,7 +382,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         
         if (metodo === 'efectivo_usd' || metodo === 'zelle') {
           totalUSD += p.montoUSD;
-        } else {
+        } else if (metodo !== 'credito') {
           totalBS += p.montoBS;
         }
       });
@@ -618,7 +720,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     <td className="text-white font-black text-[9px] uppercase"><span className={`badge ${v.type === 'COBRO DEUDA' ? 'badge-info' : 'badge-neutral'}`}>{v.type || 'VENTA'}</span></td>
                     <td className="text-[#c8952e] font-black text-xs text-right">{Utils.fmtUSD(v.totalUSD)}</td>
                     <td className="text-white font-bold text-[10px] uppercase">{Utils.metodoLabel(v.metodoPago)}</td>
-                    <td className="text-center"><span className="badge badge-ok font-black text-[9px] uppercase">{v.estado}</span></td>
+                    <td className="text-center"><span className={`badge ${v.estado === 'pendiente' ? 'badge-warn' : 'badge-ok'} font-black text-[9px] uppercase`}>{v.estado}</span></td>
                   </tr>
                 ))}
                 {getReportSummary().ventasHoy.length === 0 && (
@@ -833,32 +935,143 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
       {/* Modal Multi-pago POS */}
       {showMultiModal && (
-        <div className="modal show"><div className="modal-bg" onClick={() => setShowMultiModal(false)}></div>
-          <div className="modal-box max-w-[350px] bg-[#1e1e1e] border-2 border-white/20">
-            <div className="modal-head py-3 px-4 border-b border-white/10"><h3 className="text-white text-xs font-black uppercase">REGISTRAR PAGO</h3><button onClick={() => setShowMultiModal(false)}><X className="text-white"/></button></div>
+        <div className="modal show"><div className="modal-bg" onClick={() => { setShowMultiModal(false); setIsCreditView(false); }}></div>
+          <div className="modal-box max-w-[380px] bg-[#1e1e1e] border-2 border-white/20">
+            <div className="modal-head py-3 px-4 border-b border-white/10">
+              <h3 className="text-white text-xs font-black uppercase">{isCreditView ? 'CARGAR CRÉDITO' : 'REGISTRAR PAGO'}</h3>
+              <button onClick={() => { setShowMultiModal(false); setIsCreditView(false); }}><X className="text-white"/></button>
+            </div>
             <div className="modal-body p-4 space-y-4">
-              <div className="bg-black p-3 rounded-lg text-center border border-white/10"><p className="text-white/40 text-[9px] font-bold uppercase mb-1">Pendiente</p><p className="text-2xl font-black text-[#3a9bdc]">{Utils.fmtUSD(saldoRestanteUSD)}</p><p className="text-xs text-white/60 font-bold">{Utils.fmtBS(saldoRestanteBS)}</p></div>
-              <div className="space-y-1"><label className="text-white text-[10px] font-bold uppercase">MÉTODO</label>
-                <select className="form-select h-10 bg-[#0b0b0b] text-white border-white/20 font-black uppercase text-xs" value={metodoActual} onChange={e => setMetodoActual(e.target.value as PaymentMethod)}>
-                  <option value="efectivo_usd">Efectivo USD</option><option value="efectivo_bs">Efectivo BS</option><option value="punto_venta">Punto de Venta</option><option value="pagomovil">Pago Movil</option><option value="biopago">Biopago</option><option value="zelle">Zelle</option>
-                </select>
+              <div className="bg-black p-3 rounded-lg text-center border border-white/10">
+                <p className="text-white/40 text-[9px] font-bold uppercase mb-1">Pendiente</p>
+                <p className="text-2xl font-black text-[#3a9bdc]">{Utils.fmtUSD(saldoRestanteUSD)}</p>
+                <p className="text-xs text-white/60 font-bold">{Utils.fmtBS(saldoRestanteBS)}</p>
               </div>
-              <div className="space-y-1">
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-white text-[10px] font-bold uppercase">MONTO ({metodoActual.includes('usd') || metodoActual === 'zelle' ? 'USD' : 'BS'})</label>
-                  <button 
-                    onClick={() => {
-                      const monto = metodoActual.includes('usd') || metodoActual === 'zelle' ? saldoRestanteUSD : saldoRestanteBS;
-                      setMontoInput(monto.toFixed(2));
-                    }}
-                    className="text-[9px] bg-[#c8952e]/20 text-[#c8952e] px-2 py-0.5 rounded font-black border border-[#c8952e]/30 hover:bg-[#c8952e] hover:text-black transition-colors"
-                  >
-                    PAGO EXACTO
-                  </button>
+              
+              {!isCreditView ? (
+                <>
+                  <div className="space-y-1"><label className="text-white text-[10px] font-bold uppercase">MÉTODO</label>
+                    <select className="form-select h-10 bg-[#0b0b0b] text-white border-white/20 font-black uppercase text-xs" value={metodoActual} onChange={e => setMetodoActual(e.target.value as PaymentMethod)}>
+                      <option value="efectivo_usd">Efectivo USD</option><option value="efectivo_bs">Efectivo BS</option><option value="punto_venta">Punto de Venta</option><option value="pagomovil">Pago Movil</option><option value="biopago">Biopago</option><option value="zelle">Zelle</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-white text-[10px] font-bold uppercase">MONTO ({metodoActual.includes('usd') || metodoActual === 'zelle' ? 'USD' : 'BS'})</label>
+                      <button 
+                        onClick={() => {
+                          const monto = metodoActual.includes('usd') || metodoActual === 'zelle' ? saldoRestanteUSD : saldoRestanteBS;
+                          setMontoInput(monto.toFixed(2));
+                        }}
+                        className="text-[9px] bg-[#c8952e]/20 text-[#c8952e] px-2 py-0.5 rounded font-black border border-[#c8952e]/30 hover:bg-[#c8952e] hover:text-black transition-colors"
+                      >
+                        PAGO EXACTO
+                      </button>
+                    </div>
+                    <input type="number" className="form-input h-12 text-lg font-black bg-[#0b0b0b] text-white border-white/20" placeholder={metodoActual.includes('usd') || metodoActual === 'zelle' ? saldoRestanteUSD.toFixed(2) : saldoRestanteBS.toFixed(2)} value={montoInput} onChange={e => setMontoInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addPago(false)} autoFocus />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button className="btn btn-primary w-full h-12 font-black uppercase text-xs" onClick={() => addPago(false)}>CONFIRMAR ABONO</button>
+                    <div className="flex items-center gap-2 py-2">
+                      <div className="flex-1 h-px bg-white/10"></div>
+                      <span className="text-[9px] text-white/40 font-black">Ó TAMBIÉN</span>
+                      <div className="flex-1 h-px bg-white/10"></div>
+                    </div>
+                    <button 
+                      className="btn h-10 border-2 border-[#3a9bdc]/40 text-[#3a9bdc] hover:bg-[#3a9bdc]/10 bg-transparent font-black uppercase text-[10px] w-full"
+                      onClick={() => setIsCreditView(true)}
+                    >
+                      Cargar Crédito
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4 animate-in slide-in-from-right-2 duration-200">
+                  {!showNewClientForm ? (
+                    <div className="space-y-3">
+                       <div className="relative">
+                         <Search className="absolute left-3 top-2.5 w-4 h-4 text-white/40" />
+                         <input 
+                           className="form-input pl-10 h-10 text-xs bg-black text-white border-white/10" 
+                           placeholder="Buscar por nombre o cédula..." 
+                           value={clientSearch}
+                           onChange={e => setClientSearch(e.target.value)}
+                         />
+                       </div>
+                       
+                       <div className="max-h-[160px] overflow-y-auto border border-white/10 rounded-lg bg-black/40">
+                         {filteredClients.map(c => (
+                           <div 
+                             key={c.id} 
+                             onClick={() => setSelectedClient(c)}
+                             className={`p-3 border-b border-white/5 cursor-pointer hover:bg-[#c8952e]/10 transition-all ${selectedClient?.id === c.id ? 'bg-[#c8952e]/20 border-l-4 border-l-[#c8952e]' : ''}`}
+                           >
+                             <div className="text-xs font-black text-white uppercase">{c.name}</div>
+                             <div className="text-[10px] text-white/40 mono">{c.cedula}</div>
+                           </div>
+                         ))}
+                         {clientSearch.length > 0 && filteredClients.length === 0 && (
+                           <div className="p-4 text-center text-[10px] text-white/20 uppercase font-black">No se encontraron clientes</div>
+                         )}
+                         {clientSearch.length === 0 && (
+                           <div className="p-4 text-center text-[10px] text-white/40 uppercase font-black italic">Escriba para buscar...</div>
+                         )}
+                       </div>
+
+                       <div className="flex flex-col gap-2">
+                         <button 
+                           className="btn bg-[#3a9bdc]/20 text-[#3a9bdc] border border-[#3a9bdc]/40 hover:bg-[#3a9bdc]/30 font-black uppercase text-[10px] w-full h-10 flex items-center justify-center gap-2"
+                           onClick={() => setShowNewClientForm(true)}
+                         >
+                           <UserPlus className="w-4 h-4" /> Registrar Cliente
+                         </button>
+                         <button 
+                           className="btn btn-primary w-full h-12 font-black uppercase text-xs disabled:opacity-30" 
+                           disabled={!selectedClient}
+                           onClick={ejecutarVentaACredito}
+                         >
+                           Cargar Deuda
+                         </button>
+                         <button className="text-[9px] text-white/40 uppercase font-black mt-1 hover:text-white" onClick={() => { setIsCreditView(false); setSelectedClient(null); }}>
+                           Cancelar y volver al pago
+                         </button>
+                       </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                       <div className="grid grid-cols-1 gap-2">
+                         <div className="space-y-1">
+                           <label className="text-[9px] font-black uppercase text-white/60">Nombre y Apellido</label>
+                           <input className="form-input h-9 text-xs bg-black text-white border-white/10" value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})} />
+                         </div>
+                         <div className="space-y-1">
+                           <label className="text-[9px] font-black uppercase text-white/60">Cédula (V-00.000.000)</label>
+                           <input className="form-input h-9 text-xs bg-black text-white border-white/10" value={newClient.cedula} onChange={e => setNewClient({...newClient, cedula: e.target.value})} />
+                         </div>
+                         <div className="grid grid-cols-2 gap-2">
+                           <div className="space-y-1">
+                             <label className="text-[9px] font-black uppercase text-white/60">Teléfono (Op.)</label>
+                             <input className="form-input h-9 text-xs bg-black text-white border-white/10" value={newClient.phone} onChange={e => setNewClient({...newClient, phone: e.target.value})} />
+                           </div>
+                           <div className="space-y-1">
+                             <label className="text-[9px] font-black uppercase text-white/60">Dirección (Op.)</label>
+                             <input className="form-input h-9 text-xs bg-black text-white border-white/10" value={newClient.address} onChange={e => setNewClient({...newClient, address: e.target.value})} />
+                           </div>
+                         </div>
+                       </div>
+                       
+                       <div className="flex flex-col gap-2 pt-2">
+                         <button className="btn btn-primary w-full h-12 font-black uppercase text-xs" onClick={ejecutarVentaACredito}>
+                           Cargar Deuda
+                         </button>
+                         <button className="text-[9px] text-white/40 uppercase font-black hover:text-white" onClick={() => setShowNewClientForm(false)}>
+                           Volver a buscar clientes
+                         </button>
+                       </div>
+                    </div>
+                  )}
                 </div>
-                <input type="number" className="form-input h-12 text-lg font-black bg-[#0b0b0b] text-white border-white/20" placeholder={metodoActual.includes('usd') || metodoActual === 'zelle' ? saldoRestanteUSD.toFixed(2) : saldoRestanteBS.toFixed(2)} value={montoInput} onChange={e => setMontoInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addPago(false)} autoFocus />
-              </div>
-              <button className="btn btn-primary w-full h-12 font-black uppercase text-xs" onClick={() => addPago(false)}>CONFIRMAR ABONO</button>
+              )}
             </div>
           </div>
         </div>
@@ -1034,14 +1247,14 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
                 <div style={{ textAlign: 'center', marginBottom: '6px' }}>
                   <span style={{ 
-                    background: lastProcessedSale.type === 'COBRO DEUDA' ? '#27ae60' : '#2c3e50', 
+                    background: lastProcessedSale.estado === 'pendiente' ? '#e04848' : (lastProcessedSale.type === 'COBRO DEUDA' ? '#27ae60' : '#2c3e50'), 
                     color: 'white', 
                     padding: '2px 8px', 
                     fontSize: '9px', 
                     fontWeight: 'bold',
                     display: 'inline-block'
                   }}>
-                    {lastProcessedSale.type === 'COBRO DEUDA' ? 'INFORME' : 'RECIBO'}
+                    {lastProcessedSale.estado === 'pendiente' ? 'VENTA A CRÉDITO' : (lastProcessedSale.type === 'COBRO DEUDA' ? 'INFORME' : 'RECIBO')}
                   </span>
                 </div>
 

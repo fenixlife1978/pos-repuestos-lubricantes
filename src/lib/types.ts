@@ -98,8 +98,8 @@ export interface Customer {
   id: string;
   name: string;
   cedula: string;
-  phone: string;
-  address: string;
+  phone?: string;
+  address?: string;
   debt: number;
 }
 
@@ -122,6 +122,7 @@ export interface AppState {
   ventas: Sale[];
   cxc: any[];
   cxp: any[];
+  clientes: Customer[];
   devoluciones: any[];
   movimientos: Movimiento[];
   carrito: SaleItem[];
