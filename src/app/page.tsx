@@ -19,7 +19,10 @@ import {
   Calendar as CalendarIcon,
   Bell,
   RefreshCw,
-  Plus
+  Plus,
+  Wifi,
+  WifiOff,
+  Clock as ClockIcon
 } from 'lucide-react';
 import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
@@ -37,6 +40,8 @@ export default function LicoreriaPOS() {
   const [activeModule, setActiveModule] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isOnline, setIsOnline] = useState(true);
   
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     operaciones: true,
@@ -48,6 +53,23 @@ export default function LicoreriaPOS() {
     setMounted(true);
     const loadedState = Store.get();
     setState(loadedState);
+
+    // Reloj en tiempo real
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+
+    // Monitoreo de conexión
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const updateState = (newState: Partial<AppState>) => {
@@ -105,6 +127,9 @@ export default function LicoreriaPOS() {
       default: return <DashboardModule state={state} />;
     }
   };
+
+  const timeStr = currentTime.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  const dateStr = currentTime.toLocaleDateString('es-VE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
 
   return (
     <div className="flex min-h-screen bg-surface-warm text-ink">
@@ -185,7 +210,7 @@ export default function LicoreriaPOS() {
             <Menu className="w-[18px] h-[18px]" />
           </button>
           
-          <div className="hidden sm:block">
+          <div className="hidden sm:block shrink-0">
             <h2 className="font-display text-lg font-[800] text-ink leading-tight">
               Pos<span className="text-brand-gold">VEN</span> pro
             </h2>
@@ -194,6 +219,44 @@ export default function LicoreriaPOS() {
             </p>
           </div>
 
+          {/* INDICADORES CENTRALES */}
+          <div className="hidden xl:flex items-center gap-5 mx-auto">
+            {/* Reloj */}
+            <div className="flex items-center gap-2.5 px-3.5 py-1.5 bg-white/50 rounded-xl border border-line shadow-sm">
+              <ClockIcon className="w-3.5 h-3.5 text-ink/70" />
+              <div className="flex flex-col">
+                <span className="text-[0.62rem] font-black uppercase text-ink/50 leading-none mb-0.5">{dateStr}</span>
+                <span className="text-[0.8rem] font-black text-ink leading-none">{timeStr}</span>
+              </div>
+            </div>
+
+            {/* Conectividad */}
+            <div className="flex items-center gap-2.5 px-3.5 py-1.5 bg-white/50 rounded-xl border border-line shadow-sm">
+              {isOnline ? <Wifi className="w-3.5 h-3.5 text-status-success" /> : <WifiOff className="w-3.5 h-3.5 text-status-danger" />}
+              <div className="flex flex-col">
+                <span className="text-[0.62rem] font-black uppercase text-ink/50 leading-none mb-0.5">Internet</span>
+                <div className="flex items-center gap-1.5 leading-none">
+                  <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-status-success animate-pulse' : 'bg-status-danger'}`} />
+                  <span className={`text-[0.72rem] font-black uppercase ${isOnline ? 'text-status-success' : 'text-status-danger'}`}>
+                    {isOnline ? 'En Línea' : 'Sin Conexión'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tasa BCV Header */}
+            <div className="flex items-center gap-2.5 px-3.5 py-1.5 bg-brand-gold-soft/40 rounded-xl border border-brand-gold/20 shadow-sm">
+              <div className="w-5 h-5 rounded-full bg-gradient-to-b from-[#FFD700] via-[#003893] to-[#CF142B] border border-white/20 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[0.62rem] font-black uppercase text-brand-gold-deep leading-none mb-0.5">Tasa del Sistema</span>
+                <span className="text-[0.8rem] font-black text-ink leading-none">
+                  {state.tasa.toFixed(2)} <span className="text-[0.65rem] opacity-60">Bs/USD</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* ACCIONES DERECHA */}
           <div className="flex items-center gap-3 ml-auto">
             <button className="relative w-[38px] h-[38px] rounded-[10px] bg-white border border-line flex items-center justify-center text-ink hover:text-brand-gold transition-colors shadow-sm-card">
               <Bell className="w-4 h-4" />
