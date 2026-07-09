@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -20,7 +19,6 @@ import {
 } from 'lucide-react';
 import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import DashboardModule from '@/components/modules/DashboardModule';
 import InventoryModule from '@/components/modules/InventoryModule';
 import SalesModule from '@/components/modules/SalesModule';
@@ -42,8 +40,6 @@ export default function LicoreriaPOS() {
     finanzas: false,
     sistema: false
   });
-
-  const logo = PlaceHolderImages.find(img => img.id === 'posven-logo');
 
   useEffect(() => {
     setMounted(true);
@@ -86,9 +82,57 @@ export default function LicoreriaPOS() {
   const generateDemoData = (): AppState => {
     const hoyStr = Utils.hoy();
     const products = [
-      { id: Store.uid(), codigo: 'WH-001', nombre: 'Johnnie Walker Black Label', categoria: 'Whisky', departamento: 'Licores', cantidad: '750ml', marca: 'Johnnie Walker', costoUSD: 28, precioUSD: 48, stock: 12, stockMinimo: 3, proveedor: 'Distribuidora Nacional', fechaCreacion: hoyStr, activo: true },
-      { id: Store.uid(), codigo: 'RN-001', nombre: 'Santa Teresa 1796', categoria: 'Ron', departamento: 'Licores', cantidad: '750ml', marca: 'Santa Teresa', costoUSD: 30, precioUSD: 52, stock: 10, stockMinimo: 3, proveedor: 'Licorera Central', fechaCreacion: hoyStr, activo: true },
-      { id: Store.uid(), codigo: 'VN-001', nombre: 'Casillero del Diablo Reserva', categoria: 'Vino', departamento: 'Licores', cantidad: '750ml', marca: 'Casillero del Diablo', costoUSD: 8, precioUSD: 16, stock: 20, stockMinimo: 6, proveedor: 'Bodegas del Sur', fechaCreacion: hoyStr, activo: true },
+      { 
+        id: Store.uid(), 
+        codigo: 'WH-001', 
+        nombre: 'Johnnie Walker Black Label', 
+        categoria: 'Whisky', 
+        departamento: 'Licores', 
+        cantidad: '750ml', 
+        marca: 'Johnnie Walker', 
+        costoUSD: 28, 
+        precioUSD: 48, 
+        margen: 20, // Margen de ganancia en USD
+        stock: 12, 
+        stockMinimo: 3, 
+        proveedor: 'Distribuidora Nacional', 
+        fechaCreacion: hoyStr, 
+        activo: true 
+      },
+      { 
+        id: Store.uid(), 
+        codigo: 'RN-001', 
+        nombre: 'Santa Teresa 1796', 
+        categoria: 'Ron', 
+        departamento: 'Licores', 
+        cantidad: '750ml', 
+        marca: 'Santa Teresa', 
+        costoUSD: 30, 
+        precioUSD: 52, 
+        margen: 22, // Margen de ganancia en USD
+        stock: 10, 
+        stockMinimo: 3, 
+        proveedor: 'Licorera Central', 
+        fechaCreacion: hoyStr, 
+        activo: true 
+      },
+      { 
+        id: Store.uid(), 
+        codigo: 'VN-001', 
+        nombre: 'Casillero del Diablo Reserva', 
+        categoria: 'Vino', 
+        departamento: 'Licores', 
+        cantidad: '750ml', 
+        marca: 'Casillero del Diablo', 
+        costoUSD: 8, 
+        precioUSD: 16, 
+        margen: 8, // Margen de ganancia en USD
+        stock: 20, 
+        stockMinimo: 6, 
+        proveedor: 'Bodegas del Sur', 
+        fechaCreacion: hoyStr, 
+        activo: true 
+      },
     ];
     return { ...initialState, productos: products };
   };
@@ -150,16 +194,19 @@ export default function LicoreriaPOS() {
     <div className="flex h-screen bg-[#0b0b0b] text-white overflow-hidden">
       <aside className={`fixed top-0 left-0 w-[260px] h-screen bg-[#131313] border-r border-[#2a2a2a] flex flex-col z-[100] transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 border-b border-[#2a2a2a] flex flex-col items-center">
-          <div className="w-full h-12 relative mb-2">
+          <div className="w-full relative mb-2 flex justify-center">
             <Image 
-              src={logo?.imageUrl || '/posven.png'} 
-              alt="PosVEN pro" 
-              fill
-              style={{ objectFit: 'contain' }}
-              data-ai-hint="posven logo"
+              src="/posven.png" 
+              alt="PosVEN pro - Soluciones Profesionales para Venezuela" 
+              width={200}
+              height={80}
+              className="w-full h-auto max-h-[60px] object-contain"
+              priority
             />
           </div>
-          <p className="text-[0.55rem] text-white/50 font-black uppercase tracking-widest text-center leading-tight">Soluciones Profesionales para Venezuela</p>
+          <p className="text-[0.55rem] text-white/50 font-black uppercase tracking-widest text-center leading-tight">
+            Soluciones Profesionales para Venezuela
+          </p>
         </div>
         
         <nav className="flex-1 overflow-y-auto p-3 space-y-2">

@@ -395,7 +395,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const printContent = ref.current?.innerHTML;
     if (!printContent) return;
 
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open('', '_blank') as any;
     printWindow?.document.write(`
       <html>
         <head>
