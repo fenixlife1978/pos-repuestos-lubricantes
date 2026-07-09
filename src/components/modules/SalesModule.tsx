@@ -646,7 +646,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
             <div className="w-2/3 flex flex-col gap-2 overflow-hidden">
               <div className="card flex-1 flex flex-col overflow-hidden bg-white border-none shadow-xl">
-                <div className="grid grid-cols-[1fr_80px_60px_70px_80px_80px_40px] gap-2 px-3 py-2 bg-surface-soft text-ink text-[9px] font-black uppercase tracking-widest">
+                {/* CABECERA NEGRA ESTILO IMAGEN */}
+                <div className="grid grid-cols-[1fr_80px_60px_70px_80px_80px_40px] gap-2 px-3 py-3 bg-ink text-white text-[9px] font-black uppercase tracking-[0.15em] rounded-t-lg">
                   <div>Descripción</div><div className="text-center">Cant</div><div className="text-center">U.M.</div><div className="text-right">Precio ($)</div><div className="text-right">Precio (Bs)</div><div className="text-right">Total</div><div className="text-center"></div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-1 space-y-1">
@@ -656,32 +657,41 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     state.carrito.map((item, i) => {
                       const product = state.productos.find(p => p.id === item.productoId);
                       return (
-                        <div key={i} className="grid grid-cols-[1fr_80px_60px_70px_80px_80px_40px] gap-2 items-center px-2 py-1 bg-white border-b border-black/5 text-black">
+                        <div key={i} className="grid grid-cols-[1fr_80px_60px_70px_80px_80px_40px] gap-2 items-center px-3 py-3 bg-white border-b border-black/5 text-ink">
                           <div className="flex flex-col min-w-0">
-                            <div className="truncate font-black text-[10px] uppercase">{item.nombre}</div>
-                            <div className="text-[8px] font-black text-black mono uppercase">{item.productoId}</div>
+                            <div className="truncate font-black text-[10px] uppercase leading-tight">{item.nombre}</div>
+                            <div className="text-[8px] font-bold text-ink/60 mono uppercase mt-0.5">{item.productoId}</div>
                           </div>
-                          <div className="flex items-center justify-center gap-1 bg-black/5 rounded p-0.5"><button onClick={() => updateQty(i, -1)} className="text-black font-black text-xs px-1 hover:bg-black/10">-</button><span className="w-5 text-center text-[10px] font-black">{item.cantidad}</span><button onClick={() => updateQty(i, 1)} className="text-black font-black text-xs px-1 hover:bg-black/10">+</button></div>
+                          <div className="flex items-center justify-center gap-1 bg-surface-soft rounded p-0.5 border border-line/30">
+                            <button onClick={() => updateQty(i, -1)} className="text-ink font-black text-xs px-1 hover:bg-black/5">-</button>
+                            <span className="w-5 text-center text-[10px] font-black">{item.cantidad}</span>
+                            <button onClick={() => updateQty(i, 1)} className="text-ink font-black text-xs px-1 hover:bg-black/5">+</button>
+                          </div>
                           <div className="text-center text-[9px] font-black uppercase">{product?.cantidad || '-'}</div>
                           <div className="text-right text-[10px] font-black">{Utils.fmtUSD(item.precioUnitUSD)}</div>
                           <div className="text-right text-[10px] font-black">{Utils.fmtBS(item.precioUnitUSD * state.tasa)}</div>
                           <div className="text-right text-[11px] font-black">{Utils.fmtUSD(item.subtotalUSD)}</div>
-                          <div className="flex justify-center"><button onClick={() => updateQty(i, -item.cantidad)} className="text-black/20 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5"/></button></div>
+                          <div className="flex justify-center"><button onClick={() => updateQty(i, -item.cantidad)} className="text-ink/20 hover:text-red-600 transition-colors"><Trash2 className="w-3.5 h-3.5"/></button></div>
                         </div>
                       )
                     })
                   )}
                 </div>
-                <div className="p-3 bg-white border-t border-line flex items-center justify-between">
-                  <div className="space-y-1">
-                    <label className="text-ink text-[10px] font-black uppercase block">TOTAL FACTURA</label>
-                    <div className="flex items-baseline gap-2">
-                      <div className="text-3xl font-black text-brand-gold-deep">{Utils.fmtUSD(subtotalUSD)}</div>
-                      <div className="text-sm font-black text-ink">{Utils.fmtBS(totalBS)}</div>
+                {/* FOOTER NEGRO ESTILO IMAGEN */}
+                <div className="p-4 bg-ink border-t border-line/10 flex items-center justify-between rounded-b-lg">
+                  <div className="space-y-0">
+                    <label className="text-white/60 text-[8px] font-black uppercase block tracking-widest mb-1">TOTAL FACTURA</label>
+                    <div className="flex items-baseline gap-3">
+                      <div className="text-4xl font-black text-brand-gold">{Utils.fmtUSD(subtotalUSD)}</div>
+                      <div className="text-base font-black text-white">{Utils.fmtBS(totalBS)}</div>
                     </div>
                   </div>
-                  <button onClick={ejecutarVenta} disabled={state.carrito.length === 0 || saldoRestanteUSD > 0.01} className="btn btn-primary h-12 px-8 font-black uppercase text-xs disabled:opacity-20 flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5"/> PROCESAR VENTA
+                  <button 
+                    onClick={ejecutarVenta} 
+                    disabled={state.carrito.length === 0 || saldoRestanteUSD > 0.01} 
+                    className="btn bg-[#2a261c] border border-brand-gold/30 h-12 px-8 font-black uppercase text-[10px] text-brand-gold disabled:opacity-20 flex items-center gap-2 tracking-widest"
+                  >
+                    <CheckCircle2 className="w-4 h-4"/> PROCESAR VENTA
                   </button>
                 </div>
               </div>
