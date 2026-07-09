@@ -13,7 +13,7 @@
   --popover: #FFFFFF;
   --popover-foreground: #141414;
   --primary: #C8952E;
-  --primary-foreground: #FFFFFF;
+  --primary-foreground: #141414;
   --secondary: #EFEBE0;
   --secondary-foreground: #141414;
   --muted: #EFEBE0;
@@ -45,27 +45,27 @@ body {
 }
 
 .card-head {
-  @apply px-6 py-4 border-b border-line flex justify-between items-center;
+  @apply px-6 py-4 border-b border-line flex justify-between items-center bg-white text-ink;
 }
 
 .card-body {
-  @apply p-6;
+  @apply p-6 bg-white text-ink;
 }
 
 .form-input {
-  @apply w-full bg-surface-soft border border-line rounded-md px-3 py-2 text-ink outline-none transition-all focus:border-brand-gold focus:ring-4 focus:ring-brand-gold-soft/30;
+  @apply w-full bg-surface-soft border border-line rounded-md px-3 py-2 text-ink outline-none transition-all focus:border-brand-gold focus:ring-4 focus:ring-brand-gold-soft/30 font-bold;
 }
 
 .btn {
-  @apply inline-flex items-center justify-center px-4 py-2 rounded-md font-semibold cursor-pointer transition-all gap-2 h-10 active:scale-[0.98];
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-md font-bold cursor-pointer transition-all gap-2 h-10 active:scale-[0.98] uppercase text-xs;
 }
 
 .btn-primary {
-  @apply bg-brand-gold text-white shadow-md hover:bg-brand-gold-deep;
+  @apply bg-brand-gold text-ink shadow-md hover:bg-brand-gold-deep hover:text-white;
 }
 
 .btn-secondary {
-  @apply bg-white border border-line text-ink hover:bg-surface-soft;
+  @apply bg-white border border-line text-ink hover:bg-surface-soft shadow-sm;
 }
 
 .btn-danger {
@@ -87,12 +87,12 @@ body {
 .badge-warn { @apply bg-status-warn-soft text-status-warn; }
 
 .kpi {
-  @apply bg-white border border-line rounded-lg p-5 shadow-sm-card;
+  @apply bg-white border border-line rounded-lg p-5 shadow-sm-card text-ink;
 }
 
-.kpi-label { @apply text-[0.7rem] font-bold text-ink uppercase tracking-widest mb-1; }
+.kpi-label { @apply text-[0.7rem] font-black text-ink uppercase tracking-widest mb-1 opacity-80; }
 .kpi-value { @apply text-2xl font-black text-ink font-display; }
-.kpi-sub { @apply text-[0.7rem] font-medium text-ink mt-1; }
+.kpi-sub { @apply text-[0.7rem] font-bold text-ink/70 mt-1; }
 
 .table-wrap {
   @apply w-full overflow-x-auto;
@@ -103,24 +103,24 @@ table {
 }
 
 th {
-  @apply px-6 py-3 text-left text-[0.68rem] font-bold text-ink uppercase tracking-[0.12em] border-b border-line bg-surface-soft/50;
+  @apply px-6 py-3 text-left text-[0.68rem] font-black text-ink uppercase tracking-[0.12em] border-b border-line bg-surface-soft;
 }
 
 td {
-  @apply px-6 py-4 text-sm border-b border-line/50 text-ink;
+  @apply px-6 py-4 text-sm border-b border-line/50 text-ink font-medium;
 }
 
 /* Tabs Styling */
 .tabs {
-  @apply flex items-center gap-1;
+  @apply flex items-center gap-1 mb-4;
 }
 
 .tab {
-  @apply px-4 py-2 text-sm font-bold text-ink rounded-t-lg transition-all border-b-2 border-transparent hover:text-ink;
+  @apply px-4 py-2 text-sm font-black text-ink/60 rounded-t-lg transition-all border-b-2 border-transparent hover:text-ink hover:bg-white/50 uppercase tracking-tighter;
 }
 
 .tab.active {
-  @apply text-brand-gold border-brand-gold bg-white;
+  @apply text-brand-gold border-brand-gold bg-white font-black opacity-100;
 }
 
 /* Modals */
@@ -141,11 +141,11 @@ td {
 }
 
 .modal-head {
-  @apply px-6 py-4 border-b border-line flex justify-between items-center;
+  @apply px-6 py-4 border-b border-line flex justify-between items-center bg-surface-soft;
 }
 
 .modal-body {
-  @apply p-6 overflow-y-auto max-h-[85vh];
+  @apply p-6 overflow-y-auto max-h-[85vh] bg-white;
 }
 
 .modal-foot {
