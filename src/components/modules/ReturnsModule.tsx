@@ -129,51 +129,51 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-white font-black uppercase italic tracking-tighter text-xl flex items-center gap-2">
-            <RotateCcw className="text-[#e04848]" /> Gestión de Devoluciones
+          <h2 className="text-ink font-black uppercase italic tracking-tighter text-xl flex items-center gap-2">
+            <RotateCcw className="text-status-danger" /> GESTIÓN DE DEVOLUCIONES
           </h2>
-          <p className="text-[10px] text-white/40 font-black uppercase tracking-widest">Auditoría y Reintegro de Mercancía</p>
+          <p className="text-[10px] text-ink font-bold uppercase tracking-widest opacity-60">Auditoría y Reintegro de Mercancía</p>
         </div>
         <button 
           onClick={() => { setView(view === 'list' ? 'create' : 'list'); setSelectedSale(null); }} 
-          className={`btn ${view === 'list' ? 'btn-primary' : 'btn-secondary text-white'} h-10 px-6 font-black uppercase text-xs flex items-center gap-2`}
+          className={`btn ${view === 'list' ? 'btn-primary' : 'btn-secondary'} h-10 px-6 font-black uppercase text-xs flex items-center gap-2 shadow-sm`}
         >
           {view === 'list' ? <><RotateCcw className="w-4 h-4" /> Nueva Devolución</> : <><History className="w-4 h-4" /> Ver Historial</>}
         </button>
       </div>
 
       {view === 'list' ? (
-        <div className="card animate-in fade-in duration-300">
-          <div className="card-head bg-[#181818] border-b border-[#2a2a2a] px-5 py-4">
-            <h3 className="text-white font-black text-xs uppercase tracking-widest flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-[#3a9bdc]" /> Historial Cronológico de Devoluciones
+        <div className="card shadow-lg animate-in fade-in duration-300 border-line">
+          <div className="card-head bg-surface-soft border-b border-line px-5 py-4">
+            <h3 className="text-ink font-black text-xs uppercase tracking-widest flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-status-info" /> Historial Cronológico de Devoluciones
             </h3>
           </div>
           <div className="table-wrap">
             <table>
               <thead>
-                <tr className="bg-[#0b0b0b]">
-                  <th className="text-white font-black text-[10px] uppercase">ID Devolución</th>
-                  <th className="text-white font-black text-[10px] uppercase">Fecha</th>
-                  <th className="text-white font-black text-[10px] uppercase">Venta Ref.</th>
-                  <th className="text-white font-black text-[10px] uppercase">Items</th>
-                  <th className="text-white font-black text-[10px] uppercase text-right">Total Devuelto</th>
-                  <th className="text-white font-black text-[10px] uppercase">Reembolso</th>
+                <tr className="bg-surface-soft">
+                  <th className="text-ink font-black text-[10px] uppercase">ID Devolución</th>
+                  <th className="text-ink font-black text-[10px] uppercase">Fecha</th>
+                  <th className="text-ink font-black text-[10px] uppercase">Venta Ref.</th>
+                  <th className="text-ink font-black text-[10px] uppercase">Items</th>
+                  <th className="text-ink font-black text-[10px] uppercase text-right">Total Devuelto</th>
+                  <th className="text-ink font-black text-[10px] uppercase">Reembolso</th>
                 </tr>
               </thead>
-              <tbody className="bg-[#131313]">
+              <tbody className="bg-white">
                 {state.devoluciones.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-20 text-white font-black uppercase italic opacity-40">No hay devoluciones registradas</td></tr>
+                  <tr><td colSpan={6} className="text-center py-20 text-ink/20 font-black uppercase italic opacity-40">No hay devoluciones registradas</td></tr>
                 ) : (
                   state.devoluciones.map(d => (
-                    <tr key={d.id} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="text-[#e04848] font-black text-xs mono">{d.id}</td>
-                      <td className="text-white font-bold text-xs">{Utils.fmtFecha(d.fecha)}</td>
-                      <td className="text-white font-black text-xs mono opacity-60">{d.ventaId}</td>
-                      <td className="text-white font-bold text-[10px] uppercase">
+                    <tr key={d.id} className="border-b border-line/30 hover:bg-surface-warm/20">
+                      <td className="text-status-danger font-black text-xs mono">{d.id}</td>
+                      <td className="text-ink font-bold text-xs">{Utils.fmtFecha(d.fecha)}</td>
+                      <td className="text-ink font-black text-xs mono opacity-60">{d.ventaId}</td>
+                      <td className="text-ink font-bold text-[10px] uppercase">
                         {d.items.length} productos
                       </td>
-                      <td className="text-[#c8952e] font-black text-xs text-right">{Utils.fmtUSD(d.totalUSD)}</td>
+                      <td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(d.totalUSD)}</td>
                       <td><span className="badge badge-neutral font-black text-[9px] uppercase">{d.metodoReembolso}</span></td>
                     </tr>
                   ))
@@ -186,50 +186,50 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-300">
           <div className="lg:col-span-2 space-y-4">
             {!selectedSale ? (
-              <div className="card p-12 flex flex-col items-center justify-center text-center space-y-6 bg-[#131313] border-dashed border-2 border-white/10">
-                <div className="p-5 bg-white/5 rounded-full"><Search className="w-10 h-10 text-white/20" /></div>
+              <div className="card p-12 flex flex-col items-center justify-center text-center space-y-6 bg-white border-dashed border-2 border-line">
+                <div className="p-5 bg-surface-soft rounded-full"><Search className="w-10 h-10 text-ink/20" /></div>
                 <div className="max-w-xs space-y-2">
-                  <h3 className="text-white font-black uppercase text-sm">Localizar Venta Original</h3>
-                  <p className="text-[10px] text-white/40 font-bold uppercase">Ingrese el número de recibo impreso en el ticket del cliente para iniciar el proceso.</p>
+                  <h3 className="text-ink font-black uppercase text-sm">Localizar Venta Original</h3>
+                  <p className="text-[10px] text-ink font-bold uppercase opacity-60">Ingrese el número de recibo impreso en el ticket del cliente para iniciar el proceso.</p>
                 </div>
                 <div className="flex gap-2 w-full max-w-sm">
                   <input 
-                    className="form-input flex-1 h-12 bg-black border-[#2a2a2a] text-white font-black uppercase" 
+                    className="form-input flex-1 h-12 bg-white border-line text-ink font-black uppercase" 
                     placeholder="Ej: 000000024"
                     value={saleSearch}
                     onChange={e => setSaleSearch(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && buscarVenta()}
                   />
-                  <button onClick={buscarVenta} className="btn btn-primary h-12 px-6 font-black uppercase text-xs">Buscar</button>
+                  <button onClick={buscarVenta} className="btn btn-primary h-12 px-6 font-black uppercase text-xs shadow-md">Buscar</button>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="card bg-[#181818] border-[#3a9bdc]/30">
-                  <div className="card-head py-3 px-5 border-b border-white/10 flex justify-between">
-                    <h3 className="text-[#3a9bdc] font-black uppercase text-xs">Venta: {selectedSale.id}</h3>
-                    <button onClick={() => setSelectedSale(null)} className="text-white/40 hover:text-white"><X className="w-4 h-4"/></button>
+                <div className="card bg-white border-status-info/30">
+                  <div className="card-head py-3 px-5 border-b border-line flex justify-between">
+                    <h3 className="text-status-info font-black uppercase text-xs">Venta: {selectedSale.id}</h3>
+                    <button onClick={() => setSelectedSale(null)} className="text-ink/40 hover:text-ink"><X className="w-4 h-4"/></button>
                   </div>
                   <div className="table-wrap">
                     <table>
                       <thead>
-                        <tr className="bg-black/40">
-                          <th className="text-[9px] uppercase">Producto</th>
-                          <th className="text-[9px] uppercase text-center">Cant. Compra</th>
-                          <th className="text-[9px] uppercase text-right">Precio Hist.</th>
-                          <th className="text-[9px] uppercase text-center">Acción</th>
+                        <tr className="bg-surface-soft">
+                          <th className="text-[9px] uppercase font-black text-ink">Producto</th>
+                          <th className="text-[9px] uppercase text-center font-black text-ink">Cant. Compra</th>
+                          <th className="text-[9px] uppercase text-right font-black text-ink">Precio Hist.</th>
+                          <th className="text-[9px] uppercase text-center font-black text-ink">Acción</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedSale.items.map((item, idx) => (
-                          <tr key={idx} className="border-b border-white/5">
-                            <td className="text-white font-bold text-xs uppercase">{item.nombre}</td>
-                            <td className="text-white font-black text-xs text-center">{item.cantidad}</td>
-                            <td className="text-white font-black text-xs text-right">{Utils.fmtUSD(item.precioUnitUSD)}</td>
+                          <tr key={idx} className="border-b border-line/30">
+                            <td className="text-ink font-bold text-xs uppercase">{item.nombre}</td>
+                            <td className="text-ink font-black text-xs text-center">{item.cantidad}</td>
+                            <td className="text-ink font-black text-xs text-right">{Utils.fmtUSD(item.precioUnitUSD)}</td>
                             <td className="text-center">
                               <button 
                                 onClick={() => handleAddItem(item.productoId, item.nombre, item.precioUnitUSD, item.cantidad)}
-                                className="btn btn-sm btn-secondary text-white font-black text-[9px] uppercase h-7"
+                                className="btn btn-sm btn-secondary text-ink font-black text-[9px] uppercase h-7"
                               >
                                 Seleccionar
                               </button>
@@ -241,41 +241,41 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
                   </div>
                 </div>
 
-                <div className="card bg-[#131313]">
-                  <div className="card-head py-3 px-5 border-b border-white/10">
-                    <h3 className="text-[#e04848] font-black uppercase text-xs flex items-center gap-2">
+                <div className="card bg-white border-line shadow-sm">
+                  <div className="card-head py-3 px-5 border-b border-line">
+                    <h3 className="text-status-danger font-black uppercase text-xs flex items-center gap-2">
                       <Undo2 className="w-4 h-4"/> Ítems en la Devolución Actual
                     </h3>
                   </div>
                   <div className="table-wrap">
                     <table>
                       <thead>
-                        <tr className="bg-black/40">
-                          <th className="text-[9px] uppercase">Producto</th>
-                          <th className="text-[9px] uppercase text-center">Cant.</th>
-                          <th className="text-[9px] uppercase">Estado / Destino</th>
-                          <th className="text-[9px] uppercase text-right">Subtotal</th>
+                        <tr className="bg-surface-soft">
+                          <th className="text-[9px] uppercase font-black text-ink">Producto</th>
+                          <th className="text-[9px] uppercase text-center font-black text-ink">Cant.</th>
+                          <th className="text-[9px] uppercase font-black text-ink">Estado / Destino</th>
+                          <th className="text-[9px] uppercase text-right font-black text-ink">Subtotal</th>
                           <th className="text-[9px] uppercase text-center"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {returnItems.map((item, idx) => (
-                          <tr key={idx} className="border-b border-white/5">
-                            <td className="text-white font-bold text-xs uppercase">{item.nombre}</td>
-                            <td className="text-[#e04848] font-black text-xs text-center">{item.cantidad}</td>
+                          <tr key={idx} className="border-b border-line/30">
+                            <td className="text-ink font-bold text-xs uppercase">{item.nombre}</td>
+                            <td className="text-status-danger font-black text-xs text-center">{item.cantidad}</td>
                             <td>
                               <span className={`badge ${item.estadoProducto === 'REINTEGRADO_STOCK' ? 'badge-ok' : 'badge-err'} font-black text-[8px] uppercase`}>
                                 {item.estadoProducto.replace('_', ' ')}
                               </span>
                             </td>
-                            <td className="text-[#c8952e] font-black text-xs text-right">{Utils.fmtUSD(item.cantidad * item.precioUnitUSD)}</td>
+                            <td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(item.cantidad * item.precioUnitUSD)}</td>
                             <td className="text-center">
-                              <button onClick={() => setReturnItems(returnItems.filter((_, i) => i !== idx))} className="text-white/20 hover:text-[#e04848]"><Trash2 className="w-3.5 h-3.5"/></button>
+                              <button onClick={() => setReturnItems(returnItems.filter((_, i) => i !== idx))} className="text-ink/20 hover:text-status-danger"><Trash2 className="w-3.5 h-3.5"/></button>
                             </td>
                           </tr>
                         ))}
                         {returnItems.length === 0 && (
-                          <tr><td colSpan={5} className="text-center py-10 text-white/20 font-black uppercase italic text-[10px]">Añade productos de la venta original</td></tr>
+                          <tr><td colSpan={5} className="text-center py-10 text-ink/20 font-black uppercase italic text-[10px]">Añade productos de la venta original</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -286,22 +286,22 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
           </div>
 
           <div className="space-y-6">
-            <div className="card bg-[#181818] border-[#e04848]/20 h-fit">
-              <div className="card-head py-4 px-6 border-b border-white/10">
-                <h3 className="text-white font-black uppercase text-xs">Finalizar Transacción</h3>
+            <div className="card bg-white border-line h-fit shadow-lg">
+              <div className="card-head py-4 px-6 border-b border-line bg-surface-soft">
+                <h3 className="text-ink font-black uppercase text-xs">Finalizar Transacción</h3>
               </div>
               <div className="card-body p-6 space-y-6">
-                <div className="bg-black/40 p-4 rounded-lg border border-white/10 text-center">
-                  <p className="text-white/40 text-[9px] font-black uppercase mb-1">Total a Reembolsar</p>
-                  <p className="text-3xl font-black text-[#e04848]">
+                <div className="bg-surface-soft p-4 rounded-lg border border-line text-center shadow-inner">
+                  <p className="text-ink/60 text-[9px] font-black uppercase mb-1">Total a Reembolsar</p>
+                  <p className="text-3xl font-black text-status-danger">
                     {Utils.fmtUSD(returnItems.reduce((s, i) => s + (i.cantidad * i.precioUnitUSD), 0))}
                   </p>
                 </div>
 
                 <div className="form-group">
-                  <label className="text-white text-[10px] font-black uppercase block mb-1">Método de Reembolso</label>
+                  <label className="text-ink text-[10px] font-black uppercase block mb-1">Método de Reembolso</label>
                   <select 
-                    className="form-select bg-black text-white h-11 text-xs font-black uppercase border-white/20"
+                    className="form-select bg-white text-ink h-11 text-xs font-black uppercase border-line shadow-sm rounded-md w-full px-3"
                     value={refundMethod}
                     onChange={e => setRefundMethod(e.target.value as any)}
                   >
@@ -312,24 +312,24 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
                 </div>
 
                 <div className="form-group">
-                  <label className="text-white text-[10px] font-black uppercase block mb-1">Motivo de la Devolución</label>
+                  <label className="text-ink text-[10px] font-black uppercase block mb-1">Motivo de la Devolución</label>
                   <textarea 
-                    className="form-textarea bg-black text-white text-xs min-h-[100px] border-white/20"
+                    className="form-input bg-white text-ink text-xs min-h-[100px] border-line py-3"
                     placeholder="Describa el porqué de la devolución..."
                     value={reason}
                     onChange={e => setMotivo(e.target.value)}
                   ></textarea>
                 </div>
 
-                <div className="p-3 bg-[#e04848]/5 rounded border border-[#e04848]/20 flex gap-3">
-                   <AlertTriangle className="w-5 h-5 text-[#e04848] shrink-0" />
-                   <p className="text-[9px] text-white/60 font-medium leading-tight">Esta acción generará una nota de crédito y ajustará el inventario según el estado del producto seleccionado.</p>
+                <div className="p-3 bg-status-danger-soft rounded border border-status-danger/20 flex gap-3">
+                   <AlertTriangle className="w-5 h-5 text-status-danger shrink-0" />
+                   <p className="text-[9px] text-ink font-bold leading-tight opacity-70">Esta acción generará una nota de crédito y ajustará el inventario según el estado del producto seleccionado.</p>
                 </div>
 
                 <button 
                   disabled={returnItems.length === 0 || !reason.trim()}
                   onClick={procesarDevolucion}
-                  className="btn btn-primary w-full h-14 font-black uppercase text-xs shadow-xl shadow-[#e04848]/20 disabled:opacity-20"
+                  className="btn btn-primary w-full h-14 font-black uppercase text-xs shadow-xl shadow-status-danger/10 disabled:opacity-20 transition-all"
                 >
                   Confirmar Devolución
                 </button>
