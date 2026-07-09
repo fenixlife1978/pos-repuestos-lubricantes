@@ -8,22 +8,11 @@ import {
   Search, 
   X, 
   Trash2, 
-  CheckCircle2, 
   AlertTriangle, 
-  ShoppingBag, 
   Undo2,
-  ArrowLeft,
-  ChevronRight,
   ClipboardList,
   History
 } from 'lucide-react';
-
-interface NewReturn {
-  ventaId: string;
-  items: ReturnItem[];
-  metodoReembolso: 'EFECTIVO' | 'MISMO_METODO' | 'CREDITO_TIENDA';
-  motivo: string;
-}
 
 export default function ReturnsModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [view, setView] = useState<'list' | 'create'>('list');
@@ -38,7 +27,6 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
     if (!sale) return alert('Venta no encontrada');
     
     setSelectedSale(sale);
-    // Inicializar items de devolución vacíos
     setReturnItems([]);
   };
 
@@ -76,7 +64,7 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
     if (!reason.trim()) return alert('Por favor indique el motivo de la devolución');
 
     const totalDevuelto = returnItems.reduce((s, i) => s + (i.cantidad * i.precioUnitUSD), 0);
-    const idDev = 'DEV-' + Store.uid().toUpperCase().slice(0, 6);
+    const idDev = 'DEV-' + String(state.proximaDevolucion).padStart(6, '0');
     const ahoraStr = Utils.ahora();
 
     const nuevaDevolucion: Return = {
@@ -89,7 +77,6 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
       motivo: reason
     };
 
-    // Actualizar Stock y Kardex
     const nuevosProductos = [...state.productos];
     const nuevosMovimientos: Movimiento[] = [];
 
@@ -99,7 +86,6 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
         const p = nuevosProductos[pIdx];
         const stockAntes = p.stock;
         
-        // Solo sumamos al stock si está apto para la venta
         if (item.estadoProducto === 'REINTEGRADO_STOCK') {
           nuevosProductos[pIdx] = { ...p, stock: p.stock + item.cantidad };
         }
@@ -117,7 +103,6 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
       }
     });
 
-    // Actualizar estado de la venta original (Opcional, para visualización)
     const nuevasVentas = state.ventas.map(v => {
       if (v.id === selectedSale.id) {
         return { ...v, estado: 'parcialmente_devuelta' as any };
@@ -129,10 +114,11 @@ export default function ReturnsModule({ state, updateState }: { state: AppState,
       productos: nuevosProductos,
       devoluciones: [nuevaDevolucion, ...state.devoluciones],
       movimientos: [...state.movimientos, ...nuevosMovimientos],
-      ventas: nuevasVentas
+      ventas: nuevasVentas,
+      proximaDevolucion: state.proximaDevolucion + 1
     });
 
-    alert('Devolución procesada con éxito');
+    alert(`Devolución ${idDev} procesada con éxito`);
     setView('list');
     setSelectedSale(null);
     setReturnItems([]);

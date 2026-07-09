@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, Movimiento, PagoRealizado, Customer } from '@/lib/types';
+import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, Movimiento, PagoRealizado, Customer, Return } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
   Search, 
@@ -14,7 +14,6 @@ import {
   X, 
   CheckCircle2, 
   FileText,
-  RotateCcw,
   History,
   ClipboardList,
   ArrowLeft,
@@ -24,11 +23,10 @@ import {
   Zap,
   Share2,
   UserPlus,
-  User
+  RotateCcw
 } from 'lucide-react';
 import ReturnsModule from './ReturnsModule';
 
-// ✅ Declarar el tipo de electronAPI en Window para soporte de impresión nativa
 declare global {
   interface Window {
     electronAPI?: {
@@ -59,7 +57,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [lastProcessedSale, setLastProcessedSale] = useState<any | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
-  // Estados para Carga de Crédito
   const [isCreditView, setIsCreditView] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
@@ -70,7 +67,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const printRef = useRef<HTMLDivElement | null>(null);
   const reportPrintRef = useRef<HTMLDivElement | null>(null);
 
-  // Cálculos para el abono dinámico
   const deudaInicialUSD = showAbonoModal ? state.cxc.filter((d: any) => d.cliente === showAbonoModal && d.estado !== 'pagada').reduce((s: number, d: any) => s + d.saldoUSD, 0) : 0;
   const pagosUSD_Abono = abonoPagos.filter(p => p.metodo === 'efectivo_usd' || p.metodo === 'zelle').reduce((s, p) => s + p.montoUSD, 0);
   const pagosBS_Abono = abonoPagos.filter(p => p.metodo !== 'efectivo_usd' && p.metodo !== 'zelle').reduce((s, p) => s + p.montoBS, 0);
@@ -368,8 +364,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const getReportSummary = () => {
     const hoy = Utils.hoy();
     const ventasHoy = state.ventas.filter(v => v.fecha.startsWith(hoy));
+    const devolucionesHoy = state.devoluciones.filter(d => d.fecha.startsWith(hoy));
     
-    const breakdown: Record<string, { usd: number, bs: number }> = {};
+    const breakdown: Record<string, { usd: number, bs: number, devUsd: number, devBs: number }> = {};
     let totalBS = 0;
     let totalUSD = 0;
 
@@ -377,7 +374,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       const payments = v.payments && v.payments.length > 0 ? v.payments : [{ metodo: v.metodoPago, montoUSD: v.totalUSD, montoBS: v.totalBS }];
       payments.forEach((p: PagoRealizado) => {
         const metodo = p.metodo;
-        if (!breakdown[metodo]) breakdown[metodo] = { usd: 0, bs: 0 };
+        if (!breakdown[metodo]) breakdown[metodo] = { usd: 0, bs: 0, devUsd: 0, devBs: 0 };
         breakdown[metodo].usd += p.montoUSD;
         breakdown[metodo].bs += p.montoBS;
         
@@ -389,10 +386,34 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       });
     });
 
-    return { breakdown, totalBS, totalUSD, ventasHoy };
+    devolucionesHoy.forEach(d => {
+      let metodoKey: PaymentMethod = 'efectivo_usd';
+      if (d.metodoReembolso === 'EFECTIVO') metodoKey = 'efectivo_usd';
+      else if (d.metodoReembolso === 'CREDITO_TIENDA') metodoKey = 'credito';
+      else if (d.metodoReembolso === 'MISMO_METODO') {
+        const original = state.ventas.find(v => v.id === d.ventaId);
+        metodoKey = original?.metodoPago || 'efectivo_usd';
+      }
+
+      if (!breakdown[metodoKey]) breakdown[metodoKey] = { usd: 0, bs: 0, devUsd: 0, devBs: 0 };
+      
+      const mUsd = d.totalUSD;
+      const mBs = d.totalUSD * state.tasa;
+
+      breakdown[metodoKey].devUsd += mUsd;
+      breakdown[metodoKey].devBs += mBs;
+
+      if (metodoKey === 'efectivo_usd' || metodoKey === 'zelle') {
+        totalUSD -= mUsd;
+      } else if (metodoKey !== 'credito') {
+        totalBS -= mBs;
+      }
+    });
+
+    return { breakdown, totalBS, totalUSD, ventasHoy, devolucionesHoy };
   };
 
-  const handlePrint = (ref: React.RefObject<HTMLDivElement | null>) => {
+  const handlePrint = (ref: any) => {
     const printContent = ref.current?.innerHTML;
     if (!printContent) return;
 
@@ -480,11 +501,12 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       return;
     }
 
-    const { breakdown, totalBS, totalUSD, ventasHoy } = getReportSummary();
+    const { breakdown, totalBS, totalUSD, ventasHoy, devolucionesHoy } = getReportSummary();
     const hoy = Utils.hoy();
     const ahoraReport = Utils.ahora();
     const vDirectas = ventasHoy.filter(v => v.type === 'VENTA').reduce((s, v) => s + v.totalUSD, 0);
     const vCobros = ventasHoy.filter(v => v.type === 'COBRO DEUDA').reduce((s, v) => s + v.totalUSD, 0);
+    const totalDev = devolucionesHoy.reduce((s, d) => s + d.totalUSD, 0);
 
     const printData = [
       { type: 'text', value: state.empresa.nombre.toUpperCase(), style: { fontWeight: "700", textAlign: 'center', fontSize: "16px" } },
@@ -506,15 +528,16 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     printData.push({ type: 'text', value: 'RESUMEN POR OPERACIÓN:', style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
     printData.push({ type: 'text', value: `VENTAS DIRECTAS:      ${Utils.fmtUSD(vDirectas)}`, style: { textAlign: 'left', fontSize: "10px" } });
     printData.push({ type: 'text', value: `COBROS DEUDA:         ${Utils.fmtUSD(vCobros)}`, style: { textAlign: 'left', fontSize: "10px" } });
+    printData.push({ type: 'text', value: `DEVOLUCIONES:        -${Utils.fmtUSD(totalDev)}`, style: { textAlign: 'left', fontSize: "10px", color: '#e04848' } });
     
     printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-    printData.push({ type: 'text', value: 'DESGLOSE POR MÉTODO:', style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
+    printData.push({ type: 'text', value: 'DESGLOSE NETO POR MÉTODO:', style: { textAlign: 'left', fontSize: "10px", fontWeight: "700" } });
     
     Object.entries(breakdown).forEach(([metodo, montos]) => {
       const isUSD = metodo === 'efectivo_usd' || metodo === 'zelle';
       const label = Utils.metodoLabel(metodo).toUpperCase();
-      const val = isUSD ? Utils.fmtUSD(montos.usd) : Utils.fmtBS(montos.bs);
-      printData.push({ type: 'text', value: `${label.padEnd(20)} ${val}`, style: { textAlign: 'left', fontSize: "9px" } });
+      const valNeto = isUSD ? Utils.fmtUSD(montos.usd - montos.devUs) : Utils.fmtBS(montos.bs - montos.devBs);
+      printData.push({ type: 'text', value: `${label.padEnd(20)} ${valNeto}`, style: { textAlign: 'left', fontSize: "9px" } });
     });
 
     printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
@@ -541,7 +564,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     if (!confirm('¿Desea realizar el CIERRE FISCAL Z?')) return;
     const hoy = Utils.hoy();
     const ventasHoy = state.ventas.filter(v => v.fecha.startsWith(hoy));
-    const totalHoy = ventasHoy.reduce((s, v) => s + v.totalUSD, 0);
+    const devolucionesHoy = state.devoluciones.filter(d => d.fecha.startsWith(hoy));
+    const totalHoy = ventasHoy.reduce((s, v) => s + v.totalUSD, 0) - devolucionesHoy.reduce((s, d) => s + d.totalUSD, 0);
+    
     const nuevoZ: ReportZ = {
       id: `Z-${String(state.ultimoZ + 1).padStart(4, '0')}`,
       fecha: hoy,
@@ -573,9 +598,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     }
   };
 
-  const { breakdown, totalBS: rTotalBS, totalUSD: rTotalUSD, ventasHoy: rVentasHoy } = getReportSummary();
+  const { breakdown: rBreakdown, totalBS: rTotalBS, totalUSD: rTotalUSD, ventasHoy: rVentasHoy, devolucionesHoy: rDevHoy } = getReportSummary();
   const rVDirectas = rVentasHoy.filter(v => v.type === 'VENTA').reduce((s, v) => s + v.totalUSD, 0);
   const rVCobros = rVentasHoy.filter(v => v.type === 'COBRO DEUDA').reduce((s, v) => s + v.totalUSD, 0);
+  const rVDevs = rDevHoy.reduce((s, d) => s + d.totalUSD, 0);
 
   return (
     <div className="flex flex-col gap-2 h-[calc(100vh-100px)] max-w-7xl mx-auto w-full overflow-hidden">
@@ -1161,24 +1187,38 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     <span>COBROS DEUDA:</span>
                     <span style={{ fontWeight: 'bold' }}>{Utils.fmtUSD(rVCobros)}</span>
                   </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#000' }}>
+                    <span>DEVOLUCIONES:</span>
+                    <span style={{ fontWeight: 'bold' }}>-{Utils.fmtUSD(rVDevs)}</span>
+                  </div>
                 </div>
 
                 <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }}></div>
-                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '6px' }}>DESGLOSE POR MÉTODO:</div>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '6px' }}>DESGLOSE NETO POR MÉTODO:</div>
                 
                 <div style={{ fontSize: '10px', marginBottom: '10px' }}>
-                  {Object.entries(breakdown).map(([metodo, montos]) => {
+                  {Object.entries(rBreakdown).map(([metodo, montos]) => {
                     const isUSD = metodo === 'efectivo_usd' || metodo === 'zelle';
                     const label = Utils.metodoLabel(metodo).toUpperCase();
-                    const valueDisplay = isUSD ? Utils.fmtUSD(montos.usd) : Utils.fmtBS(montos.bs);
+                    const netoUsd = montos.usd - montos.devUsd;
+                    const netoBs = montos.bs - montos.devBs;
+                    const valNetoDisplay = isUSD ? Utils.fmtUSD(netoUsd) : Utils.fmtBS(netoBs);
+                    
                     return (
-                      <div key={metodo} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                        <span>{label}:</span>
-                        <span style={{ fontWeight: 'bold' }}>{valueDisplay}</span>
+                      <div key={metodo} style={{ marginBottom: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{label}:</span>
+                          <span style={{ fontWeight: 'bold' }}>{valNetoDisplay}</span>
+                        </div>
+                        {montos.devUsd > 0 && (
+                          <div style={{ fontSize: '8px', opacity: 0.6 }}>
+                            (Bruto: {isUSD ? Utils.fmtUSD(montos.usd) : Utils.fmtBS(montos.bs)} - Dev: {isUSD ? Utils.fmtUSD(montos.devUsd) : Utils.fmtBS(montos.devBs)})
+                          </div>
+                        )}
                       </div>
                     );
                   })}
-                  {Object.keys(breakdown).length === 0 && <div className="text-center italic py-2">Sin movimientos</div>}
+                  {Object.keys(rBreakdown).length === 0 && <div className="text-center italic py-2">Sin movimientos</div>}
                 </div>
 
                 <div style={{ borderTop: '1px solid #000', marginTop: '10px', paddingTop: '6px' }}>
@@ -1217,7 +1257,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* MODAL RECIBO DE PAGO (NUEVO FORMATO PROFESIONAL 80MM) */}
       {showReceiptModal && lastProcessedSale && (
         <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 no-print">
           <div className="bg-white rounded-xl max-w-sm w-full shadow-2xl overflow-hidden flex flex-col border border-gray-200">
@@ -1328,7 +1367,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     </p>
                   )}
                   <p style={{ margin: '2px 0' }}>CONSERVE ESTE TICKET COMO COMPROBANTE</p>
-                  <p style={{ fontSize: '7px', marginTop: '6px', color: '#444' }}>Desarrollado por LicoreriaPOS v2.0</p>
+                  <p style={{ fontSize: '7px', marginTop: '6px', color: '#444' }}>Desarrollado por PosVEN pro v2.0</p>
                 </div>
               </div>
             </div>

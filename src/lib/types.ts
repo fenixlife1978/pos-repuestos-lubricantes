@@ -158,6 +158,7 @@ export interface AppState {
   reportesZ: ReportZ[];
   ultimoZ: number;
   proximoRecibo: number;
+  proximaDevolucion: number;
   acumuladoHistorico: number;
 }
 

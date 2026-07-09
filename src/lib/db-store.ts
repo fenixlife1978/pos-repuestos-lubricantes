@@ -17,6 +17,7 @@ export const initialState: AppState = {
   reportesZ: [],
   ultimoZ: 0,
   proximoRecibo: 1,
+  proximaDevolucion: 1,
   acumuladoHistorico: 0,
   empresa: { 
     nombre: 'Licorería El Buen Beber', 
@@ -47,6 +48,7 @@ export const Store = {
         presentaciones: parsed.presentaciones || initialState.presentaciones,
         proveedores: parsed.proveedores || initialState.proveedores,
         proximoRecibo: parsed.proximoRecibo || initialState.proximoRecibo,
+        proximaDevolucion: parsed.proximaDevolucion || initialState.proximaDevolucion,
         clientes: parsed.clientes || []
       };
     } catch {
