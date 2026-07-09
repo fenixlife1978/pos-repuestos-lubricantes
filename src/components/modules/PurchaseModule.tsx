@@ -12,10 +12,12 @@ import {
   Calendar,
   Layers,
   ArrowRight,
-  Info
+  Info,
+  X,
+  Trash
 } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
-import { AppState, Product, Movimiento, PaymentMethod } from '@/lib/types';
+import { AppState, Product, Movimiento, PaymentMethod, KitItem } from '@/lib/types';
 
 interface PurchaseItemTemp {
   productoId: string;
@@ -49,6 +51,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
   const [cantidad, setCantidad] = useState(1);
   const [costoInput, setCostoInput] = useState(0);
   const [loteTemporal, setLoteTemporal] = useState<PurchaseItemTemp[]>([]);
+  const [showNewProductModal, setShowNewProductModal] = useState(false);
 
   // Cálculos de Totales
   const totalUSD = loteTemporal.reduce((acc, item) => acc + item.subtotalUSD, 0);
@@ -326,10 +329,16 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
         {/* COLUMNA DERECHA: SELECCIÓN DE PRODUCTOS Y TABLA */}
         <div className="lg:col-span-2 space-y-6">
           <div className="card">
-            <div className="card-head py-3 px-5 border-b border-white/5">
+            <div className="card-head py-3 px-5 border-b border-white/5 flex justify-between items-center">
               <h3 className="text-[10px] font-black uppercase text-white tracking-widest flex items-center gap-2">
-                <Plus className="w-3.5 h-3.5 text-[#27ae60]" /> Añadir Productos al Lote
+                <span onClick={() => setShowNewProductModal(true)} className="cursor-pointer hover:scale-110 transition-transform text-[#27ae60] font-black text-lg">+</span> AÑADIR PRODUCTOS AL LOTE
               </h3>
+              <button 
+                onClick={() => setShowNewProductModal(true)}
+                className="text-[9px] font-black uppercase text-[#27ae60] hover:text-[#c8952e] transition-colors flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Registrar Nuevo Item
+              </button>
             </div>
             <div className="card-body p-5">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
@@ -431,26 +440,222 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
               </table>
             </div>
 
-            <div className="card-foot p-5 bg-black/40 flex flex-col md:flex-row justify-between items-center gap-4">
-              <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
-                <div className="bg-[#111] p-3 rounded-lg border border-white/10 min-w-[140px]">
+            <div className="card-foot p-5 bg-black/40 flex flex-col gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full">
+                <div className="bg-[#111] p-3 rounded-lg border border-white/10">
                   <p className="text-[8px] text-white/40 font-black uppercase mb-1">Total en Bolívares</p>
-                  <p className="text-lg font-black text-white">{Utils.fmtBS(totalBS)}</p>
+                  <p className="text-base font-black text-white">{Utils.fmtBS(totalBS)}</p>
                 </div>
-                <div className="bg-[#111] p-3 rounded-lg border border-[#c8952e]/20 min-w-[140px]">
+                <div className="bg-[#111] p-3 rounded-lg border border-[#c8952e]/20">
                   <p className="text-[8px] text-[#c8952e]/60 font-black uppercase mb-1">Total Factura USD</p>
-                  <p className="text-lg font-black text-[#c8952e]">{Utils.fmtUSD(totalUSD)}</p>
+                  <p className="text-base font-black text-[#c8952e]">{Utils.fmtUSD(totalUSD)}</p>
+                </div>
+                <div className="bg-[#111] p-3 rounded-lg border border-[#27ae60]/20">
+                  <p className="text-[8px] text-[#27ae60]/60 font-black uppercase mb-1">Total Pagado USD</p>
+                  <p className="text-base font-black text-[#27ae60]">{Utils.fmtUSD(montoPagadoUSD)}</p>
+                </div>
+                <div className="bg-[#111] p-3 rounded-lg border border-[#e04848]/20">
+                  <p className="text-[8px] text-[#e04848]/60 font-black uppercase mb-1">Saldo Pendiente USD</p>
+                  <p className="text-base font-black text-[#e04848]">{Utils.fmtUSD(saldoPendienteUSD)}</p>
                 </div>
               </div>
               <button 
                 onClick={handleProcessPurchase}
                 disabled={loteTemporal.length === 0}
-                className="btn btn-primary h-14 w-full md:w-64 font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl shadow-[#c8952e]/10 disabled:opacity-20 transition-all"
+                className="btn btn-primary h-14 w-full font-black uppercase text-xs flex items-center justify-center gap-3 shadow-xl shadow-[#c8952e]/10 disabled:opacity-20 transition-all"
               >
                 Registrar Compra <CheckCircle className="w-5 h-5" />
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {showNewProductModal && (
+        <ModalProducto 
+          state={state}
+          onClose={() => setShowNewProductModal(false)}
+          onUpdateLists={(lists) => updateState(lists)}
+          onSave={(datos) => {
+            const nuevo: Product = {
+              ...datos,
+              id: Store.uid(),
+              fechaCreacion: Utils.hoy(),
+              activo: true
+            };
+            updateState({ productos: [...state.productos, nuevo] });
+            setShowNewProductModal(false);
+            handleSelectItem(nuevo);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Subcomponentes del Modal de Producto (Replicados del inventario para independencia del módulo)
+function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { producto?: Product, state: AppState, onClose: () => void, onSave: (p: any) => void, onUpdateLists: (l: any) => void }) {
+  const [datos, setDatos] = useState({
+    codigo: producto?.codigo || '',
+    nombre: producto?.nombre || '',
+    categoria: producto?.categoria || state.categorias[0] || '',
+    departamento: producto?.departamento || state.departamentos[0] || '',
+    cantidad: producto?.cantidad || state.presentaciones[0] || '750ml',
+    marca: producto?.marca || state.marcas[0] || '',
+    costoUSD: Utils.round(producto?.costoUSD || 0),
+    precioUSD: Utils.round(producto?.precioUSD || 0),
+    precioEstandarUSD: Utils.round(producto?.precioEstandarUSD || producto?.precioUSD || 0),
+    precioMayorUSD: Utils.round(producto?.precioMayorUSD || 0),
+    precioOfertaUSD: Utils.round(producto?.precioOfertaUSD || 0),
+    precioPromoUSD: Utils.round(producto?.precioPromoUSD || 0),
+    tipoPrecioPrincipal: producto?.tipoPrecioPrincipal || 'estandar',
+    margen: producto?.margen || 0,
+    precioBS: Utils.round((producto?.precioUSD || 0) * state.tasa),
+    stock: producto?.stock || 0,
+    stockMinimo: producto?.stockMinimo || 3,
+    proveedor: producto?.proveedor || '',
+    aplicaIVA: producto?.aplicaIVA ?? true,
+    isKit: producto?.isKit || false,
+    kitType: producto?.kitType || 'stock_propio',
+    kitItems: producto?.kitItems || [] as KitItem[]
+  });
+
+  const [provSearch, setProvSearch] = useState(datos.proveedor || '');
+  const [showProvList, setShowProvList] = useState(false);
+  const [kitSearch, setKitSearch] = useState('');
+
+  const updateSelectedPrice = (usd: number) => {
+    const rUSD = Utils.round(usd);
+    setDatos(d => {
+      const update: any = { precioUSD: rUSD, precioBS: Utils.round(rUSD * state.tasa) };
+      if (d.tipoPrecioPrincipal === 'estandar') update.precioEstandarUSD = rUSD;
+      else if (d.tipoPrecioPrincipal === 'mayor') update.precioMayorUSD = rUSD;
+      else if (d.tipoPrecioPrincipal === 'oferta') update.precioOfertaUSD = rUSD;
+      else if (d.tipoPrecioPrincipal === 'promo') update.precioPromoUSD = rUSD;
+      return { ...d, ...update };
+    });
+  };
+
+  const recalcularDesdeUSD = (usd: number, costo: number = datos.costoUSD) => {
+    const rUSD = Utils.round(usd);
+    const rCosto = Utils.round(costo);
+    const nuevoMargen = rUSD > 0 ? ((rUSD - rCosto) / rUSD) * 100 : 0;
+    setDatos(d => ({ ...d, precioUSD: rUSD, margen: nuevoMargen, precioBS: Utils.round(rUSD * state.tasa), costoUSD: rCosto }));
+    updateSelectedPrice(rUSD);
+  };
+
+  const recalcularDesdeMargen = (m: number, costo: number = datos.costoUSD) => {
+    const rCosto = Utils.round(costo);
+    const factor = (1 - (m / 100));
+    const usd = factor > 0 ? Utils.round(rCosto / factor) : 0;
+    setDatos(d => ({ ...d, margen: m, precioUSD: usd, precioBS: Utils.round(usd * state.tasa), costoUSD: rCosto }));
+    updateSelectedPrice(usd);
+  };
+
+  const recalcularDesdeBS = (bs: number) => {
+    const usd = Utils.round(bs / state.tasa);
+    const rCosto = Utils.round(datos.costoUSD);
+    const nuevoMargen = usd > 0 ? ((usd - rCosto) / usd) * 100 : 0;
+    setDatos(d => ({ ...d, precioBS: Utils.round(bs), precioUSD: usd, margen: nuevoMargen }));
+    updateSelectedPrice(usd);
+  };
+
+  useEffect(() => {
+    let p = datos.precioEstandarUSD;
+    if (datos.tipoPrecioPrincipal === 'mayor') p = datos.precioMayorUSD;
+    if (datos.tipoPrecioPrincipal === 'oferta') p = datos.precioOfertaUSD;
+    if (datos.tipoPrecioPrincipal === 'promo') p = datos.precioPromoUSD;
+    
+    p = Utils.round(p);
+    const rCosto = Utils.round(datos.costoUSD);
+    const m = p > 0 ? ((p - rCosto) / p) * 100 : 0;
+    setDatos(d => ({ ...d, precioUSD: p, precioBS: Utils.round(p * state.tasa), margen: m }));
+  }, [datos.tipoPrecioPrincipal]);
+
+  const handleSubmit = () => {
+    if (!datos.nombre || !datos.codigo) return alert('Nombre y Código son requeridos');
+    onSave(datos);
+  };
+
+  return (
+    <div className="modal show">
+      <div className="modal-bg" onClick={onClose}></div>
+      <div className="modal-box" style={{ maxWidth: '680px' }}>
+        <div className="modal-head py-3 px-5 bg-[#181818] border-b border-white/5">
+          <h3 className="text-base font-black uppercase text-white">{producto ? 'Editar Producto' : 'Nuevo Producto'}</h3>
+          <button className="btn-icon btn-sm" onClick={onClose}><X className="w-4 h-4" /></button>
+        </div>
+        <div className="modal-body p-5 space-y-4 bg-[#131313]">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] mb-1 uppercase text-white font-black">Código / Barcode</label>
+              <input className="form-input py-1.5 mono text-sm bg-black" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} placeholder="Escanee" />
+            </div>
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] m-0 uppercase text-white font-black mb-1">Dpto.</label>
+              <select className="form-select py-1.5 text-xs bg-black text-white border-white/10" value={datos.departamento} onChange={e => setDatos({...datos, departamento: e.target.value})}>
+                {state.departamentos.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] m-0 uppercase text-white font-black mb-1">Cat.</label>
+              <select className="form-select py-1.5 text-xs bg-black text-white border-white/10" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
+                {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] m-0 uppercase text-white font-black mb-1">Marca</label>
+              <select className="form-select py-1.5 text-xs bg-black text-white border-white/10" value={datos.marca} onChange={e => setDatos({...datos, marca: e.target.value})}>
+                {state.marcas.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="form-group mb-0 col-span-2">
+              <label className="form-label text-[10px] mb-1 uppercase text-white font-black">Nombre del producto</label>
+              <input className="form-input py-1.5 text-sm bg-black border-white/10" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} placeholder="Ej: Johnnie Walker" />
+            </div>
+          </div>
+          <div className="bg-[#181818] p-3 rounded-lg border border-[#2a2a2a]">
+            <div className="grid grid-cols-4 gap-3">
+              <div className="form-group mb-0">
+                <label className="form-label text-[9px] mb-1 text-white/60 uppercase">COSTO $</label>
+                <input className="form-input py-1.5 text-sm bg-black" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, parseFloat(e.target.value) || 0)} />
+              </div>
+              <div className="form-group mb-0">
+                <label className="form-label text-[9px] mb-1 text-white/60 uppercase">MARGEN %</label>
+                <input className="form-input py-1.5 text-sm text-[#27ae60] font-bold bg-black" type="number" step="0.01" value={Math.round(datos.margen * 100) / 100} onChange={e => recalcularDesdeMargen(parseFloat(e.target.value) || 0)} />
+              </div>
+              <div className="form-group mb-0">
+                <label className="form-label text-[9px] mb-1 text-white/60 uppercase">VENTA $</label>
+                <input className="form-input py-1.5 text-sm text-[#c8952e] font-black bg-black" type="number" step="0.01" value={datos.precioUSD} onChange={e => recalcularDesdeUSD(parseFloat(e.target.value) || 0)} />
+              </div>
+              <div className="form-group mb-0">
+                <label className="form-label text-[9px] mb-1 text-white/60 uppercase">VENTA BS</label>
+                <input className="form-input py-1.5 text-sm font-bold bg-black" type="number" step="0.01" value={datos.precioBS} onChange={e => recalcularDesdeBS(parseFloat(e.target.value) || 0)} />
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] mb-1 uppercase text-white font-black">Stock Inicial</label>
+              <input className="form-input py-1.5 text-sm bg-black" type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: parseInt(e.target.value) || 0})} />
+            </div>
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] mb-1 uppercase text-white font-black">Mínimo</label>
+              <input className="form-input py-1.5 text-sm bg-black" type="number" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: parseInt(e.target.value) || 0})} />
+            </div>
+            <div className="form-group mb-0">
+              <label className="form-label text-[10px] m-0 uppercase text-white font-black mb-1">Presentación</label>
+              <select className="form-select py-1.5 text-xs bg-black text-white border-white/10" value={datos.cantidad} onChange={e => setDatos({...datos, cantidad: e.target.value})}>
+                {state.presentaciones.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div className="modal-foot py-3 px-5 bg-[#181818] border-t border-white/5 flex justify-end gap-2">
+          <button className="btn btn-sm btn-secondary font-black uppercase text-white" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-sm btn-primary font-black uppercase" onClick={handleSubmit}>{producto ? 'Actualizar' : 'Crear e Importar'}</button>
         </div>
       </div>
     </div>
