@@ -4,10 +4,13 @@
 import React, { useState } from 'react';
 import { AppState } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
-import { Plus, X, Save, HandCoins, Calendar, CheckSquare, Square } from 'lucide-react';
+import { Plus, X, Save, HandCoins, Calendar, CheckSquare, Square, Eye, Trash2, Clock } from 'lucide-react';
 
 export default function CxCModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [showModal, setShowModal] = useState(false);
+  const [showDetails, setShowDetails] = useState<any>(null);
+  const [showHistory, setShowHistory] = useState<any>(null);
+
   const [nuevaDeuda, setNuevaDeuda] = useState({
     cliente: '',
     montoUSD: 0,
@@ -32,11 +35,21 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
       montoUSD: nuevaDeuda.montoUSD,
       abonadoUSD: 0,
       saldoUSD: nuevaDeuda.montoUSD,
-      estado: 'pendiente'
+      estado: 'pendiente',
+      historialPagos: []
     };
     updateState({ cxc: [...state.cxc, nuevaEntrada] });
     setShowModal(false);
     setNuevaDeuda({ cliente: '', montoUSD: 0, fecha: Utils.hoy(), vencimiento: Utils.hoy(), sinVencimiento: false });
+  };
+
+  const eliminarDeuda = (deuda: any) => {
+    if (!confirm(`¿Seguro que desea eliminar el registro ${deuda.id}? Esta acción no se puede deshacer.`)) return;
+    const nuevas = state.cxc.filter(x => x.id !== deuda.id);
+    const nuevosClientes = (state.clientes || []).map(c => 
+      c.name === deuda.cliente ? { ...c, debt: Math.max(0, (c.debt || 0) - deuda.saldoUSD) } : c
+    );
+    updateState({ cxc: nuevas, clientes: nuevosClientes });
   };
 
   return (
@@ -82,7 +95,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                 <tr><td colSpan={7} className="text-center py-20 text-white font-black uppercase italic opacity-40">No hay registros</td></tr>
               ) : (
                 state.cxc.map(x => (
-                  <tr key={x.id} className="border-b border-white/5">
+                  <tr key={x.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                     <td className="text-white font-bold text-xs">{Utils.fmtFecha(x.fecha)}</td>
                     <td className={`text-xs font-bold ${x.fechaVencimiento < Utils.hoy() && x.estado !== 'pagada' ? 'text-[#e04848]' : 'text-white'}`}>
                       {x.fechaVencimiento === '2099-12-31' ? 'ABIERTA' : Utils.fmtFecha(x.fechaVencimiento)}
@@ -90,8 +103,14 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                     <td className="text-white font-black text-xs uppercase">{x.cliente}</td>
                     <td className="text-white font-bold text-xs text-right">{Utils.fmtUSD(x.montoUSD)}</td>
                     <td className="text-[#c8952e] font-black text-xs text-right">{Utils.fmtUSD(x.saldoUSD)}</td>
-                    <td><span className={`badge ${x.estado === 'pagada' ? 'badge-ok' : 'badge-warn'} font-black text-[9px] uppercase`}>{x.estado}</span></td>
-                    <td className="text-center"><button className="btn btn-sm btn-ok font-black text-[9px] uppercase">Abonar</button></td>
+                    <td><span className={`badge ${x.estado === 'pagada' ? 'badge-ok' : (x.estado === 'parcial' ? 'badge-info' : 'badge-warn')} font-black text-[9px] uppercase`}>{x.estado}</span></td>
+                    <td className="text-center">
+                       <div className="flex justify-center gap-1">
+                          <button onClick={() => setShowDetails(x)} className="btn-icon h-7 w-7 text-white hover:text-[#c8952e]" title="Ver Detalles"><Eye className="w-3.5 h-3.5"/></button>
+                          <button onClick={() => setShowHistory(x)} className="btn-icon h-7 w-7 text-white hover:text-[#3a9bdc]" title="Historial"><Clock className="w-3.5 h-3.5"/></button>
+                          <button onClick={() => eliminarDeuda(x)} className="btn-icon h-7 w-7 text-white hover:text-[#e04848]" title="Eliminar"><Trash2 className="w-3.5 h-3.5"/></button>
+                       </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -140,6 +159,68 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
               <button onClick={guardarDeudaDirecta} className="btn btn-primary w-full h-12 font-black uppercase text-xs flex items-center justify-center gap-2">
                 <Save className="w-4 h-4" /> Registrar Deuda
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETALLES */}
+      {showDetails && (
+        <div className="modal show"><div className="modal-bg" onClick={() => setShowDetails(null)}></div>
+          <div className="modal-box bg-[#1e1e1e] border-2 border-white/20 max-w-lg">
+            <div className="modal-head py-3 px-4 border-b border-white/10"><h3 className="text-white text-xs font-black uppercase">DETALLE DE CUENTA - {showDetails.id}</h3><button onClick={() => setShowDetails(null)} className="text-white hover:text-[#c8952e]"><X /></button></div>
+            <div className="modal-body p-4 space-y-4">
+              <div className="bg-black/40 p-3 rounded border border-white/5 space-y-1">
+                <div className="flex justify-between text-[10px] text-white/60"><span>CLIENTE:</span><span className="text-white font-black uppercase">{showDetails.cliente}</span></div>
+                <div className="flex justify-between text-[10px] text-white/60"><span>EMISIÓN:</span><span className="text-white font-black">{Utils.fmtFecha(showDetails.fecha)}</span></div>
+                <div className="flex justify-between text-sm font-black text-[#c8952e]"><span>TOTAL DEUDA:</span><span>{Utils.fmtUSD(showDetails.montoUSD)}</span></div>
+              </div>
+              <div className="table-wrap max-h-48 overflow-y-auto">
+                <table className="text-[10px]">
+                  <thead><tr className="border-b border-white/10"><th className="text-white/40">Item</th><th className="text-white/40 text-center">Cant</th><th className="text-white/40 text-right">Subtotal</th></tr></thead>
+                  <tbody>
+                    {state.ventas.find(v => v.id === showDetails.id || v.id === showDetails.ventaId)?.items.map((it, idx) => (
+                      <tr key={idx} className="border-b border-white/5">
+                        <td className="text-white font-bold uppercase py-2">{it.nombre}</td>
+                        <td className="text-white text-center">{it.cantidad}</td>
+                        <td className="text-[#c8952e] text-right font-black">{Utils.fmtUSD(it.subtotalUSD)}</td>
+                      </tr>
+                    )) || (<tr><td colSpan={3} className="text-center py-4 text-white/20 italic uppercase">Detalle de items no disponible (Deuda Directa)</td></tr>)}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL HISTORIAL DE ABONOS */}
+      {showHistory && (
+        <div className="modal show"><div className="modal-bg" onClick={() => setShowHistory(null)}></div>
+          <div className="modal-box bg-[#1e1e1e] border-2 border-white/20 max-w-lg">
+            <div className="modal-head py-3 px-4 border-b border-white/10"><h3 className="text-white text-xs font-black uppercase">HISTORIAL DE PAGOS - {showHistory.id}</h3><button onClick={() => setShowHistory(null)} className="text-white hover:text-[#c8952e]"><X /></button></div>
+            <div className="modal-body p-4 space-y-4">
+              <div className="bg-black/40 p-3 rounded border border-white/5 space-y-1">
+                <div className="flex justify-between text-[10px] text-white/60"><span>CLIENTE:</span><span className="text-white font-black uppercase">{showHistory.cliente}</span></div>
+                <div className="flex justify-between text-[10px] text-white/60"><span>SALDO PENDIENTE:</span><span className="text-[#3a9bdc] font-black">{Utils.fmtUSD(showHistory.saldoUSD)}</span></div>
+              </div>
+              <div className="table-wrap max-h-60 overflow-y-auto">
+                <table className="text-[10px]">
+                  <thead><tr className="border-b border-white/10"><th className="text-white/40">Recibo</th><th className="text-white/40">Fecha / Hora</th><th className="text-white/40 text-right">Abono (USD)</th><th className="text-white/40 text-right">Abono (BS)</th></tr></thead>
+                  <tbody>
+                    {showHistory.historialPagos && showHistory.historialPagos.length > 0 ? (
+                      showHistory.historialPagos.map((p: any, idx: number) => (
+                        <tr key={idx} className="border-b border-white/5">
+                          <td className="text-white font-black mono py-2">{p.reciboId || '-'}</td>
+                          <td className="text-white font-bold py-2">{p.fecha?.replace('T', ' ').slice(0, 16) || '-'}</td>
+                          <td className="text-[#27ae60] text-right font-black">{Utils.fmtUSD(p.montoUSD)}</td>
+                          <td className="text-white text-right font-black">{Utils.fmtBS(p.montoBS)}</td>
+                        </tr>
+                      ))
+                    ) : (<tr><td colSpan={4} className="text-center py-8 text-white/20 italic uppercase font-black">No se registran abonos aún</td></tr>)}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
