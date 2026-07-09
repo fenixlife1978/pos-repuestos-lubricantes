@@ -10,7 +10,7 @@ export interface KitItem {
 export interface Movimiento {
   id: string;
   productoId: string;
-  tipo: 'compra' | 'venta' | 'devolucion' | 'ajuste_entrada' | 'ajuste_salida' | 'consumo' | 'colaboracion' | 'cobro_deuda';
+  tipo: 'compra' | 'venta' | 'devolucion' | 'ajuste_entrada' | 'ajuste_salida' | 'consumo' | 'colaboracion' | 'cobro_deuda' | 'venta';
   cantidad: number;
   stockAntes: number;
   stockDespues: number;
@@ -43,7 +43,6 @@ export interface Product {
   isKit?: boolean;
   kitType?: 'stock_propio' | 'stock_componentes';
   kitItems?: KitItem[];
-  // Alias para compatibilidad con código existente
   codigoBarras?: string;
   precio?: number;
 }
@@ -134,6 +133,71 @@ export interface CashSession {
   difference?: number;
 }
 
+export interface DashboardData {
+  heroStats: {
+    ventasHoy: number;
+    ticketPromedio: number;
+    margen: number;
+    deltaVentas: number;
+    deltaTicket: number;
+    deltaMargen: number;
+    ventasNuevas: number;
+    stockCritico: number;
+  };
+  kpis: Array<{
+    label: string;
+    value: number;
+    currency?: 'Bs' | 'USD' | null;
+    delta: number;
+    deltaLabel: string;
+    subline: string;
+    iconKey: 'banknote' | 'receipt' | 'users' | 'warehouse';
+    variant: 'gold' | 'green' | 'blue' | 'violet';
+  }>;
+  salesSeries: {
+    labels: string[];
+    ventas: number[];
+    meta: number[];
+    usd: number[];
+  };
+  topProductos: Array<{
+    initials: string;
+    nombre: string;
+    categoria: string;
+    unidades: number;
+    total: number;
+    progress: number;
+  }>;
+  alerts: Array<{
+    level: 'crit' | 'warn' | 'ok';
+    iconKey: string;
+    title: string;
+    meta: string;
+    actionLabel: string;
+  }>;
+  paymentMethods: Array<{
+    label: string;
+    ops: number;
+    pct: number;
+    color: string;
+  }>;
+  recentSales: Array<{
+    factura: string;
+    cliente: string;
+    ci?: string;
+    initials: string;
+    avatarColor: string;
+    metodo: string;
+    metodoVariant: 'gold' | 'blue' | 'gray' | 'violet' | 'warn';
+    items: number;
+    estado: 'Pagado' | 'Pendiente' | 'Anulada';
+    total: number;
+    usd: number;
+  }>;
+  bcvRate: number;
+  userName: string;
+}
+
 export interface AppState {
   tasa: number;
   productos: Product[];
@@ -162,7 +226,6 @@ export interface AppState {
   acumuladoHistorico: number;
 }
 
-// Funciones de ayuda para trabajar con Product
 export function getProductDisplayName(product: Product): string {
   return product.nombre;
 }
@@ -187,7 +250,6 @@ export function getProductStock(product: Product): number {
   return product.stock || 0;
 }
 
-// Helper para convertir Product a formato esperado por el PDF
 export function normalizeProductForPDF(product: Product): {
   id: string;
   nombre: string;
@@ -208,7 +270,6 @@ export function normalizeProductForPDF(product: Product): {
   };
 }
 
-// Función helper para obtener el label del método de pago
 export function getMetodoLabel(metodo: PaymentMethod): string {
   const labels: Record<PaymentMethod, string> = {
     'efectivo_usd': 'Efectivo USD',
@@ -223,7 +284,6 @@ export function getMetodoLabel(metodo: PaymentMethod): string {
   return labels[metodo] || metodo;
 }
 
-// Función helper para formatear moneda
 export function fmtUSD(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
@@ -242,7 +302,6 @@ export function fmtFecha(fecha: string): string {
   });
 }
 
-// Funciones de utilidad para fechas
 export function hoy(): string {
   return new Date().toISOString().split('T')[0];
 }
