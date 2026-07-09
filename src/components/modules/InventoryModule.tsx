@@ -216,7 +216,7 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
 }
 
 function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { producto?: Product, state: AppState, onClose: () => void, onSave: (p: any) => void, onUpdateLists: (l: any) => void }) {
-  const [datos, setDatos] = useState({
+  const [datos, setDatos] = useState<any>({
     codigo: producto?.codigo || '',
     nombre: producto?.nombre || '',
     categoria: producto?.categoria || state.categorias[0] || '',
@@ -245,39 +245,41 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
   const [showProvList, setShowProvList] = useState(false);
   const [kitSearch, setKitSearch] = useState('');
 
-  const updateSelectedPrice = (usd: number) => {
-    const rUSD = Utils.round(usd);
-    setDatos(d => {
-      const update: any = { precioUSD: rUSD, precioBS: Utils.round(rUSD * state.tasa) };
-      if (d.tipoPrecioPrincipal === 'estandar') update.precioEstandarUSD = rUSD;
-      else if (d.tipoPrecioPrincipal === 'mayor') update.precioMayorUSD = rUSD;
-      else if (d.tipoPrecioPrincipal === 'oferta') update.precioOfertaUSD = rUSD;
-      else if (d.tipoPrecioPrincipal === 'promo') update.precioPromoUSD = rUSD;
+  const updateSelectedPrice = (usd: string | number) => {
+    const rUSD = Utils.round(parseFloat(usd.toString()) || 0);
+    setDatos((d: any) => {
+      const update: any = { precioUSD: usd, precioBS: Utils.round(rUSD * state.tasa) };
+      if (d.tipoPrecioPrincipal === 'estandar') update.precioEstandarUSD = usd;
+      else if (d.tipoPrecioPrincipal === 'mayor') update.precioMayorUSD = usd;
+      else if (d.tipoPrecioPrincipal === 'oferta') update.precioOfertaUSD = usd;
+      else if (d.tipoPrecioPrincipal === 'promo') update.precioPromoUSD = usd;
       return { ...d, ...update };
     });
   };
 
-  const recalcularDesdeUSD = (usd: number, costo: number = datos.costoUSD) => {
-    const rUSD = Utils.round(usd);
-    const rCosto = Utils.round(costo);
+  const recalcularDesdeUSD = (usd: string | number, costo: string | number = datos.costoUSD) => {
+    const rUSD = parseFloat(usd.toString()) || 0;
+    const rCosto = parseFloat(costo.toString()) || 0;
     const nuevoMargen = rUSD > 0 ? ((rUSD - rCosto) / rUSD) * 100 : 0;
-    setDatos(d => ({ ...d, precioUSD: rUSD, margen: nuevoMargen, precioBS: Utils.round(rUSD * state.tasa), costoUSD: rCosto }));
-    updateSelectedPrice(rUSD);
-  };
-
-  const recalcularDesdeMargen = (m: number, costo: number = datos.costoUSD) => {
-    const rCosto = Utils.round(costo);
-    const factor = (1 - (m / 100));
-    const usd = factor > 0 ? Utils.round(rCosto / factor) : 0;
-    setDatos(d => ({ ...d, margen: m, precioUSD: usd, precioBS: Utils.round(usd * state.tasa), costoUSD: rCosto }));
+    setDatos((d: any) => ({ ...d, precioUSD: usd, margen: nuevoMargen, precioBS: Utils.round(rUSD * state.tasa), costoUSD: costo }));
     updateSelectedPrice(usd);
   };
 
-  const recalcularDesdeBS = (bs: number) => {
-    const usd = Utils.round(bs / state.tasa);
-    const rCosto = Utils.round(datos.costoUSD);
+  const recalcularDesdeMargen = (m: string | number, costo: string | number = datos.costoUSD) => {
+    const rCosto = parseFloat(costo.toString()) || 0;
+    const rM = parseFloat(m.toString()) || 0;
+    const factor = (1 - (rM / 100));
+    const usd = factor > 0 ? Utils.round(rCosto / factor) : 0;
+    setDatos((d: any) => ({ ...d, margen: m, precioUSD: usd, precioBS: Utils.round(usd * state.tasa), costoUSD: costo }));
+    updateSelectedPrice(usd);
+  };
+
+  const recalcularDesdeBS = (bs: string | number) => {
+    const rBS = parseFloat(bs.toString()) || 0;
+    const usd = Utils.round(rBS / state.tasa);
+    const rCosto = parseFloat(datos.costoUSD.toString()) || 0;
     const nuevoMargen = usd > 0 ? ((usd - rCosto) / usd) * 100 : 0;
-    setDatos(d => ({ ...d, precioBS: Utils.round(bs), precioUSD: usd, margen: nuevoMargen }));
+    setDatos((d: any) => ({ ...d, precioBS: bs, precioUSD: usd, margen: nuevoMargen }));
     updateSelectedPrice(usd);
   };
 
@@ -287,16 +289,21 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     if (datos.tipoPrecioPrincipal === 'oferta') p = datos.precioOfertaUSD;
     if (datos.tipoPrecioPrincipal === 'promo') p = datos.precioPromoUSD;
     
-    p = Utils.round(p);
-    const rCosto = Utils.round(datos.costoUSD);
-    const m = p > 0 ? ((p - rCosto) / p) * 100 : 0;
-    setDatos(d => ({ ...d, precioUSD: p, precioBS: Utils.round(p * state.tasa), margen: m }));
+    const rP = parseFloat(p.toString()) || 0;
+    const rCosto = parseFloat(datos.costoUSD.toString()) || 0;
+    const m = rP > 0 ? ((rP - rCosto) / rP) * 100 : 0;
+    setDatos((d: any) => ({ ...d, precioUSD: p, precioBS: Utils.round(rP * state.tasa), margen: m }));
   }, [datos.tipoPrecioPrincipal]);
 
   const handleSubmit = () => {
     if (!datos.nombre || !datos.codigo) return alert('Nombre y Código son requeridos');
-    if (datos.precioUSD <= 0) return alert('El precio de venta debe ser mayor a 0');
-    onSave(datos);
+    onSave({
+      ...datos,
+      costoUSD: parseFloat(datos.costoUSD.toString()) || 0,
+      precioUSD: parseFloat(datos.precioUSD.toString()) || 0,
+      stock: parseInt(datos.stock.toString()) || 0,
+      stockMinimo: parseInt(datos.stockMinimo.toString()) || 0
+    });
   };
 
   const addToList = (key: 'categorias' | 'departamentos' | 'marcas' | 'presentaciones' | 'proveedores') => {
@@ -306,9 +313,9 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
       if (!currentList.includes(val)) {
         const newList = [...currentList, val];
         onUpdateLists({ [key]: newList });
-        if (key === 'presentaciones') setDatos(d => ({ ...d, cantidad: val }));
-        else if (key === 'proveedores') { setProvSearch(val); setDatos(d => ({ ...d, proveedor: val })); }
-        else setDatos(d => ({ ...d, [key.slice(0, -1)]: val }));
+        if (key === 'presentaciones') setDatos((d: any) => ({ ...d, cantidad: val }));
+        else if (key === 'proveedores') { setProvSearch(val); setDatos((d: any) => ({ ...d, proveedor: val })); }
+        else setDatos((d: any) => ({ ...d, [key.slice(0, -1)]: val }));
       }
     }
   };
@@ -385,7 +392,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
             <div className="grid grid-cols-4 gap-3">
               <div className="form-group mb-0">
                 <label className="form-label text-[9px] mb-1 text-white/60 uppercase">COSTO $</label>
-                <input className="form-input py-1.5 text-sm" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, parseFloat(e.target.value) || 0)} />
+                <input className="form-input py-1.5 text-sm" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, e.target.value)} />
               </div>
               <div className="form-group mb-0">
                 <label className="form-label text-[9px] mb-1 text-white/60 uppercase">MARGEN %</label>
@@ -393,8 +400,8 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   className="form-input py-1.5 text-sm text-[#27ae60] font-bold" 
                   type="number" 
                   step="0.01"
-                  value={Math.round(datos.margen * 100) / 100} 
-                  onChange={e => recalcularDesdeMargen(parseFloat(e.target.value) || 0)} 
+                  value={datos.margen} 
+                  onChange={e => recalcularDesdeMargen(e.target.value)} 
                 />
               </div>
               <div className="form-group mb-0">
@@ -403,8 +410,8 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   className="form-input py-1.5 text-sm text-[#c8952e] font-black bg-black" 
                   type="number" 
                   step="0.01" 
-                  value={Utils.round(datos.precioUSD)} 
-                  onChange={e => recalcularDesdeUSD(parseFloat(e.target.value) || 0)}
+                  value={datos.precioUSD} 
+                  onChange={e => recalcularDesdeUSD(e.target.value)}
                 />
               </div>
               <div className="form-group mb-0">
@@ -413,8 +420,8 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   className="form-input py-1.5 text-sm font-bold bg-black" 
                   type="number" 
                   step="0.01" 
-                  value={Utils.round(datos.precioBS)} 
-                  onChange={e => recalcularDesdeBS(parseFloat(e.target.value) || 0)}
+                  value={datos.precioBS} 
+                  onChange={e => recalcularDesdeBS(e.target.value)}
                 />
               </div>
             </div>
@@ -425,41 +432,41 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
             <div className="grid grid-cols-4 gap-3">
               <PriceInput 
                 label="ESTÁNDAR" 
-                value={Utils.round(datos.precioEstandarUSD)} 
+                value={datos.precioEstandarUSD} 
                 isActive={datos.tipoPrecioPrincipal === 'estandar'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'estandar'})}
-                onChange={(v: number) => {
-                  setDatos({...datos, precioEstandarUSD: Utils.round(v)});
+                onChange={(v: string | number) => {
+                  setDatos({...datos, precioEstandarUSD: v});
                   if(datos.tipoPrecioPrincipal === 'estandar') recalcularDesdeUSD(v);
                 }}
               />
               <PriceInput 
                 label="AL MAYOR" 
-                value={Utils.round(datos.precioMayorUSD)} 
+                value={datos.precioMayorUSD} 
                 isActive={datos.tipoPrecioPrincipal === 'mayor'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'mayor'})}
-                onChange={(v: number) => {
-                  setDatos({...datos, precioMayorUSD: Utils.round(v)});
+                onChange={(v: string | number) => {
+                  setDatos({...datos, precioMayorUSD: v});
                   if(datos.tipoPrecioPrincipal === 'mayor') recalcularDesdeUSD(v);
                 }}
               />
               <PriceInput 
                 label="OFERTA" 
-                value={Utils.round(datos.precioOfertaUSD)} 
+                value={datos.precioOfertaUSD} 
                 isActive={datos.tipoPrecioPrincipal === 'oferta'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'oferta'})}
-                onChange={(v: number) => {
-                  setDatos({...datos, precioOfertaUSD: Utils.round(v)});
+                onChange={(v: string | number) => {
+                  setDatos({...datos, precioOfertaUSD: v});
                   if(datos.tipoPrecioPrincipal === 'oferta') recalcularDesdeUSD(v);
                 }}
               />
               <PriceInput 
                 label="PROMO" 
-                value={Utils.round(datos.precioPromoUSD)} 
+                value={datos.precioPromoUSD} 
                 isActive={datos.tipoPrecioPrincipal === 'promo'}
                 onSelect={() => setDatos({...datos, tipoPrecioPrincipal: 'promo'})}
-                onChange={(v: number) => {
-                  setDatos({...datos, precioPromoUSD: Utils.round(v)});
+                onChange={(v: string | number) => {
+                  setDatos({...datos, precioPromoUSD: v});
                   if(datos.tipoPrecioPrincipal === 'promo') recalcularDesdeUSD(v);
                 }}
               />
@@ -469,11 +476,11 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
           <div className="grid grid-cols-3 gap-3">
             <div className="form-group mb-0">
               <label className="form-label text-[10px] mb-1 uppercase text-white font-black">Stock Inicial</label>
-              <input className="form-input py-1.5 text-sm" type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: parseInt(e.target.value) || 0})} disabled={!!producto && !datos.isKit} />
+              <input className="form-input py-1.5 text-sm" type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} disabled={!!producto && !datos.isKit} />
             </div>
             <div className="form-group mb-0">
               <label className="form-label text-[10px] mb-1 uppercase text-white font-black">Mínimo</label>
-              <input className="form-input py-1.5 text-sm" type="number" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: parseInt(e.target.value) || 0})} />
+              <input className="form-input py-1.5 text-sm" type="number" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} />
             </div>
             <div className="form-group mb-0">
               <div className="flex justify-between items-center mb-1">
@@ -567,7 +574,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   <div className="bg-[#0b0b0b] border border-[#333] rounded max-h-24 overflow-y-auto">
                     {state.productos.filter(p => !p.isKit && p.activo && (p.nombre.toLowerCase().includes(kitSearch.toLowerCase()) || p.codigo.includes(kitSearch))).map(p => (
                       <div key={p.id} className="p-1.5 hover:bg-[#181818] cursor-pointer text-[10px] flex justify-between" onClick={() => {
-                        if (!datos.kitItems.find(i => i.productoId === p.id)) {
+                        if (!datos.kitItems.find((i: any) => i.productoId === p.id)) {
                           setDatos({...datos, kitItems: [...datos.kitItems, { productoId: p.id, nombre: p.nombre, cantidad: 1 }]});
                         }
                         setKitSearch('');
@@ -580,7 +587,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                 )}
 
                 <div className="grid grid-cols-2 gap-2">
-                  {datos.kitItems.map((item, idx) => (
+                  {datos.kitItems.map((item: any, idx: number) => (
                     <div key={item.productoId} className="flex items-center gap-2 bg-[#0b0b0b] p-1.5 rounded text-[10px] border border-[#2a2a2a]">
                       <span className="flex-1 truncate text-white">{item.nombre}</span>
                       <input type="number" className="bg-[#181818] border border-[#333] rounded w-8 p-0.5 text-center text-white" value={item.cantidad} onChange={e => {
@@ -588,7 +595,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                         ni[idx].cantidad = Math.max(1, parseInt(e.target.value) || 1);
                         setDatos({...datos, kitItems: ni});
                       }} />
-                      <button className="text-[#e04848]" onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_, i) => i !== idx)})}><X className="w-3 h-3"/></button>
+                      <button className="text-[#e04848]" onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_: any, i: number) => i !== idx)})}><X className="w-3 h-3"/></button>
                     </div>
                   ))}
                 </div>
@@ -606,7 +613,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
   );
 }
 
-function PriceInput({ label, value, isActive, onSelect, onChange }: { label: string, value: number, isActive: boolean, onSelect: () => void, onChange: (v: number) => void }) {
+function PriceInput({ label, value, isActive, onSelect, onChange }: { label: string, value: string | number, isActive: boolean, onSelect: () => void, onChange: (v: string | number) => void }) {
   return (
     <div className={`p-2 rounded border transition-all ${isActive ? 'bg-[#c8952e]/10 border-[#c8952e]' : 'bg-black border-[#2a2a2a]'}`}>
       <div className="flex justify-between items-center mb-1">
@@ -622,8 +629,8 @@ function PriceInput({ label, value, isActive, onSelect, onChange }: { label: str
         type="number" 
         step="0.01"
         className="w-full bg-transparent text-white font-bold text-xs outline-none" 
-        value={Utils.round(value)} 
-        onChange={e => onChange(parseFloat(e.target.value) || 0)}
+        value={value} 
+        onChange={e => onChange(e.target.value)}
       />
     </div>
   );
@@ -1236,25 +1243,27 @@ function ReporteConsumo({ state }: { state: AppState }) {
 
 function ModalAjuste({ producto, onClose, onSave }: { producto: Product, onClose: () => void, onSave: (m: Movimiento, nuevoCosto?: number) => void }) {
   const [tipo, setTipo] = useState<'ajuste_entrada' | 'ajuste_salida' | 'consumo' | 'colaboracion'>('ajuste_entrada');
-  const [cantidad, setCantidad] = useState(1);
-  const [nuevoCosto, setNuevoCosto] = useState(Utils.round(producto.costoUSD));
+  const [cantidad, setCantidad] = useState<string | number>(1);
+  const [nuevoCosto, setNuevoCosto] = useState<string | number>(Utils.round(producto.costoUSD));
   const [ref, setRef] = useState('');
 
   const handleSave = () => {
-    if (cantidad <= 0) return alert('Cantidad invalida');
-    if ((tipo !== 'ajuste_entrada') && cantidad > producto.stock) return alert('Stock insuficiente');
+    const pCant = parseFloat(cantidad.toString()) || 0;
+    const pCosto = parseFloat(nuevoCosto.toString()) || 0;
+    if (pCant <= 0) return alert('Cantidad invalida');
+    if ((tipo !== 'ajuste_entrada') && pCant > producto.stock) return alert('Stock insuficiente');
     
     const mov: Movimiento = {
       id: Store.uid(),
       productoId: producto.id,
       tipo,
-      cantidad: tipo === 'ajuste_entrada' ? cantidad : -Math.abs(cantidad),
+      cantidad: tipo === 'ajuste_entrada' ? pCant : -Math.abs(pCant),
       stockAntes: producto.stock,
-      stockDespues: tipo === 'ajuste_entrada' ? producto.stock + cantidad : producto.stock - Math.abs(cantidad),
+      stockDespues: tipo === 'ajuste_entrada' ? producto.stock + pCant : producto.stock - Math.abs(pCant),
       fecha: Utils.ahora(),
-      referencia: tipo === 'ajuste_entrada' ? `${ref || 'Entrada manual'} - Costo unit: $${Utils.round(nuevoCosto)}` : (ref || 'Ajuste manual')
+      referencia: tipo === 'ajuste_entrada' ? `${ref || 'Entrada manual'} - Costo unit: $${Utils.round(pCosto)}` : (ref || 'Ajuste manual')
     };
-    onSave(mov, tipo === 'ajuste_entrada' ? Utils.round(nuevoCosto) : undefined);
+    onSave(mov, tipo === 'ajuste_entrada' ? Utils.round(pCosto) : undefined);
   };
 
   return (
@@ -1284,12 +1293,12 @@ function ModalAjuste({ producto, onClose, onSave }: { producto: Product, onClose
           <div className="grid grid-cols-2 gap-4">
             <div className="form-group">
               <label className="text-white text-[10px] font-black uppercase block mb-1">Cantidad</label>
-              <input type="number" className="form-input bg-black text-white" value={cantidad} onChange={e => setCantidad(parseInt(e.target.value) || 0)} min="1" />
+              <input type="number" className="form-input bg-black text-white" value={cantidad} onChange={e => setCantidad(e.target.value)} min="1" />
             </div>
             {tipo === 'ajuste_entrada' && (
               <div className="form-group">
                 <label className="text-white text-[10px] font-black uppercase block mb-1">Costo Unitario Compra ($)</label>
-                <input type="number" step="0.01" className="form-input bg-black text-white" value={nuevoCosto} onChange={e => setNuevoCosto(parseFloat(e.target.value) || 0)} />
+                <input type="number" step="0.01" className="form-input bg-black text-white" value={nuevoCosto} onChange={e => setNuevoCosto(e.target.value)} />
               </div>
             )}
           </div>

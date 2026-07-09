@@ -37,48 +37,54 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
   const [proveedor, setProveedor] = useState('');
   const [numeroFactura, setNumeroFactura] = useState('');
   const [fecha, setFecha] = useState(Utils.hoy());
-  const [tasaCompra, setTasaCompra] = useState<number>(state.tasa);
+  const [tasaCompra, setTasaCompra] = useState<string | number>(state.tasa);
   
   // 2. CONDICIONES DE PAGO
   const [condicion, setCondicion] = useState<'contado' | 'credito' | 'mixto'>('contado');
-  const [diasPlazo, setDiasPlazo] = useState(30);
-  const [montoPagadoUSD, setMontoPagadoUSD] = useState(0);
-  const [montoPagadoBS, setMontoPagadoBS] = useState(0);
+  const [diasPlazo, setDiasPlazo] = useState<string | number>(30);
+  const [montoPagadoUSD, setMontoPagadoUSD] = useState<string | number>(0);
+  const [montoPagadoBS, setMontoPagadoBS] = useState<string | number>(0);
 
   // 3. AÑADIR PRODUCTOS
   const [busqueda, setBusqueda] = useState('');
   const [itemSeleccionado, setItemSeleccionado] = useState<Product | null>(null);
-  const [cantidad, setCantidad] = useState(1);
-  const [costoInput, setCostoInput] = useState(0);
+  const [cantidad, setCantidad] = useState<string | number>(1);
+  const [costoInput, setCostoInput] = useState<string | number>(0);
   const [loteTemporal, setLoteTemporal] = useState<PurchaseItemTemp[]>([]);
   const [showNewProductModal, setShowNewProductModal] = useState(false);
 
   // Cálculos de Totales
   const totalUSD = loteTemporal.reduce((acc, item) => acc + item.subtotalUSD, 0);
-  const totalBS = totalUSD * tasaCompra;
+  const totalBS = totalUSD * (parseFloat(tasaCompra.toString()) || 0);
 
   // Lógica de actualización de montos según condición
   useEffect(() => {
+    const tasa = parseFloat(tasaCompra.toString()) || 0;
     if (condicion === 'contado') {
       setMontoPagadoUSD(totalUSD);
-      setMontoPagadoBS(totalUSD * tasaCompra);
+      setMontoPagadoBS(totalUSD * tasa);
     } else if (condicion === 'credito') {
       setMontoPagadoUSD(0);
       setMontoPagadoBS(0);
     }
   }, [condicion, totalUSD, tasaCompra]);
 
-  const saldoPendienteUSD = Math.max(0, totalUSD - montoPagadoUSD);
+  const pMontoPagadoUSD = parseFloat(montoPagadoUSD.toString()) || 0;
+  const saldoPendienteUSD = Math.max(0, totalUSD - pMontoPagadoUSD);
 
   // Manejo de cambios en Mixto
-  const handlePaidUsdChange = (val: number) => {
+  const handlePaidUsdChange = (val: string | number) => {
     setMontoPagadoUSD(val);
-    setMontoPagadoBS(Utils.round(val * tasaCompra));
+    const nVal = parseFloat(val.toString()) || 0;
+    const tasa = parseFloat(tasaCompra.toString()) || 0;
+    setMontoPagadoBS(Utils.round(nVal * tasa));
   };
 
-  const handlePaidBsChange = (val: number) => {
+  const handlePaidBsChange = (val: string | number) => {
     setMontoPagadoBS(val);
-    setMontoPagadoUSD(Utils.round(val / tasaCompra));
+    const nVal = parseFloat(val.toString()) || 0;
+    const tasa = parseFloat(tasaCompra.toString()) || 0;
+    setMontoPagadoUSD(tasa > 0 ? Utils.round(nVal / tasa) : 0);
   };
 
   // Buscador de productos
@@ -97,14 +103,16 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
   };
 
   const handleAddTempItem = () => {
-    if (!itemSeleccionado || cantidad <= 0 || costoInput <= 0) return;
+    const pCant = parseFloat(cantidad.toString()) || 0;
+    const pCosto = parseFloat(costoInput.toString()) || 0;
+    if (!itemSeleccionado || pCant <= 0 || pCosto <= 0) return;
     
     const nuevo: PurchaseItemTemp = {
       productoId: itemSeleccionado.id,
       nombre: itemSeleccionado.nombre,
-      cantidad,
-      costoUnitarioUSD: costoInput,
-      subtotalUSD: Utils.round(cantidad * costoInput)
+      cantidad: pCant,
+      costoUnitarioUSD: pCosto,
+      subtotalUSD: Utils.round(pCant * pCosto)
     };
 
     setLoteTemporal([...loteTemporal, nuevo]);
@@ -123,8 +131,9 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
     if (loteTemporal.length === 0) return alert('Agregue productos a la lista');
 
     const ahoraStr = Utils.ahora();
+    const pDias = parseInt(diasPlazo.toString()) || 0;
     const fechaVencimiento = condicion === 'credito' ? 
-      new Date(new Date(fecha).getTime() + (diasPlazo * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10) : 
+      new Date(new Date(fecha).getTime() + (pDias * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10) : 
       fecha;
 
     // Determinar estado de la factura
@@ -174,9 +183,9 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
         proveedor,
         concepto: `FACTURA COMPRA #${numeroFactura}`,
         montoUSD: totalUSD,
-        abonadoUSD: montoPagadoUSD,
+        abonadoUSD: pMontoPagadoUSD,
         saldoUSD: saldoPendienteUSD,
-        estado: estado === 'pagada' ? 'pagada' : (montoPagadoUSD > 0 ? 'parcial' : 'pendiente')
+        estado: estado === 'pagada' ? 'pagada' : (pMontoPagadoUSD > 0 ? 'parcial' : 'pendiente')
       });
     }
 
@@ -244,7 +253,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                 </div>
                 <div className="form-group mb-0">
                   <label className="text-[10px] font-black uppercase text-white/40 block mb-1">Tasa Compra</label>
-                  <input type="number" className="form-input h-10 bg-black text-[#c8952e] border-[#c8952e]/30 text-xs font-black" value={tasaCompra} onChange={e => setTasaCompra(parseFloat(e.target.value) || 0)} />
+                  <input type="number" className="form-input h-10 bg-black text-[#c8952e] border-[#c8952e]/30 text-xs font-black" value={tasaCompra} onChange={e => setTasaCompra(e.target.value)} />
                 </div>
               </div>
               <div className="form-group mb-0">
@@ -277,7 +286,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
               {condicion === 'credito' && (
                 <div className="p-3 bg-black rounded border border-white/10 animate-in slide-in-from-top-2">
                   <label className="text-[9px] font-black uppercase text-white/40 block mb-1">Días de Plazo</label>
-                  <input type="number" className="form-input h-9 bg-[#111] text-white border-white/10 text-xs font-black" value={diasPlazo} onChange={e => setDiasPlazo(parseInt(e.target.value) || 0)} />
+                  <input type="number" className="form-input h-9 bg-[#111] text-white border-white/10 text-xs font-black" value={diasPlazo} onChange={e => setDiasPlazo(e.target.value)} />
                 </div>
               )}
 
@@ -294,10 +303,10 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                       type="number" 
                       className="w-24 h-7 bg-black border border-[#27ae60]/30 text-[#27ae60] text-right rounded px-2 font-black" 
                       value={montoPagadoUSD}
-                      onChange={e => handlePaidUsdChange(parseFloat(e.target.value) || 0)}
+                      onChange={e => handlePaidUsdChange(e.target.value)}
                     />
                   ) : (
-                    <span className="text-[#27ae60] font-black">{montoPagadoUSD.toFixed(4)}</span>
+                    <span className="text-[#27ae60] font-black">{pMontoPagadoUSD.toFixed(4)}</span>
                   )}
                 </div>
 
@@ -315,7 +324,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                         className="flex-1 h-9 bg-black border border-white/10 text-white text-xs font-black px-3 rounded"
                         placeholder="Monto en BS"
                         value={montoPagadoBS}
-                        onChange={e => handlePaidBsChange(parseFloat(e.target.value) || 0)}
+                        onChange={e => handlePaidBsChange(e.target.value)}
                       />
                       <span className="text-[10px] font-black text-white/20">BS.</span>
                     </div>
@@ -379,11 +388,11 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                 {/* Formulario Adición */}
                 <div className="md:col-span-2">
                   <label className="text-[9px] font-black uppercase text-white/40 block mb-1">Cant.</label>
-                  <input type="number" className="form-input h-10 bg-black text-white border-white/10 text-xs font-black" value={cantidad} onChange={e => setCantidad(parseInt(e.target.value) || 0)} />
+                  <input type="number" className="form-input h-10 bg-black text-white border-white/10 text-xs font-black" value={cantidad} onChange={e => setCantidad(e.target.value)} />
                 </div>
                 <div className="md:col-span-3">
                   <label className="text-[9px] font-black uppercase text-white/40 block mb-1">Costo Unit. $</label>
-                  <input type="number" className="form-input h-10 bg-black text-[#c8952e] border-[#c8952e]/30 text-xs font-black" value={costoInput} onChange={e => setCostoInput(parseFloat(e.target.value) || 0)} />
+                  <input type="number" className="form-input h-10 bg-black text-[#c8952e] border-[#c8952e]/30 text-xs font-black" value={costoInput} onChange={e => setCostoInput(e.target.value)} />
                 </div>
                 <div className="md:col-span-2">
                   <button 
@@ -452,7 +461,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                 </div>
                 <div className="bg-[#111] p-3 rounded-lg border border-[#27ae60]/20">
                   <p className="text-[8px] text-[#27ae60]/60 font-black uppercase mb-1">Total Pagado USD</p>
-                  <p className="text-base font-black text-[#27ae60]">{Utils.fmtUSD(montoPagadoUSD)}</p>
+                  <p className="text-base font-black text-[#27ae60]">{Utils.fmtUSD(pMontoPagadoUSD)}</p>
                 </div>
                 <div className="bg-[#111] p-3 rounded-lg border border-[#e04848]/20">
                   <p className="text-[8px] text-[#e04848]/60 font-black uppercase mb-1">Saldo Pendiente USD</p>
@@ -495,7 +504,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
 
 // Subcomponentes del Modal de Producto (Replicados del inventario para independencia del módulo)
 function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { producto?: Product, state: AppState, onClose: () => void, onSave: (p: any) => void, onUpdateLists: (l: any) => void }) {
-  const [datos, setDatos] = useState({
+  const [datos, setDatos] = useState<any>({
     codigo: producto?.codigo || '',
     nombre: producto?.nombre || '',
     categoria: producto?.categoria || state.categorias[0] || '',
@@ -524,39 +533,41 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
   const [showProvList, setShowProvList] = useState(false);
   const [kitSearch, setKitSearch] = useState('');
 
-  const updateSelectedPrice = (usd: number) => {
-    const rUSD = Utils.round(usd);
-    setDatos(d => {
-      const update: any = { precioUSD: rUSD, precioBS: Utils.round(rUSD * state.tasa) };
-      if (d.tipoPrecioPrincipal === 'estandar') update.precioEstandarUSD = rUSD;
-      else if (d.tipoPrecioPrincipal === 'mayor') update.precioMayorUSD = rUSD;
-      else if (d.tipoPrecioPrincipal === 'oferta') update.precioOfertaUSD = rUSD;
-      else if (d.tipoPrecioPrincipal === 'promo') update.precioPromoUSD = rUSD;
+  const updateSelectedPrice = (usd: number | string) => {
+    const rUSD = Utils.round(parseFloat(usd.toString()) || 0);
+    setDatos((d: any) => {
+      const update: any = { precioUSD: usd, precioBS: Utils.round(rUSD * state.tasa) };
+      if (d.tipoPrecioPrincipal === 'estandar') update.precioEstandarUSD = usd;
+      else if (d.tipoPrecioPrincipal === 'mayor') update.precioMayorUSD = usd;
+      else if (d.tipoPrecioPrincipal === 'oferta') update.precioOfertaUSD = usd;
+      else if (d.tipoPrecioPrincipal === 'promo') update.precioPromoUSD = usd;
       return { ...d, ...update };
     });
   };
 
-  const recalcularDesdeUSD = (usd: number, costo: number = datos.costoUSD) => {
-    const rUSD = Utils.round(usd);
-    const rCosto = Utils.round(costo);
+  const recalcularDesdeUSD = (usd: number | string, costo: number | string = datos.costoUSD) => {
+    const rUSD = parseFloat(usd.toString()) || 0;
+    const rCosto = parseFloat(costo.toString()) || 0;
     const nuevoMargen = rUSD > 0 ? ((rUSD - rCosto) / rUSD) * 100 : 0;
-    setDatos(d => ({ ...d, precioUSD: rUSD, margen: nuevoMargen, precioBS: Utils.round(rUSD * state.tasa), costoUSD: rCosto }));
-    updateSelectedPrice(rUSD);
-  };
-
-  const recalcularDesdeMargen = (m: number, costo: number = datos.costoUSD) => {
-    const rCosto = Utils.round(costo);
-    const factor = (1 - (m / 100));
-    const usd = factor > 0 ? Utils.round(rCosto / factor) : 0;
-    setDatos(d => ({ ...d, margen: m, precioUSD: usd, precioBS: Utils.round(usd * state.tasa), costoUSD: rCosto }));
+    setDatos((d: any) => ({ ...d, precioUSD: usd, margen: nuevoMargen, precioBS: Utils.round(rUSD * state.tasa), costoUSD: costo }));
     updateSelectedPrice(usd);
   };
 
-  const recalcularDesdeBS = (bs: number) => {
-    const usd = Utils.round(bs / state.tasa);
-    const rCosto = Utils.round(datos.costoUSD);
+  const recalcularDesdeMargen = (m: number | string, costo: number | string = datos.costoUSD) => {
+    const rCosto = parseFloat(costo.toString()) || 0;
+    const rM = parseFloat(m.toString()) || 0;
+    const factor = (1 - (rM / 100));
+    const usd = factor > 0 ? Utils.round(rCosto / factor) : 0;
+    setDatos((d: any) => ({ ...d, margen: m, precioUSD: usd, precioBS: Utils.round(usd * state.tasa), costoUSD: costo }));
+    updateSelectedPrice(usd);
+  };
+
+  const recalcularDesdeBS = (bs: number | string) => {
+    const rBS = parseFloat(bs.toString()) || 0;
+    const usd = Utils.round(rBS / state.tasa);
+    const rCosto = parseFloat(datos.costoUSD.toString()) || 0;
     const nuevoMargen = usd > 0 ? ((usd - rCosto) / usd) * 100 : 0;
-    setDatos(d => ({ ...d, precioBS: Utils.round(bs), precioUSD: usd, margen: nuevoMargen }));
+    setDatos((d: any) => ({ ...d, precioBS: bs, precioUSD: usd, margen: nuevoMargen }));
     updateSelectedPrice(usd);
   };
 
@@ -566,15 +577,21 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     if (datos.tipoPrecioPrincipal === 'oferta') p = datos.precioOfertaUSD;
     if (datos.tipoPrecioPrincipal === 'promo') p = datos.precioPromoUSD;
     
-    p = Utils.round(p);
-    const rCosto = Utils.round(datos.costoUSD);
-    const m = p > 0 ? ((p - rCosto) / p) * 100 : 0;
-    setDatos(d => ({ ...d, precioUSD: p, precioBS: Utils.round(p * state.tasa), margen: m }));
+    const rP = parseFloat(p.toString()) || 0;
+    const rCosto = parseFloat(datos.costoUSD.toString()) || 0;
+    const m = rP > 0 ? ((rP - rCosto) / rP) * 100 : 0;
+    setDatos((d: any) => ({ ...d, precioUSD: p, precioBS: Utils.round(rP * state.tasa), margen: m }));
   }, [datos.tipoPrecioPrincipal]);
 
   const handleSubmit = () => {
     if (!datos.nombre || !datos.codigo) return alert('Nombre y Código son requeridos');
-    onSave(datos);
+    onSave({
+      ...datos,
+      costoUSD: parseFloat(datos.costoUSD.toString()) || 0,
+      precioUSD: parseFloat(datos.precioUSD.toString()) || 0,
+      stock: parseInt(datos.stock.toString()) || 0,
+      stockMinimo: parseInt(datos.stockMinimo.toString()) || 0
+    });
   };
 
   return (
@@ -620,30 +637,30 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
             <div className="grid grid-cols-4 gap-3">
               <div className="form-group mb-0">
                 <label className="form-label text-[9px] mb-1 text-white/60 uppercase">COSTO $</label>
-                <input className="form-input py-1.5 text-sm bg-black" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, parseFloat(e.target.value) || 0)} />
+                <input className="form-input py-1.5 text-sm bg-black" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, e.target.value)} />
               </div>
               <div className="form-group mb-0">
                 <label className="form-label text-[9px] mb-1 text-white/60 uppercase">MARGEN %</label>
-                <input className="form-input py-1.5 text-sm text-[#27ae60] font-bold bg-black" type="number" step="0.01" value={Math.round(datos.margen * 100) / 100} onChange={e => recalcularDesdeMargen(parseFloat(e.target.value) || 0)} />
+                <input className="form-input py-1.5 text-sm text-[#27ae60] font-bold bg-black" type="number" step="0.01" value={datos.margen} onChange={e => recalcularDesdeMargen(e.target.value)} />
               </div>
               <div className="form-group mb-0">
                 <label className="form-label text-[9px] mb-1 text-white/60 uppercase">VENTA $</label>
-                <input className="form-input py-1.5 text-sm text-[#c8952e] font-black bg-black" type="number" step="0.01" value={datos.precioUSD} onChange={e => recalcularDesdeUSD(parseFloat(e.target.value) || 0)} />
+                <input className="form-input py-1.5 text-sm text-[#c8952e] font-black bg-black" type="number" step="0.01" value={datos.precioUSD} onChange={e => recalcularDesdeUSD(e.target.value)} />
               </div>
               <div className="form-group mb-0">
                 <label className="form-label text-[9px] mb-1 text-white/60 uppercase">VENTA BS</label>
-                <input className="form-input py-1.5 text-sm font-bold bg-black" type="number" step="0.01" value={datos.precioBS} onChange={e => recalcularDesdeBS(parseFloat(e.target.value) || 0)} />
+                <input className="form-input py-1.5 text-sm font-bold bg-black" type="number" step="0.01" value={datos.precioBS} onChange={e => recalcularDesdeBS(e.target.value)} />
               </div>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="form-group mb-0">
               <label className="form-label text-[10px] mb-1 uppercase text-white font-black">Stock Inicial</label>
-              <input className="form-input py-1.5 text-sm bg-black" type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: parseInt(e.target.value) || 0})} />
+              <input className="form-input py-1.5 text-sm bg-black" type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} />
             </div>
             <div className="form-group mb-0">
               <label className="form-label text-[10px] mb-1 uppercase text-white font-black">Mínimo</label>
-              <input className="form-input py-1.5 text-sm bg-black" type="number" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: parseInt(e.target.value) || 0})} />
+              <input className="form-input py-1.5 text-sm bg-black" type="number" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} />
             </div>
             <div className="form-group mb-0">
               <label className="form-label text-[10px] m-0 uppercase text-white font-black mb-1">Presentación</label>

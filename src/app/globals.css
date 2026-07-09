@@ -45,6 +45,18 @@ body {
   overflow-x: hidden;
 }
 
+/* Chrome, Safari, Edge, Opera - Hide Spinners */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox - Hide Spinners */
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg2); }
