@@ -1,7 +1,7 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { 
   Wine, 
   PieChart, 
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 import DashboardModule from '@/components/modules/DashboardModule';
 import InventoryModule from '@/components/modules/InventoryModule';
 import SalesModule from '@/components/modules/SalesModule';
@@ -40,6 +41,8 @@ export default function LicoreriaPOS() {
     finanzas: false,
     sistema: false
   });
+
+  const logo = PlaceHolderImages.find(img => img.id === 'posven-logo');
 
   useEffect(() => {
     setMounted(true);
@@ -145,11 +148,17 @@ export default function LicoreriaPOS() {
   return (
     <div className="flex h-screen bg-[#0b0b0b] text-white overflow-hidden">
       <aside className={`fixed top-0 left-0 w-[260px] h-screen bg-[#131313] border-r border-[#2a2a2a] flex flex-col z-[100] transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 border-b border-[#2a2a2a]">
-          <h1 className="flex items-center gap-2 font-display text-xl font-bold text-[#c8952e] tracking-tighter">
-            <Wine className="w-6 h-6" /> LicoreriaPOS
-          </h1>
-          <p className="text-[0.75rem] text-white font-black uppercase mt-1">Gestión de Punto de Venta</p>
+        <div className="p-6 border-b border-[#2a2a2a] flex flex-col items-center">
+          <div className="w-full h-12 relative mb-2">
+            <Image 
+              src={logo?.imageUrl || 'https://picsum.photos/seed/posven/200/80'} 
+              alt="PosVEN Logo" 
+              fill
+              style={{ objectFit: 'contain' }}
+              data-ai-hint="posven logo"
+            />
+          </div>
+          <p className="text-[0.55rem] text-white/50 font-black uppercase tracking-widest text-center leading-tight">Soluciones Profesionales para Venezuela</p>
         </div>
         
         <nav className="flex-1 overflow-y-auto p-3 space-y-2">
