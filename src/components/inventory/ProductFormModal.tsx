@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Product } from '@/lib/types';
-import { Store } from '@/lib/db-store';
+import { Store, Utils } from '@/lib/db-store';
 import { toast } from '@/hooks/use-toast';
 
 interface Props {
@@ -14,111 +14,211 @@ interface Props {
   onClose: () => void;
   product?: Product;
   onSave: () => void;
+  state: any; // AppState
+  updateState: (newState: any) => void;
 }
 
-export function ProductFormModal({ isOpen, onClose, product, onSave }: Props) {
+export function ProductFormModal({ isOpen, onClose, product, onSave, state, updateState }: Props) {
   const [formData, setFormData] = useState<Partial<Product>>({
-    name: '', barcode: '', category: 'Ron', price: 0, stock: 0, minStock: 5, description: ''
+    codigo: '',
+    nombre: '',
+    categoria: 'Ron',
+    precioUSD: 0,
+    stock: 0,
+    stockMinimo: 5,
+    costoUSD: 0,
+    marca: '',
+    proveedor: '',
+    departamento: 'Licores',
+    cantidad: '750ml',
+    activo: true
   });
 
   useEffect(() => {
-    if (product) setFormData(product);
-    else setFormData({ name: '', barcode: '', category: 'Ron', price: 0, stock: 0, minStock: 5, description: '' });
+    if (product) {
+      setFormData({
+        codigo: product.codigo || '',
+        nombre: product.nombre || '',
+        categoria: product.categoria || 'Ron',
+        precioUSD: product.precioUSD || 0,
+        stock: product.stock || 0,
+        stockMinimo: product.stockMinimo || 5,
+        costoUSD: product.costoUSD || 0,
+        marca: product.marca || '',
+        proveedor: product.proveedor || '',
+        departamento: product.departamento || 'Licores',
+        cantidad: product.cantidad || '750ml',
+        activo: product.activo !== undefined ? product.activo : true
+      });
+    } else {
+      setFormData({
+        codigo: '',
+        nombre: '',
+        categoria: 'Ron',
+        precioUSD: 0,
+        stock: 0,
+        stockMinimo: 5,
+        costoUSD: 0,
+        marca: '',
+        proveedor: '',
+        departamento: 'Licores',
+        cantidad: '750ml',
+        activo: true
+      });
+    }
   }, [product, isOpen]);
 
   const handleSave = () => {
-    if (!formData.name || !formData.barcode || !formData.price) {
-      toast({ title: "Datos incompletos", variant: "destructive" });
+    if (!formData.nombre || !formData.codigo || !formData.precioUSD) {
+      toast({ title: "Datos incompletos", description: "Nombre, código y precio son obligatorios", variant: "destructive" });
       return;
     }
 
-    const all = Store.get<Product[]>('products', []);
+    let productosActualizados = [...state.productos];
+
     if (product) {
-      const idx = all.findIndex(p => p.id === product.id);
-      if (idx >= 0) all[idx] = { ...all[idx], ...formData } as Product;
+      // Editar producto existente
+      const idx = productosActualizados.findIndex(p => p.id === product.id);
+      if (idx >= 0) {
+        productosActualizados[idx] = { 
+          ...productosActualizados[idx], 
+          ...formData,
+          id: product.id,
+          fechaCreacion: product.fechaCreacion || Utils.hoy()
+        } as Product;
+      }
     } else {
-      const nextId = Store.get('nextProductId', 20);
-      const newProd = { ...formData, id: `P-${String(nextId).padStart(3, '0')}` } as Product;
-      all.push(newProd);
-      Store.set('nextProductId', nextId + 1);
+      // Crear nuevo producto
+      const newProduct: Product = {
+        id: Store.uid(),
+        codigo: formData.codigo || '',
+        nombre: formData.nombre || '',
+        categoria: formData.categoria || 'Ron',
+        departamento: formData.departamento || 'Licores',
+        cantidad: formData.cantidad || '750ml',
+        marca: formData.marca || '',
+        proveedor: formData.proveedor || '',
+        costoUSD: formData.costoUSD || 0,
+        precioUSD: formData.precioUSD || 0,
+        margen: (formData.precioUSD || 0) - (formData.costoUSD || 0),
+        stock: formData.stock || 0,
+        stockMinimo: formData.stockMinimo || 5,
+        fechaCreacion: Utils.hoy(),
+        activo: true
+      };
+      productosActualizados.push(newProduct);
     }
-    
-    Store.set('products', all);
-    toast({ title: "Producto Guardado" });
+
+    // Actualizar estado
+    updateState({ productos: productosActualizados });
+    toast({ title: "Producto Guardado", description: `${formData.nombre} ha sido guardado exitosamente` });
     onSave();
     onClose();
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md bg-card border-none text-white">
+      <DialogContent className="sm:max-w-md bg-[#131313] border-[#2a2a2a] text-white">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-black text-primary">
+          <DialogTitle className="text-2xl font-black text-[#c8952e]">
             {product ? 'Editar Producto' : 'Nuevo Producto'}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1">
-            <Label>Código de Barras</Label>
+            <Label className="text-white/70 font-bold uppercase text-xs tracking-wider">Código de Barras</Label>
             <Input 
-              value={formData.barcode} 
-              onChange={(e) => setFormData({...formData, barcode: e.target.value})}
-              className="font-code bg-secondary/50"
+              value={formData.codigo} 
+              onChange={(e) => setFormData({...formData, codigo: e.target.value})}
+              className="bg-[#0b0b0b] border-[#2a2a2a] text-white"
               placeholder="Escanee o ingrese código"
             />
           </div>
           <div className="space-y-1">
-            <Label>Nombre del Producto</Label>
+            <Label className="text-white/70 font-bold uppercase text-xs tracking-wider">Nombre del Producto</Label>
             <Input 
-              value={formData.name} 
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
-              className="bg-secondary/50"
+              value={formData.nombre} 
+              onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+              className="bg-[#0b0b0b] border-[#2a2a2a] text-white"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <Label>Categoría</Label>
+              <Label className="text-white/70 font-bold uppercase text-xs tracking-wider">Categoría</Label>
               <Input 
-                value={formData.category} 
-                onChange={(e) => setFormData({...formData, category: e.target.value})}
-                className="bg-secondary/50"
+                value={formData.categoria} 
+                onChange={(e) => setFormData({...formData, categoria: e.target.value})}
+                className="bg-[#0b0b0b] border-[#2a2a2a] text-white"
               />
             </div>
             <div className="space-y-1">
-              <Label>Precio BS</Label>
+              <Label className="text-white/70 font-bold uppercase text-xs tracking-wider">Precio USD</Label>
               <Input 
                 type="number"
-                value={formData.price} 
-                onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value)})}
-                className="bg-secondary/50"
+                step="0.01"
+                value={formData.precioUSD} 
+                onChange={(e) => setFormData({...formData, precioUSD: parseFloat(e.target.value) || 0})}
+                className="bg-[#0b0b0b] border-[#2a2a2a] text-white"
               />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <Label>Stock Inicial</Label>
+              <Label className="text-white/70 font-bold uppercase text-xs tracking-wider">Costo USD</Label>
               <Input 
                 type="number"
-                value={formData.stock} 
-                onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value)})}
-                className="bg-secondary/50"
+                step="0.0001"
+                value={formData.costoUSD} 
+                onChange={(e) => setFormData({...formData, costoUSD: parseFloat(e.target.value) || 0})}
+                className="bg-[#0b0b0b] border-[#2a2a2a] text-white"
               />
             </div>
             <div className="space-y-1">
-              <Label>Stock Mínimo</Label>
+              <Label className="text-white/70 font-bold uppercase text-xs tracking-wider">Marca</Label>
               <Input 
-                type="number"
-                value={formData.minStock} 
-                onChange={(e) => setFormData({...formData, minStock: parseInt(e.target.value)})}
-                className="bg-secondary/50"
+                value={formData.marca} 
+                onChange={(e) => setFormData({...formData, marca: e.target.value})}
+                className="bg-[#0b0b0b] border-[#2a2a2a] text-white"
               />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="text-white/70 font-bold uppercase text-xs tracking-wider">Stock Inicial</Label>
+              <Input 
+                type="number"
+                value={formData.stock} 
+                onChange={(e) => setFormData({...formData, stock: parseInt(e.target.value) || 0})}
+                className="bg-[#0b0b0b] border-[#2a2a2a] text-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-white/70 font-bold uppercase text-xs tracking-wider">Stock Mínimo</Label>
+              <Input 
+                type="number"
+                value={formData.stockMinimo} 
+                onChange={(e) => setFormData({...formData, stockMinimo: parseInt(e.target.value) || 5})}
+                className="bg-[#0b0b0b] border-[#2a2a2a] text-white"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-white/70 font-bold uppercase text-xs tracking-wider">Proveedor</Label>
+            <Input 
+              value={formData.proveedor} 
+              onChange={(e) => setFormData({...formData, proveedor: e.target.value})}
+              className="bg-[#0b0b0b] border-[#2a2a2a] text-white"
+              placeholder="Proveedor del producto"
+            />
+          </div>
         </div>
 
-        <Button className="w-full h-12 mt-4 bg-primary font-black uppercase tracking-widest" onClick={handleSave}>
-          Guardar Cambios
+        <Button 
+          className="w-full h-12 mt-4 bg-[#c8952e] text-[#0b0b0b] font-black uppercase tracking-widest hover:bg-[#d9a540]"
+          onClick={handleSave}
+        >
+          {product ? 'Actualizar Producto' : 'Crear Producto'}
         </Button>
       </DialogContent>
     </Dialog>

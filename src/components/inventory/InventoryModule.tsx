@@ -20,7 +20,12 @@ import { toast } from '@/hooks/use-toast';
 import { ProductFormModal } from './ProductFormModal';
 import { generarPDFInventario } from '@/lib/pdf-generator';
 
-export function InventoryModule() {
+interface InventoryModuleProps {
+  state: AppState;
+  updateState: (newState: Partial<AppState>) => void;
+}
+
+export function InventoryModule({ state, updateState }: InventoryModuleProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -39,9 +44,7 @@ export function InventoryModule() {
   }, []);
 
   const refreshData = () => {
-    // Obtener el estado completo de la tienda
-    const state = Store.get();
-    // Extraer los productos del estado
+    // Obtener productos del estado
     const allProducts = state?.productos || [];
     setProducts(allProducts);
   };
@@ -59,11 +62,8 @@ export function InventoryModule() {
   const handleDelete = (id: string) => {
     if (confirm('¿Eliminar este producto?')) {
       const all = products.filter(p => p.id !== id);
-      // Guardar los productos actualizados en el estado
-      const state = Store.get();
-      if (state) {
-        Store.set({ ...state, productos: all });
-      }
+      // Actualizar estado
+      updateState({ productos: all });
       refreshData();
       toast({ title: "Producto eliminado" });
     }
@@ -90,44 +90,44 @@ export function InventoryModule() {
     <div className="p-6 h-full flex flex-col gap-6 overflow-hidden">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-black text-primary">Gestión de Inventario</h2>
-          <p className="text-sm text-muted-foreground">Control de existencias y catálogo de productos</p>
+          <h2 className="text-2xl font-black text-[#c8952e]">Gestión de Inventario</h2>
+          <p className="text-sm text-white/50">Control de existencias y catálogo de productos</p>
         </div>
         <div className="flex gap-2">
           <Button 
             variant="outline" 
-            className="gap-2"
+            className="gap-2 border-[#2a2a2a] text-white hover:bg-[#2a2a2a]"
             onClick={handleGeneratePDF}
           >
             <FileText className="w-5 h-5" /> Reporte PDF
           </Button>
-          <Button className="bg-primary hover:bg-primary/90 gap-2 shadow-lg shadow-primary/20" onClick={() => { setSelectedProduct(undefined); setIsModalOpen(true); }}>
+          <Button className="bg-[#c8952e] hover:bg-[#d9a540] gap-2 text-[#0b0b0b] font-black" onClick={() => { setSelectedProduct(undefined); setIsModalOpen(true); }}>
             <Plus className="w-5 h-5" /> Agregar Producto
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-secondary/20 border-border">
+        <Card className="bg-[#131313] border-[#2a2a2a]">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-primary/20 rounded-xl"><PackageCheck className="w-6 h-6 text-primary" /></div>
+              <div className="p-3 bg-[#c8952e]/20 rounded-xl"><PackageCheck className="w-6 h-6 text-[#c8952e]" /></div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Productos</p>
-                <p className="text-2xl font-black">{products.length}</p>
+                <p className="text-sm text-white/50">Total Productos</p>
+                <p className="text-2xl font-black text-white">{products.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className={`border-border ${lowStockCount > 0 ? 'bg-destructive/10' : 'bg-secondary/20'}`}>
+        <Card className={`border-[#2a2a2a] ${lowStockCount > 0 ? 'bg-red-500/10' : 'bg-[#131313]'}`}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-xl ${lowStockCount > 0 ? 'bg-destructive/20 text-destructive' : 'bg-muted/20 text-muted'}`}>
+              <div className={`p-3 rounded-xl ${lowStockCount > 0 ? 'bg-red-500/20 text-red-500' : 'bg-[#2a2a2a]/20 text-white/50'}`}>
                 <AlertCircle className="w-6 h-6" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Stock Bajo</p>
-                <p className={`text-2xl font-black ${lowStockCount > 0 ? 'text-destructive' : ''}`}>{lowStockCount}</p>
+                <p className="text-sm text-white/50">Stock Bajo</p>
+                <p className={`text-2xl font-black ${lowStockCount > 0 ? 'text-red-500' : 'text-white'}`}>{lowStockCount}</p>
               </div>
             </div>
           </CardContent>
@@ -136,18 +136,18 @@ export function InventoryModule() {
 
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-white/50" />
           <Input 
             placeholder="Buscar por nombre o código de barras..." 
-            className="pl-9 bg-secondary/30"
+            className="pl-9 bg-[#0b0b0b] border-[#2a2a2a] text-white"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground" />
+          <Filter className="w-4 h-4 text-white/50" />
           <select 
-            className="bg-secondary/30 border border-input rounded-md px-3 py-2 text-sm outline-none"
+            className="bg-[#0b0b0b] border border-[#2a2a2a] rounded-md px-3 py-2 text-sm outline-none text-white"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
@@ -157,18 +157,18 @@ export function InventoryModule() {
         </div>
       </div>
 
-      <Card className="flex-1 overflow-hidden bg-card border-none shadow-xl">
+      <Card className="flex-1 overflow-hidden bg-[#131313] border-[#2a2a2a] shadow-xl">
         <div className="h-full overflow-y-auto">
           <Table>
-            <TableHeader className="bg-secondary/50 sticky top-0 z-10">
-              <TableRow>
-                <TableHead className="font-bold">Código</TableHead>
-                <TableHead className="font-bold">Producto</TableHead>
-                <TableHead className="font-bold">Categoría</TableHead>
-                <TableHead className="font-bold">Precio BS</TableHead>
-                <TableHead className="font-bold">Stock</TableHead>
-                <TableHead className="font-bold">Estado</TableHead>
-                <TableHead className="text-right font-bold">Acciones</TableHead>
+            <TableHeader className="bg-[#0b0b0b] sticky top-0 z-10">
+              <TableRow className="border-[#2a2a2a]">
+                <TableHead className="font-bold text-white/70">Código</TableHead>
+                <TableHead className="font-bold text-white/70">Producto</TableHead>
+                <TableHead className="font-bold text-white/70">Categoría</TableHead>
+                <TableHead className="font-bold text-white/70">Precio USD</TableHead>
+                <TableHead className="font-bold text-white/70">Stock</TableHead>
+                <TableHead className="font-bold text-white/70">Estado</TableHead>
+                <TableHead className="text-right font-bold text-white/70">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -178,23 +178,23 @@ export function InventoryModule() {
                 const stock = p.stock || 0;
                 const minStock = p.stockMinimo || 0;
                 return (
-                  <TableRow key={p.id} className="hover:bg-secondary/20 transition-colors">
-                    <TableCell className="font-code text-primary text-xs font-bold">{barcode || 'N/A'}</TableCell>
-                    <TableCell className="font-semibold">{p.nombre}</TableCell>
-                    <TableCell>{p.categoria}</TableCell>
-                    <TableCell className="font-bold">Bs. {price.toFixed(2)}</TableCell>
-                    <TableCell>{stock}</TableCell>
+                  <TableRow key={p.id} className="hover:bg-[#1a1a1a] transition-colors border-[#2a2a2a]">
+                    <TableCell className="font-code text-[#c8952e] text-xs font-bold">{barcode || 'N/A'}</TableCell>
+                    <TableCell className="font-semibold text-white">{p.nombre}</TableCell>
+                    <TableCell className="text-white/70">{p.categoria}</TableCell>
+                    <TableCell className="font-bold text-[#c8952e]">${price.toFixed(2)}</TableCell>
+                    <TableCell className="text-white">{stock}</TableCell>
                     <TableCell>
-                      <Badge variant={stock <= minStock ? "destructive" : "secondary"}>
+                      <Badge variant={stock <= minStock ? "destructive" : "secondary"} className={stock <= minStock ? "bg-red-500/20 text-red-500" : "bg-[#2a2a2a] text-white/70"}>
                         {stock <= minStock ? "Stock Bajo" : "Disponible"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10" onClick={() => { setSelectedProduct(p); setIsModalOpen(true); }}>
+                        <Button variant="ghost" size="icon" className="text-[#c8952e] hover:bg-[#c8952e]/10" onClick={() => { setSelectedProduct(p); setIsModalOpen(true); }}>
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(p.id)}>
+                        <Button variant="ghost" size="icon" className="text-red-500 hover:bg-red-500/10" onClick={() => handleDelete(p.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -204,7 +204,7 @@ export function InventoryModule() {
               })}
               {filteredProducts.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-20 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-20 text-white/50">
                     No se encontraron productos en el inventario.
                   </TableCell>
                 </TableRow>
@@ -219,6 +219,8 @@ export function InventoryModule() {
         onClose={() => setIsModalOpen(false)} 
         product={selectedProduct}
         onSave={refreshData}
+        state={state}
+        updateState={updateState}
       />
     </div>
   );
