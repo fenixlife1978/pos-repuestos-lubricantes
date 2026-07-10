@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, Product, Movimiento, KitItem } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
@@ -25,7 +25,11 @@ import {
   Info, 
   Tag, 
   DollarSign, 
-  Settings 
+  Settings,
+  PlusCircle,
+  MinusCircle,
+  AlertTriangle,
+  Check
 } from 'lucide-react';
 import { 
   generarPDFInventarioSimple, 
@@ -597,109 +601,339 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     codigo: producto?.codigo || '',
     nombre: producto?.nombre || '',
     categoria: producto?.categoria || state.categorias[0] || '',
+    marca: producto?.marca || state.marcas[0] || '',
+    presentacion: producto?.cantidad || state.presentaciones[0] || '',
     costoUSD: String(producto?.costoUSD || '0'),
-    precioUSD: String(producto?.precioUSD || '0'),
-    precioEstandarUSD: String(producto?.precioEstandarUSD || producto?.precioUSD || '0'),
-    precioMayorUSD: String(producto?.precioMayorUSD || '0'),
-    precioOfertaUSD: String(producto?.precioOfertaUSD || '0'),
-    precioPromoUSD: String(producto?.precioPromoUSD || '0'),
     margen: String(producto?.margen || '0'),
+    precioUSD: String(producto?.precioUSD || '0'),
     precioBS: String(Utils.round((producto?.precioUSD || 0) * state.tasa)),
+    precioMayorUSD: String(producto?.precioMayorUSD || '0'),
+    precioPromoUSD: String(producto?.precioPromoUSD || '0'),
+    precioDescuentoUSD: String(producto?.precioOfertaUSD || '0'),
     stock: String(producto?.stock || '0'),
     stockMinimo: String(producto?.stockMinimo || '3'),
-    aplicaIVA: producto?.aplicaIVA ?? true,
+    aplicaIVA: producto?.aplicaIVA ?? false,
     isKit: producto?.isKit || false,
     kitItems: producto?.kitItems || []
   });
 
-  const handlePriceUpdate = (key: string, val: string) => {
-    const rVal = parseFloat(val) || 0;
-    const rCosto = parseFloat(datos.costoUSD) || 0;
-    const newMargen = rVal > 0 ? ((rVal - rCosto) / rVal) * 100 : 0;
-    setDatos({ ...datos, [key]: val, precioUSD: val, precioBS: String(Utils.round(rVal * state.tasa)), margen: String(Utils.round(newMargen)) });
+  const [kitSearch, setKitSearch] = useState('');
+  const filteredProdsForKit = useMemo(() => {
+    if (kitSearch.length < 2) return [];
+    return state.productos.filter(p => !p.isKit && (p.nombre.toLowerCase().includes(kitSearch.toLowerCase()) || p.codigo.toLowerCase().includes(kitSearch.toLowerCase()))).slice(0, 5);
+  }, [kitSearch, state.productos]);
+
+  // Lógica Tridireccional: Markup sobre ventas (Price = Cost / (1 - Margin))
+  const syncFromMargin = (cost: number, margin: number) => {
+    const price = margin >= 100 ? cost : cost / (1 - margin / 100);
+    const priceBS = price * state.tasa;
+    setDatos(prev => ({ 
+      ...prev, 
+      costoUSD: String(cost),
+      margen: String(margin), 
+      precioUSD: String(Utils.round(price)), 
+      precioBS: String(Utils.round(priceBS)) 
+    }));
   };
 
-  const handleCostoUpdate = (val: string) => {
-    const rCosto = parseFloat(val) || 0;
-    const rPrecio = parseFloat(datos.precioUSD) || 0;
-    const newMargen = rPrecio > 0 ? ((rPrecio - rCosto) / rPrecio) * 100 : 0;
-    setDatos({ ...datos, costoUSD: val, margen: String(Utils.round(newMargen)) });
+  const syncFromPriceUSD = (cost: number, priceUSD: number) => {
+    const margin = priceUSD > 0 ? ((priceUSD - cost) / priceUSD) * 100 : 0;
+    const priceBS = priceUSD * state.tasa;
+    setDatos(prev => ({ 
+      ...prev, 
+      costoUSD: String(cost),
+      margen: String(Utils.round(margin)), 
+      precioUSD: String(priceUSD), 
+      precioBS: String(Utils.round(priceBS)) 
+    }));
   };
 
-  const handleSubmit = () => {
-    if (!datos.nombre || !datos.codigo) return alert('Nombre y Código son requeridos');
+  const syncFromPriceBS = (cost: number, priceBS: number) => {
+    const priceUSD = priceBS / state.tasa;
+    const margin = priceUSD > 0 ? ((priceUSD - cost) / priceUSD) * 100 : 0;
+    setDatos(prev => ({ 
+      ...prev, 
+      costoUSD: String(cost),
+      margen: String(Utils.round(margin)), 
+      precioUSD: String(Utils.round(priceUSD)), 
+      precioBS: String(priceBS) 
+    }));
+  };
+
+  const handleCostoChange = (val: string) => {
+    const c = parseFloat(val) || 0;
+    const m = parseFloat(datos.margen) || 0;
+    syncFromMargin(c, m);
+  };
+
+  const handleMargenChange = (val: string) => {
+    const c = parseFloat(datos.costoUSD) || 0;
+    const m = parseFloat(val) || 0;
+    syncFromMargin(c, m);
+  };
+
+  const handlePriceUSDChange = (val: string) => {
+    const c = parseFloat(datos.costoUSD) || 0;
+    const p = parseFloat(val) || 0;
+    syncFromPriceUSD(c, p);
+  };
+
+  const handlePriceBSChange = (val: string) => {
+    const c = parseFloat(datos.costoUSD) || 0;
+    const p = parseFloat(val) || 0;
+    syncFromPriceBS(c, p);
+  };
+
+  const handleAddListItem = (listName: 'categorias' | 'marcas' | 'presentaciones') => {
+    const newVal = prompt(`Ingrese nueva opción para ${listName.toUpperCase()}:`);
+    if (newVal) {
+      onUpdateLists({ [listName]: [...(state[listName] || []), newVal] });
+      setDatos({ ...datos, [listName === 'presentaciones' ? 'presentacion' : listName.slice(0, -1)]: newVal });
+    }
+  };
+
+  const handleRemoveListItem = (listName: 'categorias' | 'marcas' | 'presentaciones', current: string) => {
+    if (confirm(`¿Eliminar "${current}" de la lista?`)) {
+      const newList = (state[listName] || []).filter(i => i !== current);
+      onUpdateLists({ [listName]: newList });
+      setDatos({ ...datos, [listName === 'presentaciones' ? 'presentacion' : listName.slice(0, -1)]: newList[0] || '' });
+    }
+  };
+
+  const handleSave = () => {
+    if (!datos.nombre || !datos.codigo) return alert('Nombre y Código requeridos');
     onSave({
       ...datos,
       costoUSD: parseFloat(datos.costoUSD) || 0,
+      margen: parseFloat(datos.margen) || 0,
       precioUSD: parseFloat(datos.precioUSD) || 0,
-      precioEstandarUSD: parseFloat(datos.precioEstandarUSD) || 0,
       precioMayorUSD: parseFloat(datos.precioMayorUSD) || 0,
-      precioOfertaUSD: parseFloat(datos.precioOfertaUSD) || 0,
       precioPromoUSD: parseFloat(datos.precioPromoUSD) || 0,
+      precioOfertaUSD: parseFloat(datos.precioDescuentoUSD) || 0,
       stock: parseInt(datos.stock) || 0,
       stockMinimo: parseInt(datos.stockMinimo) || 0,
-      margen: parseFloat(datos.margen) || 0
+      cantidad: datos.presentacion
     });
   };
 
   return (
     <div className="modal show"><div className="modal-bg" onClick={onClose}></div>
-      <div className="modal-box bg-white max-w-2xl border-2 border-line rounded-xl overflow-hidden">
-        <div className="modal-head py-4 px-6 border-b border-line bg-surface-soft flex justify-between items-center">
-          <h3 className="text-lg font-black uppercase text-ink">{producto ? 'Editar Ficha' : 'Nuevo Ítem'}</h3>
-          <button onClick={onClose}><X className="w-6 h-6 text-ink" /></button>
+      <div className="modal-box bg-white max-w-2xl border-2 border-line rounded-xl overflow-hidden shadow-2xl">
+        <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center">
+          <h3 className="text-white font-black uppercase italic tracking-tighter text-sm flex items-center gap-2">
+            <Box className="w-5 h-5 text-brand-gold" /> {producto ? 'EDITAR FICHA DE PRODUCTO' : 'REGISTRO DE NUEVO ÍTEM'}
+          </h3>
+          <button onClick={onClose} className="text-white/60 hover:text-white"><X className="w-5 h-5"/></button>
         </div>
 
-        <div className="flex bg-surface-soft border-b border-line px-6">
-          <button onClick={() => setActiveTab('general')} className={`py-3 px-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'general' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink/40'}`}>General</button>
-          <button onClick={() => setActiveTab('precios')} className={`py-3 px-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'precios' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink/40'}`}>Precios</button>
-          <button onClick={() => setActiveTab('kit')} className={`py-3 px-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'kit' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink/40'}`}>Kits</button>
+        <div className="flex bg-surface-soft border-b border-line">
+          <button onClick={() => setActiveTab('general')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'general' ? 'border-brand-gold text-brand-gold bg-white' : 'border-transparent text-ink/40'}`}>General & Stock</button>
+          <button onClick={() => setActiveTab('precios')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'precios' ? 'border-brand-gold text-brand-gold bg-white' : 'border-transparent text-ink/40'}`}>Precios & Ganancia</button>
+          <button onClick={() => setActiveTab('kit')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'kit' ? 'border-brand-gold text-brand-gold bg-white' : 'border-transparent text-ink/40'}`}>Kits / Combos</button>
         </div>
 
-        <div className="modal-body p-6 space-y-6 bg-white overflow-y-auto max-h-[60vh]">
+        <div className="modal-body p-6 space-y-6 bg-white max-h-[70vh] overflow-y-auto">
           {activeTab === 'general' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-1 space-y-1"><label className="text-[10px] font-black uppercase opacity-50">Código</label><input className="form-input h-10 font-black" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} /></div>
-                <div className="col-span-2 space-y-1"><label className="text-[10px] font-black uppercase opacity-50">Nombre</label><input className="form-input h-10 font-black uppercase" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} /></div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1"><label className="text-[10px] font-black uppercase opacity-50">Categoría</label>
-                  <select className="form-select h-10 text-xs font-bold" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
-                    {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-ink/50 block">Código de Barras / Manual</label>
+                  <input className="form-input h-10 font-black text-ink" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} placeholder="Escanee o escriba código..." />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1"><label className="text-[10px] font-black uppercase opacity-50">Stock</label><input className="form-input h-10 text-center font-black" type="text" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} /></div>
-                  <div className="space-y-1"><label className="text-[10px] font-black uppercase opacity-50">Min.</label><input className="form-input h-10 text-center font-black text-status-danger" type="text" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} /></div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-ink/50 block">Nombre del Producto</label>
+                  <input className="form-input h-10 font-black text-ink uppercase" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} placeholder="Ej: RON SANTA TERESA 750ML" />
+                </div>
+                
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[10px] font-black uppercase text-ink/50">Categoría</label>
+                      <div className="flex gap-1">
+                        <button onClick={() => handleAddListItem('categorias')} className="text-brand-gold hover:text-brand-gold-deep"><PlusCircle className="w-3.5 h-3.5"/></button>
+                        <button onClick={() => handleRemoveListItem('categorias', datos.categoria)} className="text-status-danger"><MinusCircle className="w-3.5 h-3.5"/></button>
+                      </div>
+                    </div>
+                    <select className="form-select h-10 text-xs font-bold" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
+                      {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[10px] font-black uppercase text-ink/50">Marca</label>
+                      <div className="flex gap-1">
+                        <button onClick={() => handleAddListItem('marcas')} className="text-brand-gold hover:text-brand-gold-deep"><PlusCircle className="w-3.5 h-3.5"/></button>
+                        <button onClick={() => handleRemoveListItem('marcas', datos.marca)} className="text-status-danger"><MinusCircle className="w-3.5 h-3.5"/></button>
+                      </div>
+                    </div>
+                    <select className="form-select h-10 text-xs font-bold" value={datos.marca} onChange={e => setDatos({...datos, marca: e.target.value})}>
+                      {state.marcas.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[10px] font-black uppercase text-ink/50">Medida</label>
+                      <div className="flex gap-1">
+                        <button onClick={() => handleAddListItem('presentaciones')} className="text-brand-gold hover:text-brand-gold-deep"><PlusCircle className="w-3.5 h-3.5"/></button>
+                        <button onClick={() => handleRemoveListItem('presentaciones', datos.presentacion)} className="text-status-danger"><MinusCircle className="w-3.5 h-3.5"/></button>
+                      </div>
+                    </div>
+                    <select className="form-select h-10 text-xs font-bold" value={datos.presentacion} onChange={e => setDatos({...datos, presentacion: e.target.value})}>
+                      {state.presentaciones.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="p-3 bg-surface-soft border border-line rounded-xl text-center">
+                    <label className="text-[9px] font-black uppercase text-ink/50 block mb-1">Stock Inicial</label>
+                    <input className="bg-transparent border-none text-center font-black text-xl w-full focus:outline-none" type="text" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} />
+                  </div>
+                  <div className="p-3 bg-status-danger-soft border border-status-danger/20 rounded-xl text-center">
+                    <label className="text-[9px] font-black uppercase text-status-danger/70 block mb-1">Mínimo Crítico</label>
+                    <input className="bg-transparent border-none text-center font-black text-xl w-full text-status-danger focus:outline-none" type="text" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-4 bg-surface-soft rounded-xl border border-line">
+                  <button 
+                    onClick={() => setDatos({...datos, aplicaIVA: !datos.aplicaIVA})} 
+                    className={`w-12 h-6 rounded-full transition-all relative ${datos.aplicaIVA ? 'bg-status-success' : 'bg-ink/20'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${datos.aplicaIVA ? 'right-1' : 'left-1'}`} />
+                  </button>
+                  <label className="text-[10px] font-black uppercase text-ink cursor-pointer" onClick={() => setDatos({...datos, aplicaIVA: !datos.aplicaIVA})}>Aplica IVA (16%)</label>
                 </div>
               </div>
             </div>
           )}
 
           {activeTab === 'precios' && (
-            <div className="space-y-4">
-              <div className="bg-surface-soft p-4 rounded-xl border border-line grid grid-cols-3 gap-4">
-                 <div className="space-y-1"><label className="text-[10px] font-black uppercase opacity-50">Costo USD</label><input className="form-input h-10 font-black" type="text" value={datos.costoUSD} onChange={e => handleCostoUpdate(e.target.value)} /></div>
-                 <div className="space-y-1"><label className="text-[10px] font-black uppercase text-status-success">Margen %</label><input className="form-input h-10 font-black text-status-success" type="text" value={datos.margen} readOnly /></div>
-                 <div className="space-y-1"><label className="text-[10px] font-black uppercase text-brand-gold-deep">P. Venta $</label><input className="form-input h-10 font-black text-brand-gold-deep" type="text" value={datos.precioEstandarUSD} onChange={e => handlePriceUpdate('precioEstandarUSD', e.target.value)} /></div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-surface-soft p-5 rounded-2xl border border-line shadow-inner">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase text-ink/50">Costo (USD)</label>
+                  <input className="form-input h-12 font-black text-lg bg-white border-line" type="text" value={datos.costoUSD} onChange={e => handleCostoChange(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase text-brand-gold-deep">Margen % (Markup)</label>
+                  <input className="form-input h-12 font-black text-lg text-brand-gold-deep bg-white border-brand-gold/30" type="text" value={datos.margen} onChange={e => handleMargenChange(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase text-status-success">Venta (USD)</label>
+                  <input className="form-input h-12 font-black text-lg text-status-success bg-white border-status-success/30" type="text" value={datos.precioUSD} onChange={e => handlePriceUSDChange(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase text-ink">Venta (BS)</label>
+                  <input className="form-input h-12 font-black text-lg text-ink bg-white border-line" type="text" value={datos.precioBS} onChange={e => handlePriceBSChange(e.target.value)} />
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                 <div className="space-y-1"><label className="text-[10px] font-black uppercase opacity-50">Mayorista $</label><input className="form-input h-10 font-black" type="text" value={datos.precioMayorUSD} onChange={e => handlePriceUpdate('precioMayorUSD', e.target.value)} /></div>
-                 <div className="space-y-1"><label className="text-[10px] font-black uppercase opacity-50">Oferta $</label><input className="form-input h-10 font-black text-status-danger" type="text" value={datos.precioOfertaUSD} onChange={e => handlePriceUpdate('precioOfertaUSD', e.target.value)} /></div>
-                 <div className="space-y-1"><label className="text-[10px] font-black uppercase opacity-50">Promo $</label><input className="form-input h-10 font-black text-status-info" type="text" value={datos.precioPromoUSD} onChange={e => handlePriceUpdate('precioPromoUSD', e.target.value)} /></div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                 <div className="space-y-1">
+                   <label className="text-[10px] font-black uppercase text-ink/50 block">Precio al Mayor (USD)</label>
+                   <div className="relative">
+                     <DollarSign className="absolute left-3 top-3 w-4 h-4 text-ink/30" />
+                     <input className="form-input h-10 pl-9 font-bold text-ink" type="text" value={datos.precioMayorUSD} onChange={e => setDatos({...datos, precioMayorUSD: e.target.value})} />
+                   </div>
+                 </div>
+                 <div className="space-y-1">
+                   <label className="text-[10px] font-black uppercase text-ink/50 block">Precio Promoción (USD)</label>
+                   <div className="relative">
+                     <Tag className="absolute left-3 top-3 w-4 h-4 text-ink/30" />
+                     <input className="form-input h-10 pl-9 font-bold text-status-info" type="text" value={datos.precioPromoUSD} onChange={e => setDatos({...datos, precioPromoUSD: e.target.value})} />
+                   </div>
+                 </div>
+                 <div className="space-y-1">
+                   <label className="text-[10px] font-black uppercase text-ink/50 block">Precio con Descuento (USD)</label>
+                   <div className="relative">
+                     <TrendingUp className="absolute left-3 top-3 w-4 h-4 text-ink/30" />
+                     <input className="form-input h-10 pl-9 font-bold text-status-danger" type="text" value={datos.precioDescuentoUSD} onChange={e => setDatos({...datos, precioDescuentoUSD: e.target.value})} />
+                   </div>
+                 </div>
+              </div>
+
+              <div className="p-4 bg-brand-gold-soft/20 rounded-xl border border-brand-gold/10 flex items-start gap-3">
+                 <Info className="w-5 h-5 text-brand-gold shrink-0 mt-0.5" />
+                 <p className="text-[10px] text-brand-gold-deep font-bold leading-tight">
+                   El recalculo tridireccional utiliza la tasa actual del sistema (Bs. {state.tasa.toFixed(2)}) y la fórmula de Markup sobre venta para proteger sus beneficios operativos.
+                 </p>
               </div>
             </div>
           )}
 
           {activeTab === 'kit' && (
-            <div className="p-10 text-center opacity-30"><Layers className="w-12 h-12 mx-auto mb-2"/><p className="text-xs font-black uppercase">Módulo de Combos Disponible</p></div>
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 p-4 bg-ink text-white rounded-xl">
+                <button 
+                  onClick={() => setDatos({...datos, isKit: !datos.isKit})} 
+                  className={`w-12 h-6 rounded-full transition-all relative ${datos.isKit ? 'bg-brand-gold' : 'bg-white/20'}`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${datos.isKit ? 'right-1' : 'left-1'}`} />
+                </button>
+                <label className="text-[11px] font-black uppercase tracking-widest cursor-pointer" onClick={() => setDatos({...datos, isKit: !datos.isKit})}>Habilitar como KIT / COMBO</label>
+              </div>
+
+              {datos.isKit && (
+                <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 w-4 h-4 text-ink/30" />
+                    <input className="form-input h-12 pl-10 text-xs font-black uppercase" placeholder="Buscar componentes para el combo..." value={kitSearch} onChange={e => setKitSearch(e.target.value)} />
+                    {filteredProdsForKit.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 bg-white border border-line rounded-lg shadow-2xl z-50 mt-1 overflow-hidden">
+                        {filteredProdsForKit.map(pk => (
+                          <div key={pk.id} onClick={() => { setDatos({...datos, kitItems: [...datos.kitItems, { productoId: pk.id, nombre: pk.nombre, cantidad: 1 }]}); setKitSearch(''); }} className="p-3 border-b border-line hover:bg-brand-gold-soft cursor-pointer flex justify-between items-center">
+                            <span className="text-xs font-black text-ink uppercase">{pk.nombre}</span>
+                            <Plus className="w-4 h-4 text-brand-gold"/>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="card border-line shadow-sm overflow-hidden">
+                    <div className="table-wrap">
+                      <table>
+                        <thead className="bg-surface-soft">
+                          <tr><th className="text-[10px] font-black uppercase">Componente</th><th className="text-[10px] font-black uppercase text-center">Cant</th><th className="text-[10px]"></th></tr>
+                        </thead>
+                        <tbody>
+                          {datos.kitItems.map((ki: KitItem, index: number) => (
+                            <tr key={index} className="border-b border-line/30">
+                              <td className="text-[11px] font-black uppercase text-ink">{ki.nombre}</td>
+                              <td className="text-center">
+                                <input className="w-12 h-8 text-center font-black bg-surface-soft rounded border border-line" type="number" value={ki.cantidad} onChange={e => {
+                                  const n = [...datos.kitItems];
+                                  n[index].cantidad = parseInt(e.target.value) || 1;
+                                  setDatos({...datos, kitItems: n});
+                                }} />
+                              </td>
+                              <td className="text-center"><button onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_:any, i:number) => i !== index)})} className="text-status-danger"><Trash2 className="w-4 h-4"/></button></td>
+                            </tr>
+                          ))}
+                          {datos.kitItems.length === 0 && (
+                            <tr><td colSpan={3} className="py-10 text-center text-ink/20 font-black uppercase italic text-[10px]">Añada productos para conformar el combo</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        <div className="modal-foot p-5 bg-surface-soft border-t border-line flex justify-end gap-3">
-          <button className="btn btn-secondary px-6 font-black uppercase text-xs" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary px-8 font-black uppercase text-xs shadow-lg" onClick={handleSubmit}>Guardar Ficha</button>
+        <div className="modal-foot p-5 bg-surface-soft border-t border-line flex justify-end gap-3 no-print">
+          <button className="btn btn-secondary px-8 font-black uppercase text-[10px]" onClick={onClose}>Cancelar Operación</button>
+          <button className="btn btn-primary px-10 font-black uppercase text-[10px] shadow-lg flex items-center gap-2" onClick={handleSave}>
+            <Check className="w-4 h-4" /> {producto ? 'GUARDAR CAMBIOS' : 'CREAR NUEVO PRODUCTO'}
+          </button>
         </div>
       </div>
     </div>
