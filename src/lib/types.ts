@@ -133,73 +133,9 @@ export interface CashSession {
   difference?: number;
 }
 
-export interface DashboardData {
-  heroStats: {
-    ventasHoy: number;
-    ticketPromedio: number;
-    margen: number;
-    deltaVentas: number;
-    deltaTicket: number;
-    deltaMargen: number;
-    ventasNuevas: number;
-    stockCritico: number;
-  };
-  kpis: Array<{
-    label: string;
-    value: number;
-    currency?: 'Bs' | 'USD' | null;
-    delta: number;
-    deltaLabel: string;
-    subline: string;
-    iconKey: 'banknote' | 'receipt' | 'users' | 'warehouse';
-    variant: 'gold' | 'green' | 'blue' | 'violet';
-  }>;
-  salesSeries: {
-    labels: string[];
-    ventas: number[];
-    meta: number[];
-    usd: number[];
-  };
-  topProductos: Array<{
-    initials: string;
-    nombre: string;
-    categoria: string;
-    unidades: number;
-    total: number;
-    progress: number;
-  }>;
-  alerts: Array<{
-    level: 'crit' | 'warn' | 'ok';
-    iconKey: string;
-    title: string;
-    meta: string;
-    actionLabel: string;
-  }>;
-  paymentMethods: Array<{
-    label: string;
-    ops: number;
-    pct: number;
-    color: string;
-  }>;
-  recentSales: Array<{
-    factura: string;
-    cliente: string;
-    ci?: string;
-    initials: string;
-    avatarColor: string;
-    metodo: string;
-    metodoVariant: 'gold' | 'blue' | 'gray' | 'violet' | 'warn';
-    items: number;
-    estado: 'Pagado' | 'Pendiente' | 'Anulada';
-    total: number;
-    usd: number;
-  }>;
-  bcvRate: number;
-  userName: string;
-}
-
 export interface AppState {
   tasa: number;
+  pinDevolucion: string;
   productos: Product[];
   ventas: Sale[];
   cxc: any[];

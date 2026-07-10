@@ -26,7 +26,8 @@ import {
   UserPlus,
   User,
   AlertTriangle,
-  Undo2
+  Undo2,
+  Lock
 } from 'lucide-react';
 
 // ✅ Declarar el tipo de electronAPI en Window para soporte de impresión nativa
@@ -118,6 +119,13 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const procesarDevolucionPOS = () => {
     if (!selectedSaleForReturn || returnItems.length === 0) return;
     if (!returnReason.trim()) return alert('Por favor indique el motivo de la devolución');
+
+    // VERIFICACIÓN DE PIN DE AUTORIZACIÓN
+    const pinIngresado = prompt('AUTORIZACIÓN REQUERIDA: Ingrese el PIN de 6 dígitos para autorizar esta devolución:');
+    if (pinIngresado !== state.pinDevolucion) {
+      alert('PIN DE AUTORIZACIÓN INCORRECTO. La devolución ha sido cancelada.');
+      return;
+    }
 
     const totalDevuelto = returnItems.reduce((s, i) => s + (i.cantidad * i.precioUnitUSD), 0);
     const idDev = 'DEV-' + String(state.proximaDevolucion).padStart(6, '0');
@@ -920,7 +928,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             <div className="card flex-1 bg-white border-line shadow-lg overflow-hidden flex flex-col rounded-xl">
               <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
                 <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
-                  <ClipboardList className="w-5 h-5 text-brand-gold" /> BITÁCORA DE DEVOLUCIONES PROCESADAS
+                  <ClipboardList className="w-5 h-5 text-brand-gold" /> DEVOLUCIONES DE LA JORNADA (HOY)
                 </h3>
               </div>
               <div className="table-wrap flex-1 overflow-y-auto">
@@ -928,7 +936,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   <thead className="sticky top-0 bg-surface-soft z-10">
                     <tr>
                       <th className="text-ink font-black text-[10px] uppercase">ID Devolución</th>
-                      <th className="text-ink font-black text-[10px] uppercase">Fecha</th>
+                      <th className="text-ink font-black text-[10px] uppercase">Fecha / Hora</th>
                       <th className="text-ink font-black text-[10px] uppercase">Venta Ref.</th>
                       <th className="text-ink font-black text-[10px] uppercase">Items</th>
                       <th className="text-ink font-black text-[10px] uppercase text-right">Total Devuelto</th>
@@ -936,13 +944,13 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     </tr>
                   </thead>
                   <tbody>
-                    {(state.devoluciones || []).length === 0 ? (
-                      <tr><td colSpan={6} className="text-center py-24 text-ink font-black uppercase italic opacity-20">No hay devoluciones registradas</td></tr>
+                    {(state.devoluciones || []).filter(d => d.fecha.startsWith(Utils.hoy())).length === 0 ? (
+                      <tr><td colSpan={6} className="text-center py-24 text-ink font-black uppercase italic opacity-20">No hay devoluciones registradas el día de hoy</td></tr>
                     ) : (
-                      state.devoluciones.map(d => (
+                      (state.devoluciones || []).filter(d => d.fecha.startsWith(Utils.hoy())).map(d => (
                         <tr key={d.id} className="border-b border-line/40 hover:bg-surface-warm/20 transition-colors">
                           <td className="text-status-danger font-black text-xs mono">{d.id}</td>
-                          <td className="text-ink font-bold text-xs">{Utils.fmtFecha(d.fecha)}</td>
+                          <td className="text-ink font-bold text-xs">{d.fecha.split('T')[1].slice(0, 8)}</td>
                           <td className="text-ink font-black text-xs mono opacity-60">{d.ventaId}</td>
                           <td className="text-ink font-bold text-[10px] uppercase">{d.items.length} productos</td>
                           <td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(d.totalUSD)}</td>
@@ -962,7 +970,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     <div className="p-5 bg-surface-soft rounded-full"><Search className="w-10 h-10 text-ink/20" /></div>
                     <div className="max-w-xs space-y-2">
                       <h3 className="text-ink font-black uppercase text-sm">Localizar Venta Original</h3>
-                      <p className="text-[10px] text-ink font-bold uppercase opacity-60">Ingrese el número de recibo para iniciar el proceso.</p>
+                      <p className="text-[10px] text-ink font-bold uppercase opacity-60">Ingrese el número de recibo impreso para autorizar el proceso de devolución.</p>
                     </div>
                     <div className="flex gap-2 w-full max-sm:flex-col sm:max-w-sm">
                       <input 
@@ -972,15 +980,15 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                         onChange={e => setReturnSaleSearch(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && buscarVentaParaDevolucion()}
                       />
-                      <button onClick={buscarVentaParaDevolucion} className="btn btn-primary h-11 px-6 font-black uppercase text-xs">Buscar</button>
+                      <button onClick={buscarVentaParaDevolucion} className="btn btn-primary h-11 px-6 font-black uppercase text-xs">Localizar Venta</button>
                     </div>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4 overflow-hidden flex-1">
-                    <div className="card bg-white border-status-info/30 flex flex-col min-h-[200px] rounded-xl overflow-hidden">
+                    <div className="card bg-white border-status-info/30 flex flex-col min-h-[200px] rounded-xl overflow-hidden shadow-sm">
                       <div className="card-head py-3 px-6 bg-ink border-b border-white/10 flex justify-between items-center">
                         <h3 className="text-white font-black uppercase italic text-[10px] tracking-tighter flex items-center gap-2">
-                          <Receipt className="w-4 h-4 text-brand-gold" /> VENTA ORIGINAL: {selectedSaleForReturn.id}
+                          <Receipt className="w-4 h-4 text-brand-gold" /> VENTA ORIGINAL DETECTADA: {selectedSaleForReturn.id}
                         </h3>
                         <button onClick={() => setSelectedSaleForReturn(null)} className="text-white/60 hover:text-white transition-colors"><X className="w-4 h-4"/></button>
                       </div>
@@ -1001,7 +1009,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                                 <td className="text-ink font-black text-[11px] text-center">{item.cantidad}</td>
                                 <td className="text-ink font-black text-[11px] text-right">{Utils.fmtUSD(item.precioUnitUSD)}</td>
                                 <td className="text-center">
-                                  <button onClick={() => handleAddReturnItem(item.productoId, item.nombre, item.precioUnitUSD, item.cantidad)} className="btn btn-sm btn-secondary font-black text-[9px] h-7 px-3">Seleccionar</button>
+                                  <button onClick={() => handleAddReturnItem(item.productoId, item.nombre, item.precioUnitUSD, item.cantidad)} className="btn btn-sm btn-secondary font-black text-[9px] h-7 px-3">Añadir al Lote</button>
                                 </td>
                               </tr>
                             ))}
@@ -1010,10 +1018,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                       </div>
                     </div>
 
-                    <div className="card bg-white border-line shadow-sm flex-1 flex flex-col overflow-hidden rounded-xl">
+                    <div className="card bg-white border-line shadow-md flex-1 flex flex-col overflow-hidden rounded-xl">
                       <div className="card-head py-3 px-6 bg-ink border-b border-white/10">
                         <h3 className="text-white font-black uppercase italic text-[10px] tracking-tighter flex items-center gap-2">
-                          <Undo2 className="w-4 h-4 text-brand-gold"/> PRODUCTOS A DEVOLVER
+                          <Undo2 className="w-4 h-4 text-brand-gold"/> PRODUCTOS SELECCIONADOS PARA REINTEGRO
                         </h3>
                       </div>
                       <div className="table-wrap flex-1 overflow-y-auto">
@@ -1022,7 +1030,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                             <tr className="bg-surface-soft">
                               <th className="text-[9px] uppercase font-black text-ink">Producto</th>
                               <th className="text-[9px] uppercase text-center font-black text-ink">Cant</th>
-                              <th className="text-[9px] uppercase font-black text-ink">Estado</th>
+                              <th className="text-[9px] uppercase font-black text-ink">Estado Final</th>
                               <th className="text-[9px] uppercase text-right font-black text-ink">Total</th>
                               <th className="text-[9px] uppercase text-center"></th>
                             </tr>
@@ -1040,7 +1048,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                               </tr>
                             ))}
                             {returnItems.length === 0 && (
-                              <tr><td colSpan={5} className="text-center py-10 text-ink/20 font-black uppercase italic text-[10px]">Añade productos de la venta original</td></tr>
+                              <tr><td colSpan={5} className="text-center py-10 text-ink/20 font-black uppercase italic text-[10px]">Seleccione productos de la venta original para continuar</td></tr>
                             )}
                           </tbody>
                         </table>
@@ -1053,36 +1061,41 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
               <div className="flex flex-col gap-6 overflow-y-auto pr-1">
                 <div className="card bg-white border-line h-fit shadow-lg rounded-xl overflow-hidden mb-4">
                   <div className="card-head py-3 px-6 bg-ink border-b border-white/10">
-                    <h3 className="text-white font-black uppercase italic text-[10px] tracking-widest">RESUMEN DE DEVOLUCIÓN</h3>
+                    <h3 className="text-white font-black uppercase italic text-[10px] tracking-widest">RESUMEN DE OPERACIÓN</h3>
                   </div>
                   <div className="card-body p-5 space-y-5">
                     <div className="bg-surface-soft p-4 rounded-lg border border-line text-center shadow-inner">
-                      <p className="text-ink/60 text-[9px] font-black uppercase mb-1">Monto a Reembolsar</p>
-                      <p className="text-2xl font-black text-status-danger">
+                      <p className="text-ink/60 text-[9px] font-black uppercase mb-1">Monto Total a Reembolsar</p>
+                      <p className="text-3xl font-black text-status-danger">
                         {Utils.fmtUSD(returnItems.reduce((s, i) => s + (i.cantidad * i.precioUnitUSD), 0))}
                       </p>
                     </div>
 
                     <div className="form-group">
-                      <label className="text-ink text-[10px] font-black uppercase block mb-1">Método de Reembolso</label>
+                      <label className="text-ink text-[10px] font-black uppercase block mb-1">Método de Devolución</label>
                       <select className="form-select bg-white text-ink h-10 text-xs font-black uppercase border-line shadow-sm" value={refundMethod} onChange={e => setRefundMethod(e.target.value as any)}>
                         <option value="EFECTIVO">Efectivo de Caja</option>
                         <option value="MISMO_METODO">Reverso (Mismo Método)</option>
-                        <option value="CREDITO_TIENDA">Crédito / Vale Interno</option>
+                        <option value="CREDITO_TIENDA">Nota de Crédito Interna</option>
                       </select>
                     </div>
 
                     <div className="form-group">
-                      <label className="text-ink text-[10px] font-black uppercase block mb-1">Motivo</label>
-                      <textarea className="form-input bg-white text-ink text-xs min-h-[80px] border-line py-2" placeholder="Explique el motivo..." value={returnReason} onChange={e => setReturnReason(e.target.value)}></textarea>
+                      <label className="text-ink text-[10px] font-black uppercase block mb-1">Motivo / Observaciones</label>
+                      <textarea className="form-input bg-white text-ink text-xs min-h-[80px] border-line py-2" placeholder="Describa el motivo de la devolución..." value={returnReason} onChange={e => setReturnReason(e.target.value)}></textarea>
+                    </div>
+
+                    <div className="p-3 bg-brand-gold-soft/20 border border-brand-gold/10 rounded-lg flex gap-3">
+                       <Lock className="w-5 h-5 text-brand-gold shrink-0 mt-0.5" />
+                       <p className="text-[9px] text-brand-gold-deep font-bold leading-tight">Para finalizar se solicitará el PIN de autorización de 6 dígitos establecido por el administrador.</p>
                     </div>
 
                     <button 
                       disabled={returnItems.length === 0 || !returnReason.trim()}
                       onClick={procesarDevolucionPOS}
-                      className="btn btn-primary w-full h-12 font-black uppercase text-xs shadow-xl shadow-status-danger/10 disabled:opacity-20"
+                      className="btn btn-primary w-full h-14 font-black uppercase text-xs shadow-xl shadow-status-danger/10 disabled:opacity-20 flex items-center justify-center gap-2"
                     >
-                      Procesar Devolución
+                      <CheckCircle2 className="w-5 h-5" /> Finalizar y Autorizar
                     </button>
                   </div>
                 </div>

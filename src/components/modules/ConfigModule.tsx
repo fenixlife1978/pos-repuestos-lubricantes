@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { AppState } from '@/lib/types';
-import { Save, AlertTriangle } from 'lucide-react';
+import { Save, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 export default function ConfigModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [tasa, setTasa] = useState<string | number>(state.tasa);
   const [empresa, setEmpresa] = useState(state.empresa);
+  const [pinDevolucion, setPinDevolucion] = useState(state.pinDevolucion || '');
 
   const guardarTasa = () => {
     const n = parseFloat(tasa.toString());
@@ -20,8 +21,14 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
     alert('Datos de empresa actualizados');
   };
 
+  const guardarPin = () => {
+    if (pinDevolucion.length !== 6) return alert('El PIN debe ser de 6 dígitos exactos');
+    updateState({ pinDevolucion });
+    alert('PIN de autorización actualizado correctamente');
+  };
+
   return (
-    <div className="max-w-2xl space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-2xl space-y-6 animate-in fade-in duration-300 pb-20">
       {/* TASA DE CAMBIO */}
       <div className="card shadow-lg border-line">
         <div className="card-head bg-surface-soft border-b border-line px-5 py-4">
@@ -45,6 +52,35 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
           </div>
           <button className="btn btn-primary h-12 px-8 font-black uppercase text-xs shadow-md mt-2" onClick={guardarTasa}>
             <Save className="w-4 h-4" /> Guardar Tasa Actualizada
+          </button>
+        </div>
+      </div>
+
+      {/* SEGURIDAD DE OPERACIONES */}
+      <div className="card shadow-lg border-line">
+        <div className="card-head bg-surface-soft border-b border-line px-5 py-4">
+          <h3 className="text-ink font-black uppercase text-xs tracking-widest">Seguridad de Operaciones</h3>
+        </div>
+        <div className="card-body p-6 space-y-4 bg-white">
+          <div className="form-group">
+            <label className="text-ink text-[10px] font-black uppercase block mb-2 opacity-70">PIN de Autorización (6 Dígitos)</label>
+            <div className="relative">
+               <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-brand-gold" />
+               <input 
+                 type="password" 
+                 maxLength={6}
+                 placeholder="000000"
+                 className="form-input h-14 text-2xl font-black text-brand-gold-deep border-line bg-surface-soft/30 pl-12 text-center tracking-[0.5em]" 
+                 value={pinDevolucion} 
+                 onChange={e => setPinDevolucion(e.target.value.replace(/\D/g, ''))} 
+               />
+            </div>
+            <p className="text-[0.7rem] text-ink font-bold mt-3 italic opacity-60">
+              Este código de seguridad será solicitado obligatoriamente para finalizar cada proceso de devolución de mercancía.
+            </p>
+          </div>
+          <button className="btn btn-primary h-12 px-8 font-black uppercase text-xs shadow-md mt-2" onClick={guardarPin}>
+            <Save className="w-4 h-4" /> Establecer PIN de Seguridad
           </button>
         </div>
       </div>

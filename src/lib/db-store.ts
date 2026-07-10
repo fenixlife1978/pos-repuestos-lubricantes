@@ -9,6 +9,7 @@ const RTDB_PATH = 'pos_system_data';
 
 export const initialState: AppState = {
   tasa: 36.50,
+  pinDevolucion: '000000',
   productos: [],
   ventas: [],
   cxc: [],
