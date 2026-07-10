@@ -4,6 +4,7 @@
 import React from 'react';
 import { AppState } from '@/lib/types';
 import { Utils } from '@/lib/db-store';
+import { FileText, Calculator } from 'lucide-react';
 
 export default function CxPModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const pendientes = state.cxp.filter(x => x.estado !== 'pagada');
@@ -25,9 +26,11 @@ export default function CxPModule({ state, updateState }: { state: AppState, upd
         </div>
       </div>
 
-      <div className="card shadow-md border-line overflow-hidden bg-white">
-        <div className="card-head bg-surface-soft border-b border-line px-6 py-4">
-          <h3 className="text-ink font-black text-xs uppercase tracking-widest">Cuentas por Pagar a Proveedores</h3>
+      <div className="card shadow-md border-line overflow-hidden bg-white rounded-xl">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
+          <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+            <Calculator className="w-5 h-5 text-brand-gold" /> CUENTAS POR PAGAR A PROVEEDORES
+          </h3>
         </div>
         <div className="table-wrap">
           <table className="w-full">

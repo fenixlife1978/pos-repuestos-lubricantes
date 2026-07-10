@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { AppState } from '@/lib/types';
 import { Utils } from '@/lib/db-store';
-import { FileText, TrendingUp, Calendar, Printer } from 'lucide-react';
+import { FileText, TrendingUp, Calendar, Printer, ArrowLeft } from 'lucide-react';
 
 export default function ReportsModule({ state }: { state: AppState }) {
   const [tab, setTab] = useState('ventas');
@@ -30,13 +30,13 @@ export default function ReportsModule({ state }: { state: AppState }) {
       <div className="tabs flex border-b border-line mb-6 overflow-x-auto no-print">
         <button 
           onClick={() => setTab('ventas')} 
-          className={`px-6 py-3 text-sm font-black uppercase tracking-widest border-b-2 transition-all ${tab === 'ventas' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink/50 hover:text-brand-gold'}`}
+          className={`px-6 py-3 text-sm font-black uppercase tracking-widest border-b-2 transition-all ${tab === 'ventas' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink hover:text-brand-gold'}`}
         >
           <div className="flex items-center gap-2"><FileText className="w-4 h-4"/> Reporte de Ventas</div>
         </button>
         <button 
           onClick={() => setTab('rentabilidad')} 
-          className={`px-6 py-3 text-sm font-black uppercase tracking-widest border-b-2 transition-all ${tab === 'rentabilidad' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink/50 hover:text-brand-gold'}`}
+          className={`px-6 py-3 text-sm font-black uppercase tracking-widest border-b-2 transition-all ${tab === 'rentabilidad' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink hover:text-brand-gold'}`}
         >
           <div className="flex items-center gap-2"><TrendingUp className="w-4 h-4"/> Análisis de Rentabilidad</div>
         </button>
@@ -84,21 +84,23 @@ export default function ReportsModule({ state }: { state: AppState }) {
           {/* KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
              <div className="kpi bg-white border-line p-7 rounded-2xl shadow-sm border-l-[6px] border-l-brand-gold">
-               <div className="text-ink/60 text-[10px] font-black uppercase mb-2 tracking-wider">Total Ventas en Periodo (USD)</div>
+               <div className="text-ink text-[10px] font-black uppercase mb-2 tracking-wider">Total Ventas en Periodo (USD)</div>
                <div className="text-4xl font-black text-brand-gold-deep">{Utils.fmtUSD(totalVentasUSD)}</div>
                <div className="text-ink font-bold text-sm mt-1.5 opacity-80">{Utils.fmtBS(totalVentasUSD * state.tasa)}</div>
              </div>
              <div className="kpi bg-white border-line p-7 rounded-2xl shadow-sm border-l-[6px] border-l-status-info">
-               <div className="text-ink/60 text-[10px] font-black uppercase mb-2 tracking-wider">Operaciones Registradas</div>
+               <div className="text-ink text-[10px] font-black uppercase mb-2 tracking-wider">Operaciones Registradas</div>
                <div className="text-4xl font-black text-ink">{ventasFiltradas.length}</div>
                <div className="text-status-info text-[10px] font-black mt-1.5 uppercase tracking-widest">Transacciones Procesadas</div>
              </div>
           </div>
 
           {/* Tabla */}
-          <div className="card bg-white border-line shadow-md overflow-hidden">
-            <div className="card-head px-6 py-4 border-b border-line bg-surface-soft/50">
-              <h3 className="text-ink font-black text-[11px] uppercase tracking-[0.15em]">Listado Detallado de Facturación</h3>
+          <div className="card bg-white border-line shadow-md overflow-hidden rounded-xl">
+            <div className="card-head px-6 py-4 bg-ink border-b border-white/10 flex justify-between items-center">
+              <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+                <FileText className="w-5 h-5 text-brand-gold" /> LISTADO DETALLADO DE FACTURACIÓN
+              </h3>
             </div>
             <div className="table-wrap">
               <table className="w-full">
@@ -142,22 +144,31 @@ export default function ReportsModule({ state }: { state: AppState }) {
       {/* Contenido Rentabilidad */}
       {tab === 'rentabilidad' && (
         <div className="space-y-6 animate-in fade-in duration-300">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            <div className="kpi bg-white border-line p-7 rounded-2xl shadow-sm border-t-4 border-t-ink">
-              <div className="text-ink/60 text-[10px] font-black uppercase mb-2 tracking-wider">Ingreso Bruto (Ventas)</div>
-              <div className="text-3xl font-black text-ink">{Utils.fmtUSD(totalVentasUSD)}</div>
-            </div>
-            <div className="kpi bg-white border-line p-7 rounded-2xl shadow-sm border-t-4 border-t-status-danger">
-              <div className="text-ink/60 text-[10px] font-black uppercase mb-2 tracking-wider">Costo de Inversión (CPP)</div>
-              <div className="text-3xl font-black text-status-danger">{Utils.fmtUSD(totalCostoVentas)}</div>
-            </div>
-            <div className="kpi bg-white border-line p-7 rounded-2xl shadow-sm border-t-4 border-t-status-success">
-              <div className="text-ink/60 text-[10px] font-black uppercase mb-2 tracking-wider">Margen de Ganancia Neta</div>
-              <div className="text-4xl font-black text-status-success">{Utils.fmtUSD(gananciaNeta)}</div>
-              <div className="text-ink text-[11px] font-black mt-2 uppercase opacity-60">
-                Margen Real: {totalVentasUSD > 0 ? ((gananciaNeta/totalVentasUSD)*100).toFixed(2) : 0}%
-              </div>
-            </div>
+          <div className="card bg-white border-line shadow-md overflow-hidden rounded-xl">
+             <div className="card-head px-6 py-4 bg-ink border-b border-white/10 flex justify-between items-center">
+                <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-brand-gold" /> ANÁLISIS DE RENTABILIDAD DEL PERIODO
+                </h3>
+             </div>
+             <div className="card-body p-7">
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                 <div className="kpi bg-surface-soft border-line p-6 rounded-2xl shadow-inner border-t-4 border-t-ink text-center">
+                   <div className="text-ink text-[10px] font-black uppercase mb-2 tracking-wider">Ingreso Bruto (Ventas)</div>
+                   <div className="text-3xl font-black text-ink">{Utils.fmtUSD(totalVentasUSD)}</div>
+                 </div>
+                 <div className="kpi bg-surface-soft border-line p-6 rounded-2xl shadow-inner border-t-4 border-t-status-danger text-center">
+                   <div className="text-ink text-[10px] font-black uppercase mb-2 tracking-wider">Costo de Inversión (CPP)</div>
+                   <div className="text-3xl font-black text-status-danger">{Utils.fmtUSD(totalCostoVentas)}</div>
+                 </div>
+                 <div className="kpi bg-surface-soft border-line p-6 rounded-2xl shadow-inner border-t-4 border-t-status-success text-center">
+                   <div className="text-ink text-[10px] font-black uppercase mb-2 tracking-wider">Margen de Ganancia Neta</div>
+                   <div className="text-4xl font-black text-status-success">{Utils.fmtUSD(gananciaNeta)}</div>
+                   <div className="text-ink text-[11px] font-black mt-2 uppercase opacity-60">
+                     Margen Real: {totalVentasUSD > 0 ? ((gananciaNeta/totalVentasUSD)*100).toFixed(2) : 0}%
+                   </div>
+                 </div>
+               </div>
+             </div>
           </div>
           
           <div className="card bg-brand-gold-soft border border-brand-gold/30 p-10 text-center rounded-2xl">

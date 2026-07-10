@@ -1,9 +1,10 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { AppState, Product, Movimiento, KitItem } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
-import { Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, Gift, Layers, Trash, ShoppingBag, TrendingUp, Printer, RotateCcw } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, Gift, Layers, Trash, ShoppingBag, TrendingUp, Printer, RotateCcw, Box } from 'lucide-react';
 import { 
   generarPDFInventarioSimple, 
   exportarPDFInventarioGeneral, 
@@ -60,18 +61,23 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
             </div>
           </div>
 
-          <div className="card shadow-lg">
+          <div className="card shadow-lg rounded-xl overflow-hidden">
+            <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
+              <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+                <Box className="w-5 h-5 text-brand-gold" /> CATALOGO DE PRODUCTOS ACTIVOS
+              </h3>
+            </div>
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr>
-                    <th className="font-black text-ink">Código</th>
-                    <th className="font-black text-ink">Nombre Producto</th>
-                    <th className="font-black text-ink">Categoría</th>
-                    <th className="font-black text-ink">Costo USD</th>
-                    <th className="font-black text-ink">P. Venta USD</th>
-                    <th className="font-black text-ink">Stock</th>
-                    <th className="font-black text-ink">Acciones</th>
+                  <tr className="bg-surface-soft">
+                    <th className="font-black text-ink uppercase text-[10px]">Código</th>
+                    <th className="font-black text-ink uppercase text-[10px]">Nombre Producto</th>
+                    <th className="font-black text-ink uppercase text-[10px]">Categoría</th>
+                    <th className="font-black text-ink uppercase text-[10px]">Costo USD</th>
+                    <th className="font-black text-ink uppercase text-[10px]">P. Venta USD</th>
+                    <th className="font-black text-ink uppercase text-[10px]">Stock</th>
+                    <th className="font-black text-ink uppercase text-[10px]">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white">
@@ -250,12 +256,14 @@ function ReporteGeneral({ state }: { state: AppState }) {
         </div>
       </div>
       
-      <div className="card shadow-lg border-line">
-        <div className="card-head bg-surface-soft border-b border-line px-5 py-4">
-          <div className="flex items-center gap-4 flex-1">
-            <h3 className="text-ink font-black uppercase text-xs">Inventario por {groupBy}</h3>
+      <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+              <Boxes className="w-5 h-5 text-brand-gold" /> INVENTARIO CPP POR {groupBy.toUpperCase()}
+            </h3>
             <select 
-              className="form-select bg-white text-ink border-line text-[10px] font-black uppercase h-10 px-3 rounded shadow-sm"
+              className="form-select bg-white text-ink border-none text-[10px] font-black uppercase h-8 px-3 rounded shadow-sm"
               value={filterValue}
               onChange={e => setFilterValue(e.target.value)}
             >
@@ -264,21 +272,21 @@ function ReporteGeneral({ state }: { state: AppState }) {
             </select>
           </div>
 
-          <div className="flex gap-2">
-            <button className="btn btn-secondary shadow-sm" onClick={handleExportPDF}><FileText className="w-4 h-4" /> PDF Profesional</button>
-          </div>
+          <button className="btn btn-secondary h-8 px-4 font-black uppercase text-[9px] shadow-sm" onClick={handleExportPDF}>
+            <FileText className="w-3.5 h-3.5" /> PDF Profesional
+          </button>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr className="bg-surface-soft">
-                <th className="font-black text-ink">Cod.</th>
-                <th className="font-black text-ink">Nombre Producto</th>
-                <th className="font-black text-ink">Marca / Pres.</th>
-                <th className="font-black text-ink text-right">Costo USD</th>
-                <th className="font-black text-ink text-right">Venta USD</th>
-                <th className="font-black text-ink text-center">Stock</th>
-                <th className="font-black text-ink text-right">Subtotal Costo</th>
+                <th className="font-black text-ink uppercase text-[10px]">Cod.</th>
+                <th className="font-black text-ink uppercase text-[10px]">Nombre Producto</th>
+                <th className="font-black text-ink uppercase text-[10px]">Marca / Pres.</th>
+                <th className="font-black text-ink uppercase text-[10px] text-right">Costo USD</th>
+                <th className="font-black text-ink uppercase text-[10px] text-right">Venta USD</th>
+                <th className="font-black text-ink uppercase text-[10px] text-center">Stock</th>
+                <th className="font-black text-ink uppercase text-[10px] text-right">Subtotal Costo</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -403,27 +411,22 @@ function ReporteVentas({ state }: { state: AppState }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {top3.map((p, i) => (
-          <div key={i} className="flex flex-col p-4 rounded border border-line bg-white shadow-md">
-            <span className="text-[9px] font-black uppercase mb-1 text-brand-gold-deep">Ranking #{i+1}</span>
-            <span className="text-sm font-black uppercase truncate text-ink">{p.nombre}</span>
-            <span className="text-xl font-black text-ink mt-1">{p.cantidad} <span className="text-[10px] opacity-60">UDS</span></span>
-          </div>
-        ))}
-      </div>
-
-      <div className="card shadow-lg border-line">
+      <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
+          <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+            <ShoppingBag className="w-5 h-5 text-brand-gold" /> BITÁCORA DE VENTAS DEL PERIODO
+          </h3>
+        </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr className="bg-surface-soft">
-                <th className="font-black text-ink">Fecha</th>
-                <th className="font-black text-ink">Producto</th>
-                <th className="font-black text-ink">Pago</th>
-                <th className="font-black text-ink text-center">Cant.</th>
-                <th className="font-black text-ink text-right">Precio $</th>
-                <th className="font-black text-ink text-right">Total $</th>
+                <th className="font-black text-ink uppercase text-[10px]">Fecha</th>
+                <th className="font-black text-ink uppercase text-[10px]">Producto</th>
+                <th className="font-black text-ink uppercase text-[10px]">Pago</th>
+                <th className="font-black text-ink uppercase text-[10px] text-center">Cant.</th>
+                <th className="font-black text-ink uppercase text-[10px] text-right">Precio $</th>
+                <th className="font-black text-ink uppercase text-[10px] text-right">Total $</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -513,16 +516,21 @@ function ReporteDevoluciones({ state }: { state: AppState }) {
         </button>
       </div>
 
-      <div className="card shadow-lg border-line">
+      <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
+          <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+            <RotateCcw className="w-5 h-5 text-brand-gold" /> REGISTRO CRONOLÓGICO DE DEVOLUCIONES
+          </h3>
+        </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr className="bg-surface-soft">
-                <th className="font-black text-ink">Fecha</th>
-                <th className="font-black text-ink">ID Dev.</th>
-                <th className="font-black text-ink">Venta Ref.</th>
-                <th className="font-black text-ink text-right">Total USD</th>
-                <th className="font-black text-ink">Motivo</th>
+                <th className="font-black text-ink uppercase text-[10px]">Fecha</th>
+                <th className="font-black text-ink uppercase text-[10px]">ID Dev.</th>
+                <th className="font-black text-ink uppercase text-[10px]">Venta Ref.</th>
+                <th className="font-black text-ink uppercase text-[10px] text-right">Total USD</th>
+                <th className="font-black text-ink uppercase text-[10px]">Motivo</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -609,17 +617,22 @@ function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selec
         </div>
       )}
 
-      <div className="card shadow-lg border-line">
+      <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
+          <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+            <History className="w-5 h-5 text-brand-gold" /> KARDEX HISTÓRICO DE MOVIMIENTOS
+          </h3>
+        </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr className="bg-surface-soft">
-                <th className="font-black text-ink">Fecha / Hora</th>
-                <th className="font-black text-ink">Movimiento</th>
-                <th className="font-black text-ink text-center">Cant.</th>
-                <th className="font-black text-ink text-center">Stock Antes</th>
-                <th className="font-black text-ink text-center">Stock Después</th>
-                <th className="font-black text-ink">Referencia</th>
+                <th className="font-black text-ink uppercase text-[10px]">Fecha / Hora</th>
+                <th className="font-black text-ink uppercase text-[10px]">Movimiento</th>
+                <th className="font-black text-ink uppercase text-[10px] text-center">Cant.</th>
+                <th className="font-black text-ink uppercase text-[10px] text-center">Stock Antes</th>
+                <th className="font-black text-ink uppercase text-[10px] text-center">Stock Después</th>
+                <th className="font-black text-ink uppercase text-[10px]">Referencia</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -679,24 +692,26 @@ function HistorialAjustes({ state }: { state: AppState }) {
         </div>
       </div>
 
-      <div className="card shadow-lg border-line">
-        <div className="card-head bg-surface-soft border-b border-line px-5 py-4">
-          <h3 className="text-ink font-black uppercase text-xs">Bitácora de Ajustes de Almacén</h3>
-          <button className="btn btn-secondary shadow-sm" onClick={handleExportPDF}>
-            <FileText className="w-4 h-4" /> Reporte de Auditoría
+      <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-brand-gold" /> BITÁCORA DE AJUSTES DE ALMACÉN
+          </h3>
+          <button className="btn btn-secondary h-8 px-4 font-black uppercase text-[9px] shadow-sm" onClick={handleExportPDF}>
+            <FileText className="w-3.5 h-3.5" /> Reporte de Auditoría
           </button>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr className="bg-surface-soft">
-                <th className="font-black text-ink">Fecha</th>
-                <th className="font-black text-ink">Producto</th>
-                <th className="font-black text-ink">Tipo de Ajuste</th>
-                <th className="font-black text-ink text-center">Cant.</th>
-                <th className="font-black text-ink text-center">Antes</th>
-                <th className="font-black text-ink text-center">Después</th>
-                <th className="font-black text-ink">Detalle</th>
+                <th className="font-black text-ink uppercase text-[10px]">Fecha</th>
+                <th className="font-black text-ink uppercase text-[10px]">Producto</th>
+                <th className="font-black text-ink uppercase text-[10px]">Tipo de Ajuste</th>
+                <th className="font-black text-ink uppercase text-[10px] text-center">Cant.</th>
+                <th className="font-black text-ink uppercase text-[10px] text-center">Antes</th>
+                <th className="font-black text-ink uppercase text-[10px] text-center">Después</th>
+                <th className="font-black text-ink uppercase text-[10px]">Detalle</th>
               </tr>
             </thead>
             <tbody className="bg-white">
@@ -756,23 +771,25 @@ function ReporteConsumo({ state }: { state: AppState }) {
         </div>
       </div>
       
-      <div className="card shadow-lg border-line">
-        <div className="card-head bg-surface-soft border-b border-line px-5 py-4">
-          <h3 className="text-ink font-black uppercase text-xs">Desglose de Salidas sin Facturación</h3>
-          <button className="btn btn-secondary shadow-sm" onClick={handleExportPDF}>
-            <FileText className="w-4 h-4" /> Exportar Merma
+      <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-brand-gold" /> DESGLOSE DE SALIDAS SIN FACTURACIÓN
+          </h3>
+          <button className="btn btn-secondary h-8 px-4 font-black uppercase text-[9px] shadow-sm" onClick={handleExportPDF}>
+            <FileText className="w-3.5 h-3.5" /> Exportar Merma
           </button>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr className="bg-surface-soft">
-                <th className="font-black text-ink">Fecha</th>
-                <th className="font-black text-ink">Producto</th>
-                <th className="font-black text-ink">Tipo</th>
-                <th className="font-black text-ink text-center">Cantidad</th>
-                <th className="font-black text-ink text-right">Costo Unit.</th>
-                <th className="font-black text-ink text-right">Costo Total</th>
+                <th className="font-black text-ink uppercase text-[10px]">Fecha</th>
+                <th className="font-black text-ink uppercase text-[10px]">Producto</th>
+                <th className="font-black text-ink uppercase text-[10px]">Tipo</th>
+                <th className="font-black text-ink uppercase text-[10px] text-center">Cantidad</th>
+                <th className="font-black text-ink uppercase text-[10px] text-right">Costo Unit.</th>
+                <th className="font-black text-ink uppercase text-[10px] text-right">Costo Total</th>
               </tr>
             </thead>
             <tbody className="bg-white">
