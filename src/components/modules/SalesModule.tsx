@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -388,7 +389,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       const nuevosPagos = [...pagos, { metodo: metodoActual, montoUSD, montoBS }];
       setPagos(nuevosPagos);
       
-      // Solo cerrar el modal si el saldo total de la venta se ha completado
       const totalPagadoLocal = nuevosPagos.reduce((s, p) => s + p.montoUSD, 0);
       if (totalPagadoLocal >= (subtotalUSD - 0.01)) {
         setShowMultiModal(false);
@@ -487,10 +487,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   };
 
   const { breakdown, totalBS: rTotalBS, totalUSD: rTotalUSD, ventasHoy: rVentasHoy } = getReportSummary();
-  const rVDirectas = rVentasHoy.filter(v => v.type === 'VENTA').reduce((s, v) => s + v.totalUSD, 0);
-  const rVCobros = rVentasHoy.filter(v => v.type === 'COBRO DEUDA').reduce((s, v) => s + v.totalUSD, 0);
 
-  // Devolución: Lógica de procesamiento
   const buscarVentaParaDevolucion = () => {
     const sale = state.ventas.find(v => v.id === returnSaleSearch || v.id.endsWith(returnSaleSearch));
     if (!sale) return alert('Venta no encontrada');
@@ -614,14 +611,22 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 </div>
 
                 <div className="p-3 border border-[#3a9bdc]/30 bg-[#3a9bdc]/5 rounded-lg text-center space-y-2">
-                  <div className="flex items-center justify-center gap-2">
-                    <label className="text-ink text-[10px] font-black uppercase">SALDO RESTANTE</label>
-                    <button onClick={() => setShowMultiModal(true)} className="btn-icon h-6 w-6 bg-[#c8952e] text-black"><Wallet className="w-3.5 h-3.5"/></button>
+                  <label className="text-ink text-[10px] font-black uppercase block">SALDO RESTANTE</label>
+                  
+                  <div className="flex items-center justify-center gap-4">
+                    <div className={`text-2xl font-black ${saldoRestanteUSD <= 0.01 ? 'text-[#27ae60]' : 'text-[#3a9bdc]'}`}>
+                      {saldoRestanteUSD <= 0.01 ? 'SALDADO' : Utils.fmtUSD(saldoRestanteUSD)}
+                    </div>
+                    <button 
+                      onClick={() => setShowMultiModal(true)} 
+                      className="w-12 h-12 bg-[#c8952e] text-black rounded-xl shadow-lg flex items-center justify-center hover:bg-[#d9a540] transition-all transform hover:scale-105 active:scale-95"
+                      title="Registrar Abono"
+                    >
+                      <Wallet className="w-7 h-7" />
+                    </button>
                   </div>
-                  <div className={`text-2xl font-black ${saldoRestanteUSD <= 0.01 ? 'text-[#27ae60]' : 'text-[#3a9bdc]'}`}>
-                    {saldoRestanteUSD <= 0.01 ? 'SALDADO' : Utils.fmtUSD(saldoRestanteUSD)}
-                  </div>
-                  <div className="bg-ink py-2 rounded-lg border-2 border-line">
+
+                  <div className="bg-ink py-2 rounded-lg border-2 border-line mt-2">
                     <label className="text-white text-[9px] font-black uppercase block mb-1">EQUIVALENTE A PAGAR</label>
                     <div className="text-2xl font-black text-white">{Utils.fmtBS(saldoRestanteBS)}</div>
                   </div>
@@ -900,7 +905,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             paymentMethod: Utils.metodoLabel(lastProcessedSale.metodoPago || lastProcessedSale.paymentMethod), 
             items: (lastProcessedSale.items || []).map((it: any) => ({
               ...it, 
-              name: it.nombre, // Aseguramos que ReceiptModal reciba 'name'
+              name: it.nombre,
               qty: it.cantidad || it.qty, 
               price: it.precioUnitUSD || it.price
             })), 
