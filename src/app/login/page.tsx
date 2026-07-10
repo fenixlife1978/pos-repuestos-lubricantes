@@ -27,15 +27,20 @@ export default function LoginPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-         // Verificación de bloqueo antes de permitir entrada automática
          const userDocId = user.email!.replace(/\W/g, '_');
          const userDoc = await getDoc(doc(db, 'users', userDocId));
+         
          if (userDoc.exists()) {
             const userData = userDoc.data();
             
-            // 1. Verificar bloqueo manual
+            // 1. VERIFICACIÓN DE BLOQUEO DE SEGURIDAD (POST-SALIDA O MANUAL)
             if (userData.accesoBloqueado) {
                await signOut(auth);
+               toast({ 
+                 variant: "destructive", 
+                 title: "Acceso Bloqueado", 
+                 description: "Su acceso ha sido bloqueado automáticamente. Contacte al administrador para habilitar su terminal." 
+               });
                return;
             }
 
@@ -48,11 +53,17 @@ export default function LoginPage() {
                
                if (!hasTerminal) {
                   await signOut(auth);
+                  toast({ 
+                    variant: "destructive", 
+                    title: "Sin Terminal", 
+                    description: "No tiene un terminal asignado." 
+                  });
                   return;
                }
             }
+            
+            router.push('/');
          }
-         router.push('/');
       }
     });
     return () => unsubscribe();
@@ -67,30 +78,27 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 1. Configuramos persistencia de sesión por pestaña
       await setPersistence(auth, browserSessionPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-      // 2. Verificar si el acceso está bloqueado o si no tiene terminal
       const userDocId = email.replace(/\W/g, '_');
       const userDoc = await getDoc(doc(db, 'users', userDocId));
       
       if (userDoc.exists()) {
         const userData = userDoc.data();
         
-        // Bloqueo administrativo
+        // VALIDACIÓN DE BLOQUEO EN EL LOGIN
         if (userData.accesoBloqueado) {
            await signOut(auth);
            toast({ 
              variant: "destructive", 
-             title: "Acceso Bloqueado", 
-             description: "Su acceso ha sido revocado. Contacte al administrador." 
+             title: "Terminal Bloqueado", 
+             description: "Usted requiere autorización administrativa para acceder." 
            });
            setLoading(false);
            return;
         }
 
-        // Validación de Terminal para Cajeros
         if (userData.rol === 'cajero') {
            const terminalsSnap = await getRTDB(ref(rtdb, 'pos_system_data/terminales'));
            const terminalsRaw = terminalsSnap.val() || [];
@@ -101,8 +109,8 @@ export default function LoginPage() {
              await signOut(auth);
              toast({ 
                variant: "destructive", 
-               title: "Sin Terminal Asignado", 
-               description: "Usted no tiene un terminal de venta asignado. No puede operar el sistema." 
+               title: "Acceso Denegado", 
+               description: "Su usuario no tiene un terminal asignado." 
              });
              setLoading(false);
              return;
@@ -110,7 +118,7 @@ export default function LoginPage() {
         }
       }
 
-      toast({ title: "Acceso Concedido", description: "Bienvenido al sistema." });
+      toast({ title: "Bienvenido", description: "Acceso concedido al sistema." });
       router.push('/');
     } catch (err: any) {
       console.error(err);

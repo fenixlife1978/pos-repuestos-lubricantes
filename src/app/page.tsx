@@ -26,7 +26,7 @@ import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
 import { auth, db, rtdb } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { ref, get as getRTDB } from 'firebase/database';
 import DashboardModule from '@/components/modules/DashboardModule';
 import InventoryModule from '@/components/modules/InventoryModule';
@@ -56,38 +56,52 @@ export default function LicoreriaPOS() {
   const [aperturaData, setAperturaData] = useState({ bs: '0', usd: '0' });
 
   useEffect(() => {
+    let unsubscribeProfile: any = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/login');
       } else {
         try {
           const userDocId = currentUser.email!.replace(/\W/g, '_');
-          const userDoc = await getDoc(doc(db, 'users', userDocId));
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            
-            // VALIDACIÓN DE SEGURIDAD: TERMINAL ASIGNADO PARA CAJEROS
-            if (data.rol === 'cajero') {
-               const snap = await getRTDB(ref(rtdb, 'pos_system_data/terminales'));
-               const terminals = snap.val() || [];
-               const terminalsArr = Array.isArray(terminals) ? terminals : Object.values(terminals);
-               const hasTerminal = terminalsArr.some((t: any) => t.usuarioId === userDocId);
-               
-               if (!hasTerminal) {
-                  await signOut(auth);
-                  alert("ACCESO RESTRINGIDO: Su usuario no tiene un terminal de venta asignado. Contacte al administrador.");
-                  router.push('/login');
-                  return;
-               }
-            }
+          
+          // Suscripción en tiempo real al perfil para detectar bloqueos remotos
+          unsubscribeProfile = onSnapshot(doc(db, 'users', userDocId), async (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              
+              // VALIDACIÓN DE SEGURIDAD: BLOQUEO ACTIVO
+              if (data.accesoBloqueado) {
+                await signOut(auth);
+                router.push('/login');
+                return;
+              }
 
-            setUserRole(data.rol);
-            setUserProfile(data);
-            if (data.rol === 'cajero') {
-              setActiveModule('ventas');
-              setShowApertura(true);
+              // VALIDACIÓN DE SEGURIDAD: TERMINAL ASIGNADO PARA CAJEROS
+              if (data.rol === 'cajero') {
+                 const snap = await getRTDB(ref(rtdb, 'pos_system_data/terminales'));
+                 const terminals = snap.val() || [];
+                 const terminalsArr = Array.isArray(terminals) ? terminals : Object.values(terminals);
+                 const hasTerminal = terminalsArr.some((t: any) => t.usuarioId === userDocId);
+                 
+                 if (!hasTerminal) {
+                    await signOut(auth);
+                    alert("ACCESO RESTRINGIDO: Su usuario no tiene un terminal de venta asignado. Contacte al administrador.");
+                    router.push('/login');
+                    return;
+                 }
+              }
+
+              setUserRole(data.rol);
+              setUserProfile(data);
+              if (data.rol === 'cajero') {
+                setActiveModule('ventas');
+                // Solo mostrar apertura si no ha sido procesada en esta sesión
+                if (!mounted) setShowApertura(true);
+              }
             }
-          }
+          });
+
         } catch (error) {
           console.error("Error fetching role:", error);
         }
@@ -98,7 +112,6 @@ export default function LicoreriaPOS() {
 
     setMounted(true);
     
-    // Suscripción a datos en tiempo real (Persistencia Global)
     const unsubscribeStore = Store.subscribe((dbUpdate) => {
       setState(prev => ({ ...prev, ...dbUpdate }));
     });
@@ -116,6 +129,7 @@ export default function LicoreriaPOS() {
 
     return () => {
       unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
       unsubscribeStore();
       clearInterval(timer);
       window.removeEventListener('online', handleOnline);
@@ -125,13 +139,13 @@ export default function LicoreriaPOS() {
 
   const handleLogout = async () => {
     if (confirm('¿Cerrar sesión del sistema?')) {
-      if (userRole === 'cajero') {
+      if (userRole === 'cajero' && user) {
         try {
-          // BLOQUEO AUTOMÁTICO DE CAJERO AL SALIR
+          // PROTOCOLO DE AUTO-BLOQUEO POST-SALIDA (REQUERIDO)
           const userDocId = user.email.replace(/\W/g, '_');
           await updateDoc(doc(db, 'users', userDocId), { accesoBloqueado: true });
         } catch (e) {
-          console.error("Error blocking user on logout:", e);
+          console.error("Error al activar bloqueo de seguridad:", e);
         }
       }
       await signOut(auth);
