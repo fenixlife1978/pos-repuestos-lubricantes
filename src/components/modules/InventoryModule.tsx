@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, Product, Movimiento, KitItem } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
-import { Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, Gift, Layers, Trash, ShoppingBag, TrendingUp, Printer, RotateCcw, Box, ClipboardList } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, Gift, Layers, Trash, ShoppingBag, TrendingUp, Printer, RotateCcw, Box, ClipboardList, Info, Tag, DollarSign, Settings } from 'lucide-react';
 import { 
   generarPDFInventarioSimple, 
   exportarPDFInventarioGeneral, 
@@ -85,7 +85,7 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
                     <tr><td colSpan={7} className="text-center py-20 text-ink/30 font-black italic uppercase">No se encontraron resultados</td></tr>
                   ) : (
                     prods.map(p => (
-                      <tr key={p.id} className="hover:bg-surface-warm/20 transition-colors">
+                      <tr key={p.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
                         <td className="mono text-xs font-black text-ink">{p.codigo}</td>
                         <td className="font-black text-ink">
                           <div className="flex items-center gap-2">
@@ -880,6 +880,7 @@ function ModalAjuste({ producto, onClose, onSave }: { producto: Product, onClose
 }
 
 function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { producto?: Product, state: AppState, onClose: () => void, onSave: (p: any) => void, onUpdateLists: (l: any) => void }) {
+  const [activeTab, setActiveTab] = useState<'general' | 'precios' | 'kit'>('general');
   const [datos, setDatos] = useState<any>({
     codigo: producto?.codigo || '',
     nombre: producto?.nombre || '',
@@ -904,6 +905,8 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     kitType: producto?.kitType || 'stock_propio',
     kitItems: producto?.kitItems || [] as KitItem[]
   });
+
+  const [kitSearch, setKitSearch] = useState('');
 
   const updateSelectedPrice = (usd: number | string) => {
     const rUSD = Utils.round(parseFloat(usd.toString()) || 0);
@@ -943,6 +946,20 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     updateSelectedPrice(usd);
   };
 
+  const addKitItem = (p: Product) => {
+    if (datos.kitItems.find((i: KitItem) => i.productoId === p.id)) return;
+    setDatos({ ...datos, kitItems: [...datos.kitItems, { productoId: p.id, nombre: p.nombre, cantidad: 1 }] });
+    setKitSearch('');
+  };
+
+  const removeKitItem = (id: string) => {
+    setDatos({ ...datos, kitItems: datos.kitItems.filter((i: KitItem) => i.productoId !== id) });
+  };
+
+  const updateKitQty = (id: string, qty: number) => {
+    setDatos({ ...datos, kitItems: datos.kitItems.map((i: KitItem) => i.productoId === id ? { ...i, cantidad: qty } : i) });
+  };
+
   useEffect(() => {
     let p = datos.precioEstandarUSD;
     if (datos.tipoPrecioPrincipal === 'mayor') p = datos.precioMayorUSD;
@@ -974,62 +991,216 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
           <h3 className="text-lg font-black uppercase text-ink">{producto ? 'Editar Ficha Técnica' : 'Registrar Nuevo Ítem'}</h3>
           <button className="btn-icon h-10 w-10 text-ink" onClick={onClose}><X className="w-6 h-6" /></button>
         </div>
-        <div className="modal-body p-6 space-y-6 bg-white">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="form-group col-span-1">
-              <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Código Barra / SKU</label>
-              <input className="form-input h-11 mono text-base" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} placeholder="Escanee..." />
-            </div>
-            <div className="form-group col-span-2">
-              <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Nombre Descriptivo</label>
-              <input className="form-input h-11 text-base" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} placeholder="Ej: Cacique 500 750ml" />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Categoría</label>
-              <select className="form-input h-11 text-xs font-bold" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
-                {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Marca</label>
-              <select className="form-input h-11 text-xs font-bold" value={datos.marca} onChange={e => setDatos({...datos, marca: e.target.value})}>
-                {state.marcas.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Stock Inicial</label>
-              <input type="number" className="form-input h-11 text-center font-black" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} />
-            </div>
-            <div>
-              <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Stock Mínimo</label>
-              <input type="number" className="form-input h-11 text-center font-black text-status-danger" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} />
-            </div>
-          </div>
-
-          <div className="bg-surface-soft p-5 rounded-xl border border-line shadow-inner">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Costo Neto $</label>
-                <input className="form-input h-11 font-black text-ink" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-status-success block mb-1">Margen %</label>
-                <input className="form-input h-11 font-black text-status-success" type="number" step="0.01" value={datos.margen} onChange={e => recalcularDesdeMargen(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-brand-gold-deep block mb-1">PV Divisa $</label>
-                <input className="form-input h-11 font-black text-brand-gold-deep" type="number" step="0.01" value={datos.precioUSD} onChange={e => recalcularDesdeUSD(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-ink block mb-1">PV Bolívares</label>
-                <input className="form-input h-11 font-black text-ink" type="number" step="0.01" value={datos.precioBS} onChange={e => recalcularDesdeBS(e.target.value)} />
-              </div>
-            </div>
-          </div>
+        {/* TABS INTERNAS */}
+        <div className="flex bg-surface-soft border-b border-line px-6">
+          <button onClick={() => setActiveTab('general')} className={`py-3 px-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'general' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink/40'}`}>General</button>
+          <button onClick={() => setActiveTab('precios')} className={`py-3 px-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'precios' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink/40'}`}>Estructura Precios</button>
+          <button onClick={() => setActiveTab('kit')} className={`py-3 px-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'kit' ? 'border-brand-gold text-brand-gold' : 'border-transparent text-ink/40'}`}>Kit / Combos</button>
         </div>
+
+        <div className="modal-body p-6 space-y-6 bg-white overflow-y-auto max-h-[70vh]">
+          {activeTab === 'general' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="form-group col-span-1">
+                  <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Código Barra / SKU</label>
+                  <input className="form-input h-11 mono text-base" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} placeholder="Escanee..." />
+                </div>
+                <div className="form-group col-span-2">
+                  <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Nombre Descriptivo</label>
+                  <input className="form-input h-11 text-base" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} placeholder="Ej: Cacique 500 750ml" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Categoría</label>
+                  <select className="form-input h-11 text-xs font-bold" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
+                    {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Marca</label>
+                  <select className="form-input h-11 text-xs font-bold" value={datos.marca} onChange={e => setDatos({...datos, marca: e.target.value})}>
+                    {state.marcas.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Departamento</label>
+                  <select className="form-input h-11 text-xs font-bold" value={datos.departamento} onChange={e => setDatos({...datos, departamento: e.target.value})}>
+                    {state.departamentos.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Presentación</label>
+                  <select className="form-input h-11 text-xs font-bold" value={datos.cantidad} onChange={e => setDatos({...datos, cantidad: e.target.value})}>
+                    {state.presentaciones.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Stock Inicial</label>
+                  <input type="number" className="form-input h-11 text-center font-black" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Stock Mínimo</label>
+                  <input type="number" className="form-input h-11 text-center font-black text-status-danger" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Proveedor Ref.</label>
+                  <select className="form-input h-11 text-xs font-bold" value={datos.proveedor} onChange={e => setDatos({...datos, proveedor: e.target.value})}>
+                    <option value="">Ninguno</option>
+                    {state.proveedores.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'precios' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="bg-surface-soft p-5 rounded-xl border border-line shadow-inner">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Costo Neto $</label>
+                    <input className="form-input h-11 font-black text-ink" type="number" step="0.01" value={datos.costoUSD} onChange={e => recalcularDesdeMargen(datos.margen, e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-status-success block mb-1">Margen %</label>
+                    <input className="form-input h-11 font-black text-status-success" type="number" step="0.01" value={datos.margen} onChange={e => recalcularDesdeMargen(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-brand-gold-deep block mb-1">PV Divisa $</label>
+                    <input className="form-input h-11 font-black text-brand-gold-deep" type="number" step="0.01" value={datos.precioUSD} onChange={e => recalcularDesdeUSD(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-ink block mb-1">PV Bolívares</label>
+                    <input className="form-input h-11 font-black text-ink" type="number" step="0.01" value={datos.precioBS} onChange={e => recalcularDesdeBS(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="card p-4 border-line bg-surface-soft/50">
+                  <h4 className="text-[10px] font-black uppercase text-ink/60 mb-4 border-b border-line pb-2 flex items-center gap-2"><Tag className="w-3 h-3"/> Diferenciación de Tarifas</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-bold uppercase">P. Mayorista ($)</span>
+                      <input className="form-input h-8 w-24 text-right font-black" type="number" step="0.01" value={datos.precioMayorUSD} onChange={e => setDatos({...datos, precioMayorUSD: e.target.value})} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-bold uppercase">P. Oferta ($)</span>
+                      <input className="form-input h-8 w-24 text-right font-black text-status-danger" type="number" step="0.01" value={datos.precioOfertaUSD} onChange={e => setDatos({...datos, precioOfertaUSD: e.target.value})} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-bold uppercase">P. Promocional ($)</span>
+                      <input className="form-input h-8 w-24 text-right font-black text-status-info" type="number" step="0.01" value={datos.precioPromoUSD} onChange={e => setDatos({...datos, precioPromoUSD: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card p-4 border-line bg-surface-soft/50">
+                  <h4 className="text-[10px] font-black uppercase text-ink/60 mb-4 border-b border-line pb-2 flex items-center gap-2"><Settings className="w-3 h-3"/> Configuración Fiscal</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-bold uppercase">Aplicar IVA (16%)</span>
+                      <button onClick={() => setDatos({...datos, aplicaIVA: !datos.aplicaIVA})} className={`w-10 h-5 rounded-full transition-colors relative ${datos.aplicaIVA ? 'bg-status-success' : 'bg-line'}`}>
+                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${datos.aplicaIVA ? 'right-1' : 'left-1'}`} />
+                      </button>
+                    </div>
+                    <div className="form-group">
+                      <label className="text-[9px] font-bold uppercase block mb-1">Precio Principal POS</label>
+                      <select className="form-input h-9 text-[10px] font-black uppercase" value={datos.tipoPrecioPrincipal} onChange={e => setDatos({...datos, tipoPrecioPrincipal: e.target.value})}>
+                        <option value="estandar">Precio Estándar</option>
+                        <option value="mayor">Precio Mayorista</option>
+                        <option value="oferta">Precio de Oferta</option>
+                        <option value="promo">Precio Promocional</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'kit' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="p-4 bg-brand-gold-soft/20 rounded-xl border border-brand-gold/20 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${datos.isKit ? 'bg-brand-gold text-white' : 'bg-surface-soft text-ink/20'}`}>
+                    <Layers className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase">Definir como Kit / Combo</h4>
+                    <p className="text-[9px] font-bold opacity-60">Permite vender múltiples artículos como una sola unidad.</p>
+                  </div>
+                </div>
+                <button onClick={() => setDatos({...datos, isKit: !datos.isKit})} className={`w-12 h-6 rounded-full transition-colors relative ${datos.isKit ? 'bg-brand-gold' : 'bg-line'}`}>
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${datos.isKit ? 'right-1' : 'left-1'}`} />
+                </button>
+              </div>
+
+              {datos.isKit && (
+                <div className="space-y-4 animate-in slide-in-from-top-4 duration-300">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${datos.kitType === 'stock_propio' ? 'border-brand-gold bg-brand-gold-soft/10' : 'border-line opacity-50'}`} onClick={() => setDatos({...datos, kitType: 'stock_propio'})}>
+                      <span className="text-[10px] font-black uppercase block mb-1">Stock Propio</span>
+                      <p className="text-[9px] font-bold">El kit tiene su propia existencia física.</p>
+                    </div>
+                    <div className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${datos.kitType === 'stock_componentes' ? 'border-brand-gold bg-brand-gold-soft/10' : 'border-line opacity-50'}`} onClick={() => setDatos({...datos, kitType: 'stock_componentes'})}>
+                      <span className="text-[10px] font-black uppercase block mb-1">Stock Virtual</span>
+                      <p className="text-[9px] font-bold">Calcula stock según sus componentes.</p>
+                    </div>
+                  </div>
+
+                  <div className="form-group relative">
+                    <label className="text-[10px] font-black uppercase text-ink/60 block mb-1">Añadir Componente al Kit</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 w-4 h-4 text-brand-gold" />
+                      <input className="form-input pl-10" placeholder="Buscar producto por nombre..." value={kitSearch} onChange={e => setKitSearch(e.target.value)} />
+                    </div>
+                    {kitSearch.trim().length > 1 && (
+                      <div className="absolute top-full left-0 right-0 bg-white border border-line rounded shadow-2xl z-[100] mt-1 max-h-40 overflow-y-auto">
+                        {state.productos.filter(p => p.activo && !p.isKit && p.nombre.toLowerCase().includes(kitSearch.toLowerCase())).map(p => (
+                          <div key={p.id} onClick={() => addKitItem(p)} className="p-2 border-b border-line hover:bg-brand-gold/10 cursor-pointer flex justify-between items-center transition-colors">
+                            <span className="text-xs font-black uppercase">{p.nombre}</span>
+                            <Plus className="w-3 h-3 text-brand-gold" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="table-wrap border border-line rounded-lg">
+                    <table className="text-[10px]">
+                      <thead className="bg-surface-soft">
+                        <tr><th className="uppercase font-black">Item</th><th className="uppercase font-black text-center">Cant</th><th className="uppercase font-black"></th></tr>
+                      </thead>
+                      <tbody>
+                        {datos.kitItems.map((item: KitItem) => (
+                          <tr key={item.productoId} className="border-b border-line/30">
+                            <td className="uppercase font-bold">{item.nombre}</td>
+                            <td className="text-center">
+                              <input type="number" className="w-12 h-7 text-center border border-line rounded font-black" value={item.cantidad} onChange={e => updateKitQty(item.productoId, parseInt(e.target.value) || 1)} />
+                            </td>
+                            <td className="text-right">
+                              <button onClick={() => removeKitItem(item.productoId)} className="text-status-danger hover:scale-110 transition-transform"><Trash className="w-3.5 h-3.5" /></button>
+                            </td>
+                          </tr>
+                        ))}
+                        {datos.kitItems.length === 0 && <tr><td colSpan={3} className="text-center py-4 text-ink/20 italic uppercase font-black">No hay componentes</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="modal-foot p-5 bg-surface-soft border-t border-line flex justify-end gap-3">
           <button className="btn btn-secondary px-8 font-black" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary px-8 font-black shadow-lg" onClick={handleSubmit}>{producto ? 'Actualizar Ficha' : 'Crear Producto'}</button>
