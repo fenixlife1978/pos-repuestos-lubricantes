@@ -28,7 +28,8 @@ import {
   Undo2,
   Lock,
   RefreshCw,
-  Check
+  Check,
+  RotateCcw
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
@@ -823,7 +824,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           <div className="modal-box max-w-[420px] bg-white border-2 border-line">
             <div className="modal-head py-3 px-4 border-b border-line"><h3 className="text-ink text-xs font-black uppercase">ABONAR - {showAbonoModal}</h3><button onClick={() => setShowAbonoModal(null)}><X className="text-ink"/></button></div>
             <div className="modal-body p-4 space-y-4">
-              <div className="bg-surface-soft p-4 rounded-lg text-center border border-line shadow-inner"><p className="text-ink/60 text-[9px] font-bold mb-1">DEUDA TOTAL</p><p className="text-3xl font-black text-status-info">{Utils.fmtUSD(deudaVisualUSD)}</p></div>
+              <div className="bg-surface-soft p-4 rounded-lg text-center border border-line shadow-inner"><p className="text-ink/60 text-[9px] font-bold mb-1">DEUDA TOTAL</p><p className="text-3xl font-black text-status-info">{Utils.fmtUSD(state.clientes.find(c=>c.name===showAbonoModal)?.debt || 0)}</p></div>
               <div className="bg-surface-soft p-3 rounded-lg border border-line">
                 <div className="flex justify-between mb-3"><label className="text-ink text-[10px] font-black uppercase">MÉTODOS PAGO</label><button onClick={() => setShowAbonoMultiModal(true)} className="btn-icon h-6 w-6 bg-brand-gold text-white rounded shadow-sm"><Plus className="w-4 h-4"/></button></div>
                 <div className="space-y-2 max-h-[160px] overflow-y-auto">
