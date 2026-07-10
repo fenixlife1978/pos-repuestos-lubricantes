@@ -19,13 +19,14 @@ import {
   Clock as ClockIcon,
   ShoppingBag,
   LogOut,
-  Bell
+  Bell,
+  ShieldCheck
 } from 'lucide-react';
 import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import DashboardModule from '@/components/modules/DashboardModule';
 import InventoryModule from '@/components/modules/InventoryModule';
 import SalesModule from '@/components/modules/SalesModule';
@@ -35,6 +36,7 @@ import ReportsModule from '@/components/modules/ReportsModule';
 import ConfigModule from '@/components/modules/ConfigModule';
 import UsersModule from '@/components/modules/UsersModule';
 import PurchaseModule from '@/components/modules/PurchaseModule';
+import GlobalControlModule from '@/components/modules/GlobalControlModule';
 
 export default function LicoreriaPOS() {
   const router = useRouter();
@@ -58,7 +60,8 @@ export default function LicoreriaPOS() {
         router.push('/login');
       } else {
         try {
-          const userDoc = await getDoc(doc(db, 'users', currentUser.email!.replace(/\W/g, '_')));
+          const userDocId = currentUser.email!.replace(/\W/g, '_');
+          const userDoc = await getDoc(doc(db, 'users', userDocId));
           if (userDoc.exists()) {
             const data = userDoc.data();
             setUserRole(data.rol);
@@ -105,6 +108,15 @@ export default function LicoreriaPOS() {
 
   const handleLogout = async () => {
     if (confirm('¿Cerrar sesión del sistema?')) {
+      if (userRole === 'cajero') {
+        try {
+          // BLOQUEO AUTOMÁTICO DE CAJERO AL SALIR
+          const userDocId = user.email.replace(/\W/g, '_');
+          await updateDoc(doc(db, 'users', userDocId), { accesoBloqueado: true });
+        } catch (e) {
+          console.error("Error blocking user on logout:", e);
+        }
+      }
       await signOut(auth);
       router.push('/login');
     }
@@ -113,7 +125,6 @@ export default function LicoreriaPOS() {
   const updateState = (newState: Partial<AppState>) => {
     setState(prev => {
       const updated = { ...prev, ...newState };
-      // Solo sincronizamos a la nube si no es solo un cambio de carrito local
       Store.set(updated);
       return updated;
     });
@@ -150,6 +161,7 @@ export default function LicoreriaPOS() {
         { id: 'reportes', label: 'Reportes', icon: BarChart3 },
         { id: 'config', label: 'Configuración', icon: Settings },
         { id: 'usuarios', label: 'Usuarios', icon: Users },
+        { id: 'global_control', label: 'Global Control', icon: ShieldCheck },
       ]
     }
   ];
@@ -166,6 +178,7 @@ export default function LicoreriaPOS() {
       case 'reportes': return <ReportsModule state={state} />;
       case 'config': return <ConfigModule state={state} updateState={updateState} />;
       case 'usuarios': return <UsersModule />;
+      case 'global_control': return <GlobalControlModule state={state} updateState={updateState} />;
       default: return <DashboardModule state={state} />;
     }
   };

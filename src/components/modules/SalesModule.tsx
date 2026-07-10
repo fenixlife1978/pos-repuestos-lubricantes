@@ -29,6 +29,7 @@ import {
   Undo2,
   Lock
 } from 'lucide-react';
+import { auth } from '@/lib/firebase';
 
 // ✅ Declarar el tipo de electronAPI en Window para soporte de impresión nativa
 declare global {
@@ -248,29 +249,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setPagos([]);
   };
 
-  const addPago = (isAbono: boolean = false) => {
-    let monto = parseFloat(montoInput);
-    if (isNaN(monto) || monto <= 0) {
-      alert("El monto debe ser mayor a cero");
-      return;
-    }
-
-    let montoUSD = (metodoActual.includes('usd') || metodoActual === 'zelle') ? monto : monto / state.tasa;
-    let montoBS = (metodoActual.includes('usd') || metodoActual === 'zelle') ? monto * state.tasa : monto;
-    
-    if (isAbono) {
-      setAbonoPagos([...abonoPagos, { metodo: metodoActual, montoUSD, montoBS }]);
-      setShowAbonoMultiModal(false);
-    } else {
-      if (montoUSD > (saldoRestanteUSD + 0.01)) return alert("Excede el saldo");
-      setPagos([...pagos, { metodo: metodoActual, montoUSD, montoBS }]);
-      setShowMultiModal(false);
-    }
-    setMontoInput('');
-  };
-
-  const removeAbonoPago = (idx: number) => {
-    setAbonoPagos(abonoPagos.filter((_, i) => i !== idx));
+  // Identificar el terminal actual del cajero
+  const getCurrentTerminal = () => {
+    const currentUserId = auth.currentUser?.email?.replace(/\W/g, '_');
+    return state.terminales.find(t => t.usuarioId === currentUserId);
   };
 
   const ejecutarVenta = () => {
@@ -278,6 +260,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     
     const reciboId = String(state.proximoRecibo).padStart(9, '0');
     const ahoraStr = Utils.ahora();
+    const terminal = getCurrentTerminal();
     
     const nuevosProductos = state.productos.map(p => {
       const item = state.carrito.find(i => i.productoId === p.id);
@@ -294,7 +277,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         stockAntes: p?.stock || 0,
         stockDespues: (p?.stock || 0) - item.cantidad,
         fecha: ahoraStr,
-        referencia: `VENTA ${reciboId}`
+        referencia: `VENTA ${reciboId} - TERM: ${terminal?.nombre || 'Gral'}`
       };
     });
 
@@ -312,7 +295,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       type: 'VENTA',
       received: totalPagadoUSD,
       change: Math.max(0, totalPagadoUSD - subtotalUSD),
-      payments: [...pagos]
+      payments: [...pagos],
+      terminalId: terminal?.id,
+      cajeroId: auth.currentUser?.email?.replace(/\W/g, '_')
     };
 
     updateState({
@@ -332,6 +317,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   const ejecutarVentaACredito = () => {
     let finalClient = selectedClient;
+    const terminal = getCurrentTerminal();
     
     if (showNewClientForm) {
       if (!newClient.name || !newClient.cedula) return alert('Nombre y Cédula requeridos');
@@ -367,7 +353,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         stockAntes: p?.stock || 0,
         stockDespues: (p?.stock || 0) - item.cantidad,
         fecha: ahoraStr,
-        referencia: `CRÉDITO ${reciboId}`
+        referencia: `CRÉDITO ${reciboId} - TERM: ${terminal?.nombre || 'Gral'}`
       };
     });
 
@@ -384,7 +370,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       estado: 'pendiente',
       type: 'VENTA',
       received: 0,
-      change: 0
+      change: 0,
+      terminalId: terminal?.id,
+      cajeroId: auth.currentUser?.email?.replace(/\W/g, '_')
     };
 
     const nuevaCxC = {
@@ -418,12 +406,38 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setNewClient({ name: '', cedula: 'V-', phone: '', address: '' });
   };
 
+  const addPago = (isAbono: boolean = false) => {
+    let monto = parseFloat(montoInput);
+    if (isNaN(monto) || monto <= 0) {
+      alert("El monto debe ser mayor a cero");
+      return;
+    }
+
+    let montoUSD = (metodoActual.includes('usd') || metodoActual === 'zelle') ? monto : monto / state.tasa;
+    let montoBS = (metodoActual.includes('usd') || metodoActual === 'zelle') ? monto * state.tasa : monto;
+    
+    if (isAbono) {
+      setAbonoPagos([...abonoPagos, { metodo: metodoActual, montoUSD, montoBS }]);
+      setShowAbonoMultiModal(false);
+    } else {
+      if (montoUSD > (saldoRestanteUSD + 0.01)) return alert("Excede el saldo");
+      setPagos([...pagos, { metodo: metodoActual, montoUSD, montoBS }]);
+      setShowMultiModal(false);
+    }
+    setMontoInput('');
+  };
+
+  const removeAbonoPago = (idx: number) => {
+    setAbonoPagos(abonoPagos.filter((_, i) => i !== idx));
+  };
+
   const procesarAbonoCascada = () => {
     if (abonoPagos.length === 0 || !showAbonoModal) return;
     
     const totalAbonoUSD = abonoPagos.reduce((s, p) => s + p.montoUSD, 0);
     const reciboId = String(state.proximoRecibo).padStart(9, '0');
     const ahoraStr = Utils.ahora();
+    const terminal = getCurrentTerminal();
     let restante = totalAbonoUSD;
     const nuevasDeudas = [...state.cxc].sort((a: any, b: any) => a.fecha.localeCompare(b.fecha));
     
@@ -466,7 +480,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       type: 'COBRO DEUDA',
       received: totalAbonoUSD,
       change: 0,
-      payments: [...abonoPagos]
+      payments: [...abonoPagos],
+      terminalId: terminal?.id,
+      cajeroId: auth.currentUser?.email?.replace(/\W/g, '_')
     };
 
     updateState({ 
@@ -830,6 +846,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 <tr>
                   <th className="text-ink font-black text-[10px] uppercase">Recibo</th>
                   <th className="text-ink font-black text-[10px] uppercase">Hora</th>
+                  <th className="text-ink font-black text-[10px] uppercase">Terminal</th>
                   <th className="text-ink font-black text-[10px] uppercase">Cliente</th>
                   <th className="text-ink font-black text-[10px] uppercase">Tipo</th>
                   <th className="text-ink font-black text-[10px] uppercase text-right">Monto USD</th>
@@ -842,6 +859,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   <tr key={v.id} className="border-b border-line/40 hover:bg-surface-warm/20 transition-colors">
                     <td className="text-ink font-black text-xs mono">{v.id}</td>
                     <td className="text-ink font-bold text-xs">{v.fecha.split('T')[1]?.slice(0, 5) || '-'}</td>
+                    <td className="text-ink font-black text-[10px] uppercase">{state.terminales.find(t => t.id === v.terminalId)?.nombre || '-'}</td>
                     <td className="text-ink font-black text-xs uppercase truncate max-w-[150px]">{v.cliente}</td>
                     <td className="text-ink font-black text-[9px] uppercase"><span className={`badge ${v.type === 'COBRO DEUDA' ? 'badge-info' : 'badge-neutral'}`}>{v.type || 'VENTA'}</span></td>
                     <td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(v.totalUSD)}</td>
@@ -850,7 +868,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   </tr>
                 ))}
                 {getReportSummary().ventasHoy.length === 0 && (
-                  <tr><td colSpan={7} className="text-center py-24 text-ink font-black uppercase italic opacity-30">No se registran transacciones para el día de hoy</td></tr>
+                  <tr><td colSpan={8} className="text-center py-24 text-ink font-black uppercase italic opacity-30">No se registran transacciones para el día de hoy</td></tr>
                 )}
               </tbody>
             </table>

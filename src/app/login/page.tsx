@@ -10,8 +10,9 @@ import {
   EyeOff,
   ChevronDown 
 } from 'lucide-react';
-import { auth } from '@/lib/firebase';
-import { signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserSessionPersistence } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserSessionPersistence, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
@@ -23,8 +24,17 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) router.push('/');
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+         // Verificación de bloqueo antes de permitir entrada automática
+         const userDocId = user.email!.replace(/\W/g, '_');
+         const userDoc = await getDoc(doc(db, 'users', userDocId));
+         if (userDoc.exists() && userDoc.data().accesoBloqueado) {
+            await signOut(auth);
+            return;
+         }
+         router.push('/');
+      }
     });
     return () => unsubscribe();
   }, [router]);
@@ -38,9 +48,28 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Configuramos persistencia de sesión por pestaña
+      // 1. Configuramos persistencia de sesión por pestaña
       await setPersistence(auth, browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // 2. Verificar si el acceso está bloqueado en Firestore
+      const userDocId = email.replace(/\W/g, '_');
+      const userDoc = await getDoc(doc(db, 'users', userDocId));
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.accesoBloqueado) {
+           await signOut(auth);
+           toast({ 
+             variant: "destructive", 
+             title: "Acceso Bloqueado", 
+             description: "Su acceso ha sido revocado. Contacte al administrador." 
+           });
+           setLoading(false);
+           return;
+        }
+      }
+
       toast({ title: "Acceso Concedido", description: "Bienvenido al sistema." });
       router.push('/');
     } catch (err: any) {

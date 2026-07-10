@@ -1,18 +1,23 @@
-
 "use client";
 
 import React, { useState } from 'react';
 import { AppState } from '@/lib/types';
 import { Utils } from '@/lib/db-store';
-import { FileText, TrendingUp, Calendar, Printer, ArrowLeft } from 'lucide-react';
+import { FileText, TrendingUp, Calendar, Printer, ArrowLeft, Monitor } from 'lucide-react';
 
 export default function ReportsModule({ state }: { state: AppState }) {
   const [tab, setTab] = useState('ventas');
   const [desde, setDesde] = useState(Utils.hoy());
   const [hasta, setHasta] = useState(Utils.hoy());
+  const [terminalFilter, setTerminalFilter] = useState('all');
   
-  // Filtrado de Ventas por Fecha
-  const ventasFiltradas = state.ventas.filter(v => v.fecha >= desde && v.fecha <= hasta);
+  // Filtrado de Ventas por Fecha y Terminal
+  const ventasFiltradas = state.ventas.filter(v => {
+    const matchesFecha = v.fecha >= desde && v.fecha <= hasta;
+    const matchesTerminal = terminalFilter === 'all' ? true : v.terminalId === terminalFilter;
+    return matchesFecha && matchesTerminal;
+  });
+
   const totalVentasUSD = ventasFiltradas.reduce((s, v) => s + v.totalUSD, 0);
   
   // Rentabilidad
@@ -47,6 +52,22 @@ export default function ReportsModule({ state }: { state: AppState }) {
         <div className="space-y-6 animate-in fade-in duration-300">
           {/* Filtros */}
           <div className="card p-5 bg-white border-line flex flex-wrap gap-6 items-end shadow-sm">
+            <div className="form-group mb-0">
+              <label className="text-ink text-[10px] font-black uppercase block mb-1.5 opacity-70">Terminal / Punto</label>
+              <div className="relative">
+                <Monitor className="absolute left-3 top-2.5 w-4 h-4 text-brand-gold opacity-50" />
+                <select 
+                  className="form-select pl-10 h-10 bg-surface-soft border-line text-ink font-bold text-sm rounded-lg"
+                  value={terminalFilter}
+                  onChange={e => setTerminalFilter(e.target.value)}
+                >
+                  <option value="all">TODOS LOS TERMINALES (GLOBAL)</option>
+                  {state.terminales?.map(t => (
+                    <option key={t.id} value={t.id}>{t.nombre.toUpperCase()}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div className="form-group mb-0">
               <label className="text-ink text-[10px] font-black uppercase block mb-1.5 opacity-70">Fecha Inicial (Desde)</label>
               <div className="relative">
@@ -107,6 +128,7 @@ export default function ReportsModule({ state }: { state: AppState }) {
                 <thead>
                   <tr className="bg-surface-soft">
                     <th className="text-ink font-black text-[10px] uppercase py-4 px-6 border-b border-line">Fecha</th>
+                    <th className="text-ink font-black text-[10px] uppercase py-4 border-b border-line">Terminal</th>
                     <th className="text-ink font-black text-[10px] uppercase py-4 border-b border-line">Cliente</th>
                     <th className="text-ink font-black text-[10px] uppercase py-4 border-b border-line">Método Pago</th>
                     <th className="text-ink font-black text-[10px] uppercase py-4 text-right border-b border-line">Monto (USD)</th>
@@ -117,6 +139,7 @@ export default function ReportsModule({ state }: { state: AppState }) {
                   {ventasFiltradas.map(v => (
                     <tr key={v.id} className="border-b border-line/40 hover:bg-surface-warm/20 transition-colors">
                       <td className="text-ink font-bold text-xs py-4 px-6">{Utils.fmtFecha(v.fecha)}</td>
+                      <td className="text-ink font-black text-[10px] uppercase py-4">{state.terminales.find(t => t.id === v.terminalId)?.nombre || 'S/T'}</td>
                       <td className="text-ink font-black text-xs uppercase py-4">{v.cliente}</td>
                       <td className="py-4">
                         <span className="badge badge-neutral text-ink font-black text-[9px] uppercase px-2.5 py-1">
@@ -129,7 +152,7 @@ export default function ReportsModule({ state }: { state: AppState }) {
                   ))}
                   {ventasFiltradas.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="text-center py-24 text-ink/20 font-black uppercase italic tracking-widest">
+                      <td colSpan={6} className="text-center py-24 text-ink/20 font-black uppercase italic tracking-widest">
                         No se encontraron ventas para este periodo seleccionado
                       </td>
                     </tr>

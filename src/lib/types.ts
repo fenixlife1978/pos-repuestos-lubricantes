@@ -7,6 +7,13 @@ export interface KitItem {
   cantidad: number;
 }
 
+export interface Terminal {
+  id: string;
+  nombre: string;
+  usuarioId: string | null; // ID del cajero asignado
+  activo: boolean;
+}
+
 export interface Movimiento {
   id: string;
   productoId: string;
@@ -78,6 +85,8 @@ export interface Sale {
   customerName?: string;
   cuentaCobrarId?: string | null;
   payments?: PagoRealizado[]; 
+  terminalId?: string; // Nuevo: Identificador del terminal
+  cajeroId?: string; // Nuevo: Identificador del cajero
 }
 
 export interface ReturnItem {
@@ -144,6 +153,7 @@ export interface AppState {
   devoluciones: Return[];
   movimientos: Movimiento[];
   carrito: SaleItem[];
+  terminales: Terminal[]; // Nuevo
   empresa: {
     nombre: string;
     rif: string;
