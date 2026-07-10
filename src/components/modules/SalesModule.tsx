@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -908,24 +909,32 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       ) : (
         /* VISTA DE DEVOLUCIONES INTEGRADA */
-        <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-2 duration-300 flex-1 overflow-hidden">
-          <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-line shadow-sm">
+        <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-2 duration-300 flex-1 overflow-y-auto">
+          <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-line shadow-sm shrink-0">
             <div>
               <h2 className="text-ink font-black uppercase italic tracking-tighter text-lg flex items-center gap-2">
                 <RotateCcw className="text-status-danger w-5 h-5" /> GESTIÓN DE DEVOLUCIONES
               </h2>
               <p className="text-[10px] text-ink font-bold uppercase tracking-widest opacity-60">Auditoría y Reintegro de Mercancía</p>
             </div>
-            <button 
-              onClick={() => { setReturnView(returnView === 'list' ? 'create' : 'list'); setSelectedSaleForReturn(null); }} 
-              className={`btn ${returnView === 'list' ? 'btn-primary' : 'btn-secondary'} h-9 px-6 font-black uppercase text-[10px] flex items-center gap-2 shadow-sm`}
-            >
-              {returnView === 'list' ? <><RotateCcw className="w-3.5 h-3.5" /> Nueva Devolución</> : <><History className="w-3.5 h-3.5" /> Ver Historial</>}
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => { setReturnView('list'); setSelectedSaleForReturn(null); }} 
+                className={`btn ${returnView === 'list' ? 'btn-primary' : 'btn-secondary'} h-9 px-6 font-black uppercase text-[10px] flex items-center gap-2 shadow-sm`}
+              >
+                <History className="w-3.5 h-3.5" /> Ver Historial
+              </button>
+              <button 
+                onClick={() => { setReturnView('create'); setSelectedSaleForReturn(null); }} 
+                className={`btn ${returnView === 'create' ? 'btn-primary' : 'btn-secondary'} h-9 px-6 font-black uppercase text-[10px] flex items-center gap-2 shadow-sm`}
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Nueva Devolución
+              </button>
+            </div>
           </div>
 
           {returnView === 'list' ? (
-            <div className="card flex-1 bg-white border-line shadow-lg overflow-hidden flex flex-col rounded-xl">
+            <div className="card bg-white border-line shadow-lg overflow-hidden flex flex-col rounded-xl flex-1">
               <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
                 <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
                   <ClipboardList className="w-5 h-5 text-brand-gold" /> DEVOLUCIONES DE LA JORNADA (HOY)
@@ -986,7 +995,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 ) : (
                   <div className="flex flex-col gap-4 overflow-hidden flex-1">
                     <div className="card bg-white border-status-info/30 flex flex-col min-h-[200px] rounded-xl overflow-hidden shadow-sm">
-                      <div className="card-head py-3 px-6 bg-ink border-b border-white/10 flex justify-between items-center">
+                      <div className="card-head py-3 px-6 bg-ink border-b border-white/10 flex justify-between items-center shrink-0">
                         <h3 className="text-white font-black uppercase italic text-[10px] tracking-tighter flex items-center gap-2">
                           <Receipt className="w-4 h-4 text-brand-gold" /> VENTA ORIGINAL DETECTADA: {selectedSaleForReturn.id}
                         </h3>
@@ -1019,7 +1028,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     </div>
 
                     <div className="card bg-white border-line shadow-md flex-1 flex flex-col overflow-hidden rounded-xl">
-                      <div className="card-head py-3 px-6 bg-ink border-b border-white/10">
+                      <div className="card-head py-3 px-6 bg-ink border-b border-white/10 shrink-0">
                         <h3 className="text-white font-black uppercase italic text-[10px] tracking-tighter flex items-center gap-2">
                           <Undo2 className="w-4 h-4 text-brand-gold"/> PRODUCTOS SELECCIONADOS PARA REINTEGRO
                         </h3>
