@@ -1,4 +1,3 @@
-
 "use client";
 
 import { AppState } from './types';
@@ -36,7 +35,7 @@ export const initialState: AppState = {
   categorias: ['Ron', 'Vino', 'Cerveza', 'Whisky', 'Refrescos', 'Otros'],
   marcas: ['Genérica'],
   presentaciones: ['750ml', '1L', 'Unidad', 'Caja'],
-  proveedores: ['Distribuidor General']
+  proveedores: []
 };
 
 export const Store = {

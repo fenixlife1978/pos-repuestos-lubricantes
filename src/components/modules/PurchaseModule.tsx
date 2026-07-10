@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -42,9 +41,9 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
   
   // 2. CONDICIONES DE PAGO
   const [condicion, setCondicion] = useState<'contado' | 'credito' | 'mixto'>('contado');
-  const [diasPlazo, setDiasPlazo] = useState<string | number>(30);
-  const [montoPagadoUSD, setMontoPagadoUSD] = useState<string | number>(0);
-  const [montoPagadoBS, setMontoPagadoBS] = useState<string | number>(0);
+  const [diasPlazo, setDiasPlazo] = useState<string | number>('30');
+  const [montoPagadoUSD, setMontoPagadoUSD] = useState<string | number>('0');
+  const [montoPagadoBS, setMontoPagadoBS] = useState<string | number>('0');
 
   // 3. AÑADIR PRODUCTOS
   const [busqueda, setBusqueda] = useState('');
@@ -55,22 +54,36 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
 
   // Cálculos de Totales
   const totalUSD = loteTemporal.reduce((acc, item) => acc + item.subtotalUSD, 0);
-  const totalBS = totalUSD * (parseFloat(tasaCompra.toString()) || 0);
+  const tasaActual = parseFloat(tasaCompra.toString()) || 1;
 
-  // Lógica de actualización de montos según condición
+  // Sincronizar montos al cambiar condición
   useEffect(() => {
-    const tasa = parseFloat(tasaCompra.toString()) || 0;
     if (condicion === 'contado') {
-      setMontoPagadoUSD(totalUSD);
-      setMontoPagadoBS(totalUSD * tasa);
+      setMontoPagadoUSD(totalUSD.toFixed(2));
+      setMontoPagadoBS((totalUSD * tasaActual).toFixed(2));
     } else if (condicion === 'credito') {
-      setMontoPagadoUSD(0);
-      setMontoPagadoBS(0);
+      setMontoPagadoUSD('0');
+      setMontoPagadoBS('0');
     }
-  }, [condicion, totalUSD, tasaCompra]);
+  }, [condicion, totalUSD, tasaActual]);
 
   const pMontoPagadoUSD = parseFloat(montoPagadoUSD.toString()) || 0;
   const saldoPendienteUSD = Math.max(0, totalUSD - pMontoPagadoUSD);
+
+  // Handlers para montos mixtos
+  const handleMontoUSDChange = (val: string) => {
+    if (!/^\d*\.?\d*$/.test(val)) return;
+    setMontoPagadoUSD(val);
+    const nUSD = parseFloat(val) || 0;
+    setMontoPagadoBS((nUSD * tasaActual).toFixed(2));
+  };
+
+  const handleMontoBSChange = (val: string) => {
+    if (!/^\d*\.?\d*$/.test(val)) return;
+    setMontoPagadoBS(val);
+    const nBS = parseFloat(val) || 0;
+    setMontoPagadoUSD((nBS / tasaActual).toFixed(2));
+  };
 
   // Buscador de productos
   const matches = useMemo(() => {
@@ -117,7 +130,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
 
     const ahoraStr = Utils.ahora();
     const pDias = parseInt(diasPlazo.toString()) || 0;
-    const fechaVencimiento = condicion === 'credito' ? 
+    const fechaVencimiento = condicion !== 'contado' ? 
       new Date(new Date(fecha).getTime() + (pDias * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10) : 
       fecha;
 
@@ -176,10 +189,11 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
     setProveedor('');
     setNumeroFactura('');
     setLoteTemporal([]);
+    setCondicion('contado');
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-ink font-black uppercase italic tracking-tighter text-2xl flex items-center gap-2">
@@ -192,60 +206,92 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* COLUMNA IZQUIERDA */}
         <div className="space-y-6">
-          <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+          <div className="card shadow-lg border-line rounded-xl overflow-hidden bg-white">
             <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
               <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
                 <Info className="w-5 h-5 text-brand-gold" /> DATOS DE LA FACTURA
               </h3>
             </div>
-            <div className="card-body p-6 space-y-4 bg-white">
+            <div className="card-body p-6 space-y-4">
               <div className="form-group">
                 <label className="text-ink text-[10px] font-black uppercase block mb-1">Proveedor</label>
-                <select className="form-select" value={proveedor} onChange={e => setProveedor(e.target.value)}>
+                <select className="form-select h-11 text-xs font-bold" value={proveedor} onChange={e => setProveedor(e.target.value)}>
                   <option value="">SELECCIONE PROVEEDOR</option>
-                  {state.proveedores.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+                  {state.proveedores.map(p => <option key={p.id} value={p.nombre}>{p.nombre.toUpperCase()}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-group">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">N° Factura</label>
-                  <input className="form-input" value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="000123" />
+                  <input className="form-input h-11 text-sm font-black" value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)} placeholder="000123" />
                 </div>
                 <div className="form-group">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">Tasa Aplicada</label>
-                  <input type="number" className="form-input text-brand-gold-deep font-black" value={tasaCompra} onChange={e => setTasaCompra(e.target.value)} />
+                  <input type="number" className="form-input h-11 text-brand-gold-deep font-black" value={tasaCompra} onChange={e => setTasaCompra(e.target.value)} />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="card shadow-lg border-line rounded-xl overflow-hidden">
-            <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
-              <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
-                <HandCoins className="w-5 h-5 text-brand-gold" /> CONDICIONES DE PAGO
-              </h3>
-            </div>
-            <div className="card-body p-6 space-y-5 bg-white">
-              <div className="flex gap-1">
+          <div className="card shadow-lg border-line rounded-xl overflow-hidden bg-white">
+            <div className="card-head bg-surface-soft border-b border-line px-6 py-3 flex justify-center gap-2">
                 {['contado', 'credito', 'mixto'].map(c => (
-                  <button key={c} onClick={() => setCondicion(c as any)} className={`flex-1 h-10 rounded-lg text-[10px] font-black uppercase transition-all ${condicion === c ? 'bg-brand-gold text-white' : 'bg-surface-soft text-ink border border-line'}`}>
+                  <button 
+                    key={c} 
+                    onClick={() => setCondicion(c as any)} 
+                    className={`px-6 h-9 rounded-full text-[10px] font-black uppercase transition-all shadow-sm ${condicion === c ? 'bg-brand-gold text-white' : 'bg-white text-ink border border-line hover:bg-surface-warm'}`}
+                  >
                     {c}
                   </button>
                 ))}
-              </div>
+            </div>
+            <div className="card-body p-6 space-y-5">
+              
+              {condicion !== 'contado' && (
+                <div className="form-group animate-in slide-in-from-top-2">
+                  <label className="text-ink text-[10px] font-black uppercase block mb-1">Días de Crédito</label>
+                  <input 
+                    type="number" 
+                    className="form-input h-10 text-center font-black" 
+                    value={diasPlazo} 
+                    onChange={e => setDiasPlazo(e.target.value)} 
+                  />
+                </div>
+              )}
 
-              <div className="space-y-3 pt-2">
-                <div className="flex justify-between items-center text-xs font-black">
-                  <span className="text-ink opacity-50">TOTAL FACTURA:</span>
-                  <span className="text-ink">{Utils.fmtUSD(totalUSD)}</span>
+              {condicion === 'mixto' && (
+                <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
+                   <div className="form-group">
+                      <label className="text-ink text-[9px] font-black uppercase block mb-1">Pagado ($)</label>
+                      <input 
+                        className="form-input h-10 text-sm font-black text-status-success" 
+                        value={montoPagadoUSD} 
+                        onChange={e => handleMontoUSDChange(e.target.value)} 
+                      />
+                   </div>
+                   <div className="form-group">
+                      <label className="text-ink text-[9px] font-black uppercase block mb-1">Pagado (Bs)</label>
+                      <input 
+                        className="form-input h-10 text-sm font-black text-ink" 
+                        value={montoPagadoBS} 
+                        onChange={e => handleMontoBSChange(e.target.value)} 
+                      />
+                   </div>
                 </div>
-                <div className="flex justify-between items-center text-xs font-black">
-                  <span className="text-ink opacity-50">PAGADO HOY:</span>
-                  <span className="text-status-success">{Utils.fmtUSD(pMontoPagadoUSD)}</span>
+              )}
+
+              <div className="space-y-3 pt-2 border-t border-line/50">
+                <div className="flex justify-between items-center text-[10px] font-black uppercase">
+                  <span className="text-ink opacity-40">TOTAL FACTURA:</span>
+                  <span className="text-ink text-base">{Utils.fmtUSD(totalUSD)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm font-black border-t border-line pt-2">
-                  <span className="text-ink opacity-50">SALDO PENDIENTE:</span>
-                  <span className="text-status-danger">{Utils.fmtUSD(saldoPendienteUSD)}</span>
+                <div className="flex justify-between items-center text-[10px] font-black uppercase">
+                  <span className="text-ink opacity-40">PAGADO HOY:</span>
+                  <span className="text-status-success text-base">{Utils.fmtUSD(pMontoPagadoUSD)}</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px] font-black uppercase border-t border-line/50 pt-3">
+                  <span className="text-ink opacity-40">SALDO PENDIENTE:</span>
+                  <span className="text-status-danger text-lg">{Utils.fmtUSD(saldoPendienteUSD)}</span>
                 </div>
               </div>
             </div>
@@ -254,22 +300,21 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
 
         {/* COLUMNA DERECHA */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="card shadow-lg border-line rounded-xl overflow-hidden">
-            <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
-              <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
-                <Plus className="w-5 h-5 text-brand-gold" /> ADICIÓN DE ÍTEMS AL LOTE
-              </h3>
+          <div className="card shadow-lg border-line rounded-xl overflow-hidden bg-white">
+            <div className="card-head bg-ink border-b border-white/10 px-6 py-4 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-brand-gold" /> 
+                <h3 className="text-white font-black text-xs uppercase italic tracking-tighter">ADICIÓN DE ÍTEMS AL LOTE</h3>
             </div>
-            <div className="card-body p-6 bg-white">
+            <div className="card-body p-6">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                 <div className="md:col-span-6 relative">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">Buscar Producto Existente</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-3 w-4 h-4 text-brand-gold" />
-                    <input className="form-input pl-10" placeholder="Nombre o Código..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+                    <input className="form-input pl-10 h-11 bg-surface-soft border-line" placeholder="Nombre o Código..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
                   </div>
                   {matches.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 bg-white border border-line rounded shadow-2xl z-[100] mt-1">
+                    <div className="absolute top-full left-0 right-0 bg-white border border-line rounded shadow-2xl z-[100] mt-1 overflow-hidden">
                       {matches.map(p => (
                         <div key={p.id} onClick={() => handleSelectItem(p)} className="p-3 border-b border-line hover:bg-brand-gold/10 cursor-pointer flex justify-between items-center transition-colors">
                           <div className="flex flex-col"><span className="text-xs font-black text-ink uppercase">{p.nombre}</span><span className="text-[9px] text-ink/40 mono">{p.codigo}</span></div>
@@ -279,16 +324,16 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                     </div>
                   )}
                 </div>
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 text-center">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">Cant.</label>
-                  <input type="number" className="form-input text-center font-black" value={cantidad} onChange={e => setCantidad(e.target.value)} />
+                  <input type="number" className="form-input h-11 text-center font-black bg-surface-soft border-line" value={cantidad} onChange={e => setCantidad(e.target.value)} />
                 </div>
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 text-center">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">Costo $</label>
-                  <input type="number" className="form-input text-brand-gold-deep font-black" value={costoInput} onChange={e => setCostoInput(e.target.value)} />
+                  <input type="number" className="form-input h-11 text-center font-black bg-surface-soft border-line text-brand-gold-deep" value={costoInput} onChange={e => setCostoInput(e.target.value)} />
                 </div>
                 <div className="md:col-span-2">
-                  <button onClick={handleAddTempItem} disabled={!itemSeleccionado} className="btn btn-primary w-full h-11 shadow-md disabled:opacity-20"><Plus className="w-4 h-4"/></button>
+                  <button onClick={handleAddTempItem} disabled={!itemSeleccionado} className="btn btn-primary w-full h-11 shadow-md disabled:opacity-20 flex items-center justify-center"><Plus className="w-5 h-5"/></button>
                 </div>
               </div>
             </div>
@@ -297,7 +342,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
               <table className="bg-white">
                 <thead className="bg-surface-soft">
                   <tr>
-                    <th className="font-black text-ink uppercase text-[10px]">Producto</th>
+                    <th className="font-black text-ink uppercase text-[10px] py-4 px-6">Producto</th>
                     <th className="font-black text-ink uppercase text-[10px] text-center">Cant</th>
                     <th className="font-black text-ink uppercase text-[10px] text-right">Costo Unit.</th>
                     <th className="font-black text-ink uppercase text-[10px] text-right">Subtotal</th>
@@ -307,34 +352,34 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                 <tbody>
                   {loteTemporal.map((item, idx) => (
                     <tr key={idx} className="border-b border-line/30 hover:bg-surface-warm/20">
-                      <td className="text-xs font-black text-ink uppercase">{item.nombre}</td>
+                      <td className="text-xs font-black text-ink uppercase py-4 px-6">{item.nombre}</td>
                       <td className="text-center font-bold text-ink">{item.cantidad}</td>
                       <td className="text-right font-bold text-ink">{Utils.fmtUSD(item.costoUnitarioUSD)}</td>
                       <td className="text-right font-black text-brand-gold-deep">{Utils.fmtUSD(item.subtotalUSD)}</td>
                       <td className="text-center">
-                        <button onClick={() => handleRemoveTempItem(idx)} className="text-ink/20 hover:text-status-danger"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => handleRemoveTempItem(idx)} className="text-ink/20 hover:text-status-danger transition-colors p-2"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
                   ))}
                   {loteTemporal.length === 0 && (
-                    <tr><td colSpan={5} className="py-20 text-center text-ink/20 font-black uppercase italic opacity-40">Añada productos al lote de compra</td></tr>
+                    <tr><td colSpan={5} className="py-20 text-center text-ink/20 font-black uppercase italic opacity-40">Añada productos al lote de compra para procesar</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
 
-            <div className="card-foot p-6 bg-surface-soft flex flex-col gap-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white p-3 rounded-lg border border-line text-center">
-                   <span className="text-[9px] font-black uppercase opacity-60">Total Factura</span>
-                   <p className="text-lg font-black text-ink">{Utils.fmtUSD(totalUSD)}</p>
+            <div className="card-foot p-6 bg-surface-soft flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div className="flex gap-4">
+                <div className="bg-white p-3 px-6 rounded-xl border border-line text-center shadow-sm">
+                   <span className="text-[9px] font-black uppercase opacity-40 block mb-0.5">Total Factura</span>
+                   <p className="text-lg font-black text-ink leading-none">{Utils.fmtUSD(totalUSD)}</p>
                 </div>
-                <div className="bg-white p-3 rounded-lg border border-line text-center">
-                   <span className="text-[9px] font-black uppercase opacity-60">Equiv. BS</span>
-                   <p className="text-lg font-black text-ink">{Utils.fmtBS(totalBS)}</p>
+                <div className="bg-white p-3 px-6 rounded-xl border border-line text-center shadow-sm">
+                   <span className="text-[9px] font-black uppercase opacity-40 block mb-0.5">Equiv. BS</span>
+                   <p className="text-lg font-black text-ink leading-none">{Utils.fmtBS(totalUSD * tasaActual)}</p>
                 </div>
               </div>
-              <button onClick={handleProcessPurchase} disabled={loteTemporal.length === 0} className="btn btn-primary w-full h-14 font-black uppercase text-sm shadow-xl disabled:opacity-20 transition-all">
+              <button onClick={handleProcessPurchase} disabled={loteTemporal.length === 0} className="btn btn-primary h-14 px-10 font-black uppercase text-xs shadow-xl disabled:opacity-20 transition-all flex items-center gap-3">
                 Procesar e Importar Inventario <CheckCircle className="w-5 h-5" />
               </button>
             </div>

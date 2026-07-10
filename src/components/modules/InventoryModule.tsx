@@ -342,7 +342,7 @@ function ReporteVentas({ state }: { state: AppState }) {
               {ventas.length === 0 ? (
                 <tr><td colSpan={4} className="text-center py-20 text-ink/20 font-black italic uppercase">Sin operaciones reales</td></tr>
               ) : (
-                ventas.flatMap(v => v.items.map((item, idx) => (
+                ventas.flatMap(v => v.items.map((item: any, idx: number) => (
                   <tr key={`${v.id}-${idx}`} className="border-b border-line/30">
                     <td className="text-xs font-bold text-ink">{idx === 0 ? v.fecha.slice(0, 10) : ''}</td>
                     <td className="font-black uppercase text-xs text-ink">{item.nombre}</td>
@@ -659,7 +659,8 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     aplicaIVA: producto?.aplicaIVA ?? false,
     isKit: producto?.isKit || false,
     kitType: producto?.kitType || 'stock_propio',
-    kitItems: producto?.kitItems || []
+    kitItems: producto?.kitItems || [],
+    proveedor: producto?.proveedor || (state.proveedores[0]?.nombre || '')
   });
 
   const [kitSearch, setKitSearch] = useState('');
@@ -806,6 +807,12 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   </div>
                   <select className="form-select h-10 text-xs font-bold" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
                     {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-ink/50 block mb-1">Proveedor Asignado</label>
+                  <select className="form-select h-10 text-xs font-bold" value={datos.proveedor} onChange={e => setDatos({...datos, proveedor: e.target.value})}>
+                    {state.proveedores.map(p => <option key={p.id} value={p.nombre}>{p.nombre.toUpperCase()}</option>)}
                   </select>
                 </div>
               </div>

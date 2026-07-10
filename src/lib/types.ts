@@ -54,6 +54,15 @@ export interface Product {
   precio?: number;
 }
 
+export interface Supplier {
+  id: string;
+  nombre: string;
+  rif: string;
+  contacto: string;
+  direccion: string;
+  telefono: string;
+}
+
 export interface PagoRealizado {
   metodo: PaymentMethod;
   montoUSD: number;
@@ -164,7 +173,7 @@ export interface AppState {
   categorias: string[];
   marcas: string[];
   presentaciones: string[];
-  proveedores: string[];
+  proveedores: Supplier[];
   reportesZ: ReportZ[];
   ultimoZ: number;
   proximoRecibo: number;
