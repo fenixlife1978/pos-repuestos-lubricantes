@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -33,6 +32,7 @@ import CxCModule from '@/components/modules/CxCModule';
 import CxPModule from '@/components/modules/CxPModule';
 import ReportsModule from '@/components/modules/ReportsModule';
 import ConfigModule from '@/components/modules/ConfigModule';
+import UsersModule from '@/components/modules/UsersModule';
 
 export default function LicoreriaPOS() {
   const [state, setState] = useState<AppState>(initialState);
@@ -42,21 +42,18 @@ export default function LicoreriaPOS() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isOnline, setIsOnline] = useState(true);
   
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    operaciones: true,
-    finanzas: true,
-    sistema: true
-  });
-
   useEffect(() => {
     setMounted(true);
-    const loadedState = Store.get();
-    setState(loadedState);
+    
+    // Conexión en tiempo real con Firebase RTDB
+    const unsubscribe = Store.subscribe((newState) => {
+      setState(newState);
+    });
 
-    // Reloj en tiempo real - Sincronizado cada segundo
+    // Reloj en tiempo real
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
-    // Monitoreo de conexión en tiempo real
+    // Monitoreo de conexión
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     
@@ -67,6 +64,7 @@ export default function LicoreriaPOS() {
     }
 
     return () => {
+      unsubscribe();
       clearInterval(timer);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -81,7 +79,7 @@ export default function LicoreriaPOS() {
 
   const handleModuleChange = (moduleId: string) => {
     setActiveModule(moduleId);
-    setIsSidebarOpen(false); // Ocultar sidebar después de seleccionar (UX Móvil)
+    setIsSidebarOpen(false);
   };
 
   const menuGroups = [
@@ -123,25 +121,17 @@ export default function LicoreriaPOS() {
       case 'cxp': return <CxPModule state={state} updateState={updateState} />;
       case 'reportes': return <ReportsModule state={state} />;
       case 'config': return <ConfigModule state={state} updateState={updateState} />;
+      case 'usuarios': return <UsersModule />;
       default: return <DashboardModule state={state} />;
     }
   };
 
-  // Formateo con zona horaria de Caracas para evitar desajustes de servidor/cliente
   const timeStr = mounted ? currentTime.toLocaleTimeString('es-VE', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    second: '2-digit', 
-    hour12: true,
-    timeZone: 'America/Caracas' 
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/Caracas' 
   }) : '--:--:--';
 
   const dateStr = mounted ? currentTime.toLocaleDateString('es-VE', { 
-    weekday: 'short', 
-    day: '2-digit', 
-    month: 'short', 
-    year: 'numeric',
-    timeZone: 'America/Caracas'
+    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Caracas'
   }) : '...';
 
   return (
@@ -170,7 +160,6 @@ export default function LicoreriaPOS() {
               <div className="px-2.5 mb-2 text-[0.66rem] font-bold text-ink uppercase tracking-[0.18em]">
                 {group.label}
               </div>
-              
               <div className="space-y-1">
                 {group.items.map((item) => {
                   const Icon = item.icon;
@@ -217,7 +206,7 @@ export default function LicoreriaPOS() {
 
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col min-h-screen max-w-full overflow-hidden">
-        {/* TOPBAR - FIJO CON INDICADORES */}
+        {/* TOPBAR */}
         <header className="sticky top-0 z-30 bg-surface-warm/85 backdrop-blur-md border-b border-line px-7 py-3.5 flex items-center gap-6 no-print">
           <button className="lg:hidden p-2 -ml-2 text-ink" onClick={() => setIsSidebarOpen(true)}>
             <Menu className="w-[18px] h-[18px]" />
@@ -232,69 +221,45 @@ export default function LicoreriaPOS() {
             </p>
           </div>
 
-          {/* INDICADORES CENTRALES */}
           <div className="hidden md:flex items-center gap-4 mx-auto">
-            {/* Reloj Local (Caracas) */}
             <div className="flex items-center gap-2.5 px-4 py-2 bg-white/70 rounded-xl border border-line shadow-sm min-w-[160px]">
               <div className="w-8 h-8 bg-brand-gold-soft rounded-lg flex items-center justify-center">
                 <ClockIcon className="w-4 h-4 text-brand-gold-deep" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[0.65rem] font-black uppercase text-ink opacity-50 leading-none mb-0.5">
-                  {dateStr}
-                </span>
-                <span className="text-[0.88rem] font-black text-ink leading-none tabular-nums">
-                  {timeStr}
-                </span>
+                <span className="text-[0.65rem] font-black uppercase text-ink opacity-50 leading-none mb-0.5">{dateStr}</span>
+                <span className="text-[0.88rem] font-black text-ink leading-none tabular-nums">{timeStr}</span>
               </div>
             </div>
 
-            {/* Estado de Red (Internet) */}
             <div className="flex items-center gap-2.5 px-4 py-2 bg-white/70 rounded-xl border border-line shadow-sm">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${mounted && isOnline ? 'bg-status-success-soft' : 'bg-status-danger-soft'}`}>
-                {mounted && isOnline ? (
-                  <Wifi className="w-4 h-4 text-status-success" />
-                ) : (
-                  <WifiOff className="w-4 h-4 text-status-danger" />
-                )}
+                {mounted && isOnline ? <Wifi className="w-4 h-4 text-status-success" /> : <WifiOff className="w-4 h-4 text-status-danger" />}
               </div>
               <div className="flex flex-col">
-                <span className="text-[0.65rem] font-black uppercase text-ink opacity-50 leading-none mb-0.5">Estado Red</span>
+                <span className="text-[0.65rem] font-black uppercase text-ink opacity-50 leading-none mb-0.5">Cloud Sync</span>
                 <div className="flex items-center gap-1.5 leading-none">
                   <div className={`w-1.5 h-1.5 rounded-full ${mounted ? (isOnline ? 'bg-status-success animate-pulse' : 'bg-status-danger') : 'bg-ink/20'}`} />
                   <span className={`text-[0.74rem] font-black uppercase ${mounted ? (isOnline ? 'text-status-success' : 'text-status-danger') : 'text-ink/20'}`}>
-                    {mounted ? (isOnline ? 'Sincronizado' : 'Sin Internet') : 'Detectando...'}
+                    {mounted ? (isOnline ? 'Conectado' : 'Offline') : 'Conectando...'}
                   </span>
                 </div>
               </div>
             </div>
-
-            {/* Tasa BCV */}
-            <div className="hidden lg:flex items-center gap-2.5 px-4 py-2 bg-brand-gold-soft/40 rounded-xl border border-brand-gold/20 shadow-sm">
-              <RefreshCw className="w-3.5 h-3.5 text-brand-gold-deep" />
-              <div className="flex flex-col">
-                <span className="text-[0.65rem] font-black uppercase text-brand-gold-deep leading-none mb-0.5">Tasa Sistema</span>
-                <span className="text-[0.88rem] font-black text-ink leading-none">
-                  {state.tasa.toFixed(2)} <span className="text-[0.65rem] opacity-60">Bs</span>
-                </span>
-              </div>
-            </div>
           </div>
 
-          {/* ACCIONES DERECHA */}
           <div className="flex items-center gap-3 ml-auto">
             <button className="relative w-[38px] h-[38px] rounded-[10px] bg-white border border-line flex items-center justify-center text-ink hover:text-brand-gold transition-colors shadow-sm-card">
               <Bell className="w-4 h-4" />
               <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-status-danger rounded-full border-2 border-background" />
             </button>
-
             <div className="flex items-center gap-2.5 pl-3 border-l border-line ml-1">
               <div className="text-right hidden sm:block">
-                <div className="text-sm font-bold text-ink leading-none">Mariana R.</div>
-                <div className="text-[0.66rem] font-bold text-ink opacity-60 uppercase mt-1 tracking-wider">Administrador</div>
+                <div className="text-sm font-bold text-ink leading-none">Administrador</div>
+                <div className="text-[0.66rem] font-bold text-ink opacity-60 uppercase mt-1 tracking-wider">Perfil Cloud</div>
               </div>
               <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-brand-gold to-[#E7B857] flex items-center justify-center text-white font-black text-xs border border-white/20 shadow-sm">
-                MR
+                AD
               </div>
             </div>
           </div>
@@ -307,10 +272,10 @@ export default function LicoreriaPOS() {
 
         {/* FOOTER */}
         <footer className="px-8 py-6 border-t border-line text-[0.76rem] font-black text-ink flex flex-col sm:flex-row justify-between gap-4 no-print bg-surface-warm/30">
-          <div>© 2026 PosVEN Pro · Sistema administrativo para Venezuela</div>
+          <div>© 2026 PosVEN Pro · Conectado a Firebase RTDB</div>
           <div className="flex gap-4 items-center">
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse" /> SENIAT Conectado</span>
-            <span className="px-2 py-0.5 bg-white border border-line rounded text-[0.65rem] font-black">v2.4.0</span>
+            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse" /> Servidores Activos</span>
+            <span className="px-2 py-0.5 bg-white border border-line rounded text-[0.65rem] font-black">v2.5.0-cloud</span>
           </div>
         </footer>
       </main>

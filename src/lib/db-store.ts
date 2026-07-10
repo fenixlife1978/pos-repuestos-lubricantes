@@ -1,8 +1,11 @@
 "use client";
 
 import { AppState } from './types';
+import { rtdb } from './firebase';
+import { ref, set, onValue, off } from "firebase/database";
 
 const STORAGE_KEY = 'licoreriaPOS_v2';
+const RTDB_PATH = 'pos_system_data';
 
 export const initialState: AppState = {
   tasa: 36.50,
@@ -33,24 +36,30 @@ export const initialState: AppState = {
 };
 
 export const Store = {
+  // Suscribirse a cambios en tiempo real
+  subscribe(callback: (state: AppState) => void) {
+    const dataRef = ref(rtdb, RTDB_PATH);
+    onValue(dataRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        callback({ ...initialState, ...val });
+      } else {
+        // Si no hay datos en RTDB, inicializar con el estado por defecto o local
+        const local = localStorage.getItem(STORAGE_KEY);
+        const data = local ? JSON.parse(local) : initialState;
+        this.set(data);
+        callback(data);
+      }
+    });
+    return () => off(dataRef);
+  },
+
   get(): AppState {
     if (typeof window === 'undefined') return initialState;
     const d = localStorage.getItem(STORAGE_KEY);
     if (!d) return initialState;
     try {
-      const parsed = JSON.parse(d);
-      return { 
-        ...initialState, 
-        ...parsed,
-        departamentos: parsed.departamentos || initialState.departamentos,
-        categorias: parsed.categorias || initialState.categorias,
-        marcas: parsed.marcas || initialState.marcas,
-        presentaciones: parsed.presentaciones || initialState.presentaciones,
-        proveedores: parsed.proveedores || initialState.proveedores,
-        proximoRecibo: parsed.proximoRecibo || initialState.proximoRecibo,
-        proximaDevolucion: parsed.proximaDevolucion || initialState.proximaDevolucion,
-        clientes: parsed.clientes || []
-      };
+      return JSON.parse(d);
     } catch {
       return initialState;
     }
@@ -58,7 +67,10 @@ export const Store = {
 
   set(state: AppState) {
     if (typeof window === 'undefined') return;
+    // Persistencia Dual: Local (Cache) + RTDB (Sincronización)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const dataRef = ref(rtdb, RTDB_PATH);
+    set(dataRef, state).catch(err => console.error("Error RTDB Sync:", err));
   },
 
   uid(): string {
@@ -86,7 +98,6 @@ export const Utils = {
   },
   hoy: () => Utils.getVzlaDate().slice(0, 10),
   ahora: () => Utils.getVzlaDate(),
-  // Redondeo de precisión financiera (EPSILON evita errores de aproximación en JS)
   round: (v: number) => Math.round((v + Number.EPSILON) * 100) / 100,
   fmtUSD: (v: number) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   fmtBS: (v: number) => 'Bs. ' + Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
