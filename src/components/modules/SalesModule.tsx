@@ -619,10 +619,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                     </div>
                     <button 
                       onClick={() => setShowMultiModal(true)} 
-                      className="w-12 h-12 bg-[#c8952e] text-black rounded-xl shadow-lg flex items-center justify-center hover:bg-[#d9a540] transition-all transform hover:scale-105 active:scale-95"
+                      className="w-11 h-11 bg-[#c8952e] text-black rounded-xl shadow-lg flex items-center justify-center hover:bg-[#d9a540] transition-all transform hover:scale-105 active:scale-95"
                       title="Registrar Abono"
                     >
-                      <Wallet className="w-7 h-7" />
+                      <Wallet className="w-6 h-6" />
                     </button>
                   </div>
 
@@ -830,6 +830,55 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       )}
 
       {/* MODALES DE SOPORTE */}
+      {showReport && (
+        <div className="modal show no-print"><div className="modal-bg" onClick={() => setShowReport(null)}></div>
+          <div className="modal-box max-w-sm bg-white border-2 border-line">
+            <div className="modal-head py-3 px-4 border-b border-line flex justify-between items-center bg-surface-soft">
+              <h3 className="text-ink font-black uppercase text-[10px]">INFORME DE AUDITORÍA (TIPO {showReport})</h3>
+              <button onClick={() => setShowReport(null)} className="text-ink hover:text-brand-gold"><X className="w-4 h-4"/></button>
+            </div>
+            <div className="modal-body p-6 font-mono text-[11px] leading-tight space-y-4">
+              <div className="text-center space-y-1">
+                <p className="font-black text-sm uppercase">{state.empresa.nombre}</p>
+                <p className="text-[10px]">RIF: {state.empresa.rif}</p>
+                <p className="text-[10px]">{state.empresa.direccion}</p>
+                <p className="pt-3 font-black border-t border-dashed border-black/30 mt-2 uppercase tracking-tighter">REPORTE DE VENTAS - {Utils.hoy()}</p>
+              </div>
+
+              <div className="space-y-1 text-[10px]">
+                <div className="flex justify-between"><span>HORA EMISIÓN:</span><span>{Utils.ahora().split('T')[1].slice(0, 8)}</span></div>
+                <div className="flex justify-between"><span>TERMINAL:</span><span>{getCurrentTerminal()?.nombre || 'S/T'}</span></div>
+                <div className="flex justify-between"><span>TASA BCV:</span><span>{state.tasa.toFixed(2)}</span></div>
+              </div>
+
+              <div className="border-t border-dashed border-black/30 pt-3 space-y-2">
+                <p className="font-black text-center mb-2">RESUMEN POR MÉTODO</p>
+                {Object.entries(breakdown).map(([m, val]: any) => (
+                  <div key={m} className="flex justify-between items-end gap-2">
+                    <span className="truncate">{Utils.metodoLabel(m).toUpperCase()}</span>
+                    <span className="shrink-0 font-bold">{Utils.fmtUSD(val.usd)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-dashed border-black/30 pt-3 space-y-1">
+                <div className="flex justify-between font-black text-xs"><span>VENTA TOTAL BRUTA:</span><span>{Utils.fmtUSD(rTotalUSD)}</span></div>
+                <div className="flex justify-between font-bold"><span>EQUIV. BOLÍVARES:</span><span>{Utils.fmtBS(rTotalBS)}</span></div>
+              </div>
+
+              <div className="pt-4 space-y-1 opacity-60 text-center italic border-t border-dashed border-black/30">
+                <p>FIN DEL DOCUMENTO</p>
+                <p className="text-[8px] uppercase">PosVEN Pro Cloud Sync</p>
+              </div>
+
+              <button onClick={() => window.print()} className="btn btn-primary w-full h-11 mt-4 font-black uppercase text-[10px] shadow-lg flex items-center justify-center gap-2">
+                <Printer className="w-4 h-4" /> Imprimir Informe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAbonoModal && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowAbonoModal(null)}></div>
           <div className="modal-box max-w-[420px] bg-white border-2 border-line">
