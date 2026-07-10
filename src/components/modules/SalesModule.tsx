@@ -27,7 +27,9 @@ import {
   User,
   AlertTriangle,
   Undo2,
-  Lock
+  Lock,
+  RefreshCw,
+  Check
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 
@@ -76,6 +78,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
   const [refundMethod, setRefundMethod] = useState<'EFECTIVO' | 'MISMO_METODO' | 'CREDITO_TIENDA'>('EFECTIVO');
   const [returnReason, setReturnReason] = useState('');
+
+  // ⭐ ESTADOS PARA EDICIÓN DE TASA BCV
+  const [editandoTasa, setEditandoTasa] = useState(false);
+  const [nuevaTasa, setNuevaTasa] = useState(state.tasa.toString());
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const printRef = useRef<HTMLDivElement | null>(null);
@@ -253,6 +259,18 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const getCurrentTerminal = () => {
     const currentUserId = auth.currentUser?.email?.replace(/\W/g, '_');
     return state.terminales.find(t => t.usuarioId === currentUserId);
+  };
+
+  // ⭐ Función para guardar la nueva tasa
+  const guardarNuevaTasa = () => {
+    const n = parseFloat(nuevaTasa);
+    if (isNaN(n) || n <= 0) {
+      alert('Ingrese una tasa válida mayor a cero');
+      return;
+    }
+    updateState({ tasa: n });
+    setEditandoTasa(false);
+    setNuevaTasa(n.toString());
   };
 
   const ejecutarVenta = () => {
@@ -750,6 +768,62 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">IDENTIFICACIÓN CLIENTE</label>
                   <input className="form-input h-8 text-xs bg-surface-soft text-ink border-line font-black uppercase" value={cliente} onChange={e => setCliente(e.target.value)} />
                 </div>
+
+                {/* ⭐ NUEVO BLOQUE: TASA BCV EDITABLE */}
+                <div className="bg-brand-gold-soft/30 border border-brand-gold/30 rounded-lg p-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-ink text-[9px] font-black uppercase tracking-wider">TASA BCV</label>
+                    <div className="flex items-center gap-1">
+                      {!editandoTasa ? (
+                        <>
+                          <span className="text-ink font-black text-sm">{state.tasa.toFixed(2)}</span>
+                          <button 
+                            onClick={() => { setEditandoTasa(true); setNuevaTasa(state.tasa.toString()); }}
+                            className="text-ink/40 hover:text-brand-gold transition-colors p-0.5"
+                            title="Actualizar tasa"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <input 
+                            type="text"
+                            inputMode="decimal"
+                            value={nuevaTasa}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (/^[\d]*\.?[\d]*$/.test(val) || val === '') {
+                                setNuevaTasa(val);
+                              }
+                            }}
+                            className="w-16 bg-white border border-brand-gold rounded px-1 py-0.5 text-ink font-black text-sm text-right focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                            autoFocus
+                            onKeyDown={(e) => e.key === 'Enter' && guardarNuevaTasa()}
+                          />
+                          <button 
+                            onClick={guardarNuevaTasa}
+                            className="text-green-600 hover:text-green-800 transition-colors p-0.5"
+                            title="Confirmar nueva tasa"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => { setEditandoTasa(false); setNuevaTasa(state.tasa.toString()); }}
+                            className="text-red-500 hover:text-red-700 transition-colors p-0.5"
+                            title="Cancelar"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-[8px] text-ink/40 font-black uppercase tracking-tight mt-0.5">
+                    {editandoTasa ? 'Modifique y confirme con ✓' : 'Pulse ↻ para actualizar'}
+                  </div>
+                </div>
+
                 <div className="flex-1 flex flex-col min-h-0">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">MÉTODOS APLICADOS</label>
                   <div className="flex-1 p-2 border border-line bg-surface-soft rounded-lg overflow-y-auto">
@@ -925,7 +999,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           </div>
         </div>
       ) : (
-        /* VISTA DE DEVOLUCIONES INTEGRADA */
+        /* VISTA DE DEVOLUCIONES INTEGRADA (sin cambios) */
         <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-2 duration-300 flex-1 overflow-y-auto">
           <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-line shadow-sm shrink-0">
             <div>
@@ -1010,7 +1084,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   </div>
                 </div>
               ) : (
-                /* ETAPA 2: PROCESAMIENTO (CON SCROLL) */
+                /* ETAPA 2: PROCESAMIENTO (CON SCROLL) - igual que antes */
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-y-auto pr-1 animate-in slide-in-from-right-2 duration-300">
                   <div className="lg:col-span-2 flex flex-col gap-4">
                     <div className="card bg-white border-status-info/30 flex flex-col min-h-[200px] rounded-xl overflow-hidden shadow-sm">
@@ -1133,7 +1207,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* MODAL DETALLES CREDITO */}
+      {/* MODALES (sin cambios, se mantienen igual que en el original) */}
       {showDetailsModal && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowDetailsModal(null)}></div>
           <div className="modal-box bg-white border-2 border-line max-w-lg">
@@ -1167,7 +1241,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* MODAL HISTORIAL DE ABONOS */}
       {showHistoryModal && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowHistoryModal(null)}></div>
           <div className="modal-box bg-white border-2 border-line max-w-lg">
@@ -1203,7 +1276,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* MODAL ABONO GENERAL CON CALCULADORA INTELIGENTE */}
       {showAbonoModal && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowAbonoModal(null)}></div>
           <div className="modal-box max-w-[420px] bg-white border-2 border-line">
@@ -1277,7 +1349,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* Modal Multi-pago POS */}
       {showMultiModal && (
         <div className="modal show"><div className="modal-bg" onClick={() => { setShowMultiModal(false); setIsCreditView(false); }}></div>
           <div className="modal-box max-w-[380px] bg-white border-2 border-line">
@@ -1421,17 +1492,14 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* MODAL REPORTE Y/Z */}
       {showReport && (
-        <div className="modal show">
-          <div className="modal-bg" onClick={() => setShowReport(null)}></div>
+        <div className="modal show"><div className="modal-bg" onClick={() => setShowReport(null)}></div>
           <div className="modal-box bg-white max-w-sm border-2 border-line">
             <div className="modal-head py-3 px-4 border-b border-line flex justify-between items-center">
               <h3 className="text-ink text-xs font-black uppercase">REPORTE FISCAL {showReport}</h3>
               <button onClick={() => setShowReport(null)} className="text-ink/40 hover:text-ink"><X className="w-4 h-4"/></button>
             </div>
             <div className="modal-body p-4 space-y-4">
-               {/* Contenedor para impresión tradicional */}
                <div ref={reportPrintRef} className="bg-white p-4 font-mono text-[10px] text-black border border-line shadow-inner leading-tight">
                   <div className="text-center border-b border-dashed border-black pb-2 mb-2">
                     <p className="font-bold text-sm">{state.empresa.nombre.toUpperCase()}</p>

@@ -243,6 +243,9 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
   );
 }
 
+// ============================================================
+// ReporteGeneral (sin cambios)
+// ============================================================
 function ReporteGeneral({ state }: { state: AppState }) {
   const [groupBy, setGroupBy] = useState<'categoria' | 'departamento' | 'proveedor'>('categoria');
   const [filterValue, setFilterValue] = useState<string>('');
@@ -312,6 +315,9 @@ function ReporteGeneral({ state }: { state: AppState }) {
   );
 }
 
+// ============================================================
+// ReporteVentas (sin cambios)
+// ============================================================
 function ReporteVentas({ state }: { state: AppState }) {
   const [filter, setFilter] = useState('hoy');
   const ventas = state.ventas.filter(v => filter === 'hoy' ? v.fecha.startsWith(Utils.hoy()) : true);
@@ -359,6 +365,9 @@ function ReporteVentas({ state }: { state: AppState }) {
   );
 }
 
+// ============================================================
+// ReporteDevoluciones (sin cambios)
+// ============================================================
 function ReporteDevoluciones({ state }: { state: AppState }) {
   const devoluciones = state.devoluciones || [];
   const totalUSD = devoluciones.reduce((acc, d) => acc + d.totalUSD, 0);
@@ -401,6 +410,9 @@ function ReporteDevoluciones({ state }: { state: AppState }) {
   );
 }
 
+// ============================================================
+// ReporteKardex (sin cambios)
+// ============================================================
 function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selectedId: string | null, onSelect: (id: string) => void }) {
   const [search, setSearch] = useState('');
   const selectedProd = selectedId ? state.productos.find(p => p.id === selectedId) : null;
@@ -445,6 +457,9 @@ function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selec
   );
 }
 
+// ============================================================
+// HistorialAjustes (sin cambios)
+// ============================================================
 function HistorialAjustes({ state }: { state: AppState }) {
   const ajustes = state.movimientos.filter(m => ['ajuste_entrada', 'ajuste_salida', 'consumo', 'colaboracion', 'compra'].includes(m.tipo)).sort((a, b) => b.fecha.localeCompare(a.fecha));
   const efectoNetoUSD = Utils.round(ajustes.reduce((acc, m) => {
@@ -497,6 +512,9 @@ function HistorialAjustes({ state }: { state: AppState }) {
   );
 }
 
+// ============================================================
+// ReporteConsumo (sin cambios)
+// ============================================================
 function ReporteConsumo({ state }: { state: AppState }) {
   const movs = state.movimientos.filter(m => m.tipo === 'consumo' || m.tipo === 'colaboracion');
   const totalPerdidaUSD = Utils.round(movs.reduce((acc, m) => {
@@ -547,6 +565,9 @@ function ReporteConsumo({ state }: { state: AppState }) {
   );
 }
 
+// ============================================================
+// ModalAjuste (sin cambios)
+// ============================================================
 function ModalAjuste({ producto, onClose, onSave }: { producto: Product, onClose: () => void, onSave: (m: Movimiento, nuevoCosto?: number) => void }) {
   const [tipo, setTipo] = useState<'ajuste_entrada' | 'ajuste_salida' | 'consumo' | 'colaboracion'>('ajuste_entrada');
   const [cantidad, setCantidad] = useState<string>('1');
@@ -595,6 +616,9 @@ function ModalAjuste({ producto, onClose, onSave }: { producto: Product, onClose
   );
 }
 
+// ============================================================
+// ModalProducto (CORREGIDO: solo pestaña de precios)
+// ============================================================
 function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { producto?: Product, state: AppState, onClose: () => void, onSave: (p: any) => void, onUpdateLists: (l: any) => void }) {
   const [activeTab, setActiveTab] = useState<'general' | 'precios' | 'kit'>('general');
   const [datos, setDatos] = useState<any>({
@@ -603,15 +627,15 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     categoria: producto?.categoria || state.categorias[0] || '',
     marca: producto?.marca || state.marcas[0] || '',
     presentacion: producto?.cantidad || state.presentaciones[0] || '',
-    costoUSD: String(producto?.costoUSD || '0'),
-    margen: String(producto?.margen || '0'),
-    precioUSD: String(producto?.precioUSD || '0'),
-    precioBS: String(Utils.round((producto?.precioUSD || 0) * state.tasa)),
-    precioMayorUSD: String(producto?.precioMayorUSD || '0'),
-    precioPromoUSD: String(producto?.precioPromoUSD || '0'),
-    precioDescuentoUSD: String(producto?.precioOfertaUSD || '0'),
-    stock: String(producto?.stock || '0'),
-    stockMinimo: String(producto?.stockMinimo || '3'),
+    costoUSD: producto?.costoUSD?.toString() ?? '0',
+    margen: producto?.margen?.toString() ?? '0',
+    precioUSD: producto?.precioUSD?.toString() ?? '0',
+    precioBS: ((producto?.precioUSD || 0) * state.tasa).toString(),
+    precioMayorUSD: producto?.precioMayorUSD?.toString() ?? '0',
+    precioPromoUSD: producto?.precioPromoUSD?.toString() ?? '0',
+    precioDescuentoUSD: producto?.precioOfertaUSD?.toString() ?? '0',
+    stock: producto?.stock?.toString() ?? '0',
+    stockMinimo: producto?.stockMinimo?.toString() ?? '3',
     aplicaIVA: producto?.aplicaIVA ?? false,
     isKit: producto?.isKit || false,
     kitItems: producto?.kitItems || []
@@ -623,67 +647,86 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     return state.productos.filter(p => !p.isKit && (p.nombre.toLowerCase().includes(kitSearch.toLowerCase()) || p.codigo.toLowerCase().includes(kitSearch.toLowerCase()))).slice(0, 5);
   }, [kitSearch, state.productos]);
 
-  // Lógica Tridireccional: Markup sobre ventas (Price = Cost / (1 - Margin))
-  const syncFromMargin = (cost: number, margin: number) => {
-    const price = margin >= 100 ? cost : cost / (1 - margin / 100);
-    const priceBS = price * state.tasa;
-    setDatos((prev: any) => ({ 
-      ...prev, 
-      costoUSD: String(cost),
-      margen: String(margin), 
-      precioUSD: String(Utils.round(price)), 
-      precioBS: String(Utils.round(priceBS)) 
-    }));
-  };
+  // Función de validación para campos decimales (permite dígitos y un punto)
+  const validarDecimal = (val: string) => /^[\d]*\.?[\d]*$/.test(val) || val === '';
 
-  const syncFromPriceUSD = (cost: number, priceUSD: number) => {
-    const margin = priceUSD > 0 ? ((priceUSD - cost) / priceUSD) * 100 : 0;
-    const priceBS = priceUSD * state.tasa;
-    setDatos((prev: any) => ({ 
-      ...prev, 
-      costoUSD: String(cost),
-      margen: String(Utils.round(margin)), 
-      precioUSD: String(priceUSD), 
-      precioBS: String(Utils.round(priceBS)) 
-    }));
-  };
+  // ============================================================
+  // LÓGICA TRIDIRECCIONAL (sin redondeo, máxima precisión)
+  // ============================================================
 
-  const syncFromPriceBS = (cost: number, priceBS: number) => {
-    const priceUSD = priceBS / state.tasa;
-    const margin = priceUSD > 0 ? ((priceUSD - cost) / priceUSD) * 100 : 0;
-    setDatos((prev: any) => ({ 
-      ...prev, 
-      costoUSD: String(cost),
-      margen: String(Utils.round(margin)), 
-      precioUSD: String(Utils.round(priceUSD)), 
-      precioBS: String(priceBS) 
-    }));
-  };
-
-  const handleCostoChange = (val: string) => {
-    const c = parseFloat(val) || 0;
-    const m = parseFloat(datos.margen) || 0;
-    syncFromMargin(c, m);
-  };
-
+  // Cambio en Margen % → recalcula Venta USD y Venta BS
   const handleMargenChange = (val: string) => {
-    const c = parseFloat(datos.costoUSD) || 0;
-    const m = parseFloat(val) || 0;
-    syncFromMargin(c, m);
+    if (!validarDecimal(val)) return;
+    setDatos((prev: any) => {
+      const cost = parseFloat(prev.costoUSD) || 0;
+      const margin = parseFloat(val) || 0;
+      let price = 0;
+      if (cost > 0 && margin > 0 && margin < 100) {
+        price = cost / (1 - margin / 100);
+      } else if (margin >= 100) {
+        price = cost;
+      }
+      const priceBS = price * state.tasa;
+      return {
+        ...prev,
+        margen: val,
+        precioUSD: price > 0 ? price.toString() : '0',
+        precioBS: priceBS > 0 ? priceBS.toString() : '0'
+      };
+    });
   };
 
+  // Cambio en Venta USD → recalcula Margen % y Venta BS
   const handlePriceUSDChange = (val: string) => {
-    const c = parseFloat(datos.costoUSD) || 0;
-    const p = parseFloat(val) || 0;
-    syncFromPriceUSD(c, p);
+    if (!validarDecimal(val)) return;
+    setDatos((prev: any) => {
+      const cost = parseFloat(prev.costoUSD) || 0;
+      const priceUSD = parseFloat(val) || 0;
+      let margin = 0;
+      if (priceUSD > 0 && cost > 0) {
+        margin = ((priceUSD - cost) / priceUSD) * 100;
+        if (margin > 99.99) margin = 99.99;
+      }
+      const priceBS = priceUSD * state.tasa;
+      return {
+        ...prev,
+        precioUSD: val,
+        margen: margin > 0 ? margin.toString() : '0',
+        precioBS: priceBS > 0 ? priceBS.toString() : '0'
+      };
+    });
   };
 
+  // Cambio en Venta BS → recalcula Margen % y Venta USD
   const handlePriceBSChange = (val: string) => {
-    const c = parseFloat(datos.costoUSD) || 0;
-    const p = parseFloat(val) || 0;
-    syncFromPriceBS(c, p);
+    if (!validarDecimal(val)) return;
+    setDatos((prev: any) => {
+      const cost = parseFloat(prev.costoUSD) || 0;
+      const priceBS = parseFloat(val) || 0;
+      const priceUSD = priceBS / state.tasa;
+      let margin = 0;
+      if (priceUSD > 0 && cost > 0) {
+        margin = ((priceUSD - cost) / priceUSD) * 100;
+        if (margin > 99.99) margin = 99.99;
+      }
+      return {
+        ...prev,
+        precioBS: val,
+        precioUSD: priceUSD > 0 ? priceUSD.toString() : '0',
+        margen: margin > 0 ? margin.toString() : '0'
+      };
+    });
   };
 
+  // Cambio en Costo USD → solo actualiza el valor, sin recálculo automático
+  const handleCostoChange = (val: string) => {
+    if (!validarDecimal(val)) return;
+    setDatos((prev: any) => ({ ...prev, costoUSD: val }));
+  };
+
+  // ============================================================
+  // Funciones para listas (sin cambios)
+  // ============================================================
   const handleAddListItem = (listName: 'categorias' | 'marcas' | 'presentaciones') => {
     const newVal = prompt(`Ingrese nueva opción para ${listName.toUpperCase()}:`);
     if (newVal) {
@@ -710,8 +753,8 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
       precioMayorUSD: parseFloat(datos.precioMayorUSD) || 0,
       precioPromoUSD: parseFloat(datos.precioPromoUSD) || 0,
       precioOfertaUSD: parseFloat(datos.precioDescuentoUSD) || 0,
-      stock: parseInt(datos.stock) || 0,
-      stockMinimo: parseInt(datos.stockMinimo) || 0,
+      stock: parseFloat(datos.stock) || 0,
+      stockMinimo: parseFloat(datos.stockMinimo) || 0,
       cantidad: datos.presentacion
     });
   };
@@ -792,11 +835,11 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="p-3 bg-surface-soft border border-line rounded-xl text-center">
                     <label className="text-[9px] font-black uppercase text-ink/50 block mb-1">Stock Inicial</label>
-                    <input className="bg-transparent border-none text-center font-black text-xl w-full focus:outline-none" type="text" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} />
+                    <input className="bg-transparent border-none text-center font-black text-xl w-full focus:outline-none" type="text" inputMode="decimal" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} />
                   </div>
                   <div className="p-3 bg-status-danger-soft border border-status-danger/20 rounded-xl text-center">
                     <label className="text-[9px] font-black uppercase text-status-danger/70 block mb-1">Mínimo Crítico</label>
-                    <input className="bg-transparent border-none text-center font-black text-xl w-full text-status-danger focus:outline-none" type="text" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} />
+                    <input className="bg-transparent border-none text-center font-black text-xl w-full text-status-danger focus:outline-none" type="text" inputMode="decimal" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} />
                   </div>
                 </div>
 
@@ -818,19 +861,43 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-surface-soft p-5 rounded-2xl border border-line shadow-inner">
                 <div className="space-y-1">
                   <label className="text-[9px] font-black uppercase text-ink/50">Costo (USD)</label>
-                  <input className="form-input h-12 font-black text-lg bg-white border-line" type="text" value={datos.costoUSD} onChange={e => handleCostoChange(e.target.value)} />
+                  <input
+                    className="form-input h-12 font-black text-lg bg-white border-line"
+                    type="text"
+                    inputMode="decimal"
+                    value={datos.costoUSD}
+                    onChange={(e) => handleCostoChange(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black uppercase text-brand-gold-deep">Margen % (Markup)</label>
-                  <input className="form-input h-12 font-black text-lg text-brand-gold-deep bg-white border-brand-gold/30" type="text" value={datos.margen} onChange={e => handleMargenChange(e.target.value)} />
+                  <input
+                    className="form-input h-12 font-black text-lg text-brand-gold-deep bg-white border-brand-gold/30"
+                    type="text"
+                    inputMode="decimal"
+                    value={datos.margen}
+                    onChange={(e) => handleMargenChange(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black uppercase text-status-success">Venta (USD)</label>
-                  <input className="form-input h-12 font-black text-lg text-status-success bg-white border-status-success/30" type="text" value={datos.precioUSD} onChange={e => handlePriceUSDChange(e.target.value)} />
+                  <input
+                    className="form-input h-12 font-black text-lg text-status-success bg-white border-status-success/30"
+                    type="text"
+                    inputMode="decimal"
+                    value={datos.precioUSD}
+                    onChange={(e) => handlePriceUSDChange(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-black uppercase text-ink">Venta (BS)</label>
-                  <input className="form-input h-12 font-black text-lg text-ink bg-white border-line" type="text" value={datos.precioBS} onChange={e => handlePriceBSChange(e.target.value)} />
+                  <input
+                    className="form-input h-12 font-black text-lg text-ink bg-white border-line"
+                    type="text"
+                    inputMode="decimal"
+                    value={datos.precioBS}
+                    onChange={(e) => handlePriceBSChange(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -839,21 +906,48 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                    <label className="text-[10px] font-black uppercase text-ink/50 block">Precio al Mayor (USD)</label>
                    <div className="relative">
                      <DollarSign className="absolute left-3 top-3 w-4 h-4 text-ink/30" />
-                     <input className="form-input h-10 pl-9 font-bold text-ink" type="text" value={datos.precioMayorUSD} onChange={e => setDatos({...datos, precioMayorUSD: e.target.value})} />
+                     <input
+                       className="form-input h-10 pl-9 font-bold text-ink"
+                       type="text"
+                       inputMode="decimal"
+                       value={datos.precioMayorUSD}
+                       onChange={(e) => {
+                         const val = e.target.value;
+                         if (validarDecimal(val)) setDatos({...datos, precioMayorUSD: val});
+                       }}
+                     />
                    </div>
                  </div>
                  <div className="space-y-1">
                    <label className="text-[10px] font-black uppercase text-ink/50 block">Precio Promoción (USD)</label>
                    <div className="relative">
                      <Tag className="absolute left-3 top-3 w-4 h-4 text-ink/30" />
-                     <input className="form-input h-10 pl-9 font-bold text-status-info" type="text" value={datos.precioPromoUSD} onChange={e => setDatos({...datos, precioPromoUSD: e.target.value})} />
+                     <input
+                       className="form-input h-10 pl-9 font-bold text-status-info"
+                       type="text"
+                       inputMode="decimal"
+                       value={datos.precioPromoUSD}
+                       onChange={(e) => {
+                         const val = e.target.value;
+                         if (validarDecimal(val)) setDatos({...datos, precioPromoUSD: val});
+                       }}
+                     />
                    </div>
                  </div>
                  <div className="space-y-1">
                    <label className="text-[10px] font-black uppercase text-ink/50 block">Precio con Descuento (USD)</label>
                    <div className="relative">
                      <TrendingUp className="absolute left-3 top-3 w-4 h-4 text-ink/30" />
-                     <input className="form-input h-10 pl-9 font-bold text-status-danger" type="text" value={datos.precioDescuentoUSD} onChange={e => setDatos({...datos, precioDescuentoUSD: e.target.value})} />
+                     <input
+                       className="form-input h-10 pl-9 font-bold text-status-danger"
+                       type="text"
+                       inputMode="decimal"
+                       value={datos.precioDescuentoUSD}
+                       onChange={(e) => {
+                         const val = e.target.value;
+                         if (validarDecimal(val)) setDatos({...datos, precioDescuentoUSD: val});
+                       }}
+                     />
                    </div>
                  </div>
               </div>

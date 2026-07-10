@@ -4,13 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { AppState } from '@/lib/types';
 import { Save, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Store, initialState } from '@/lib/db-store';
 
 export default function ConfigModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [tasa, setTasa] = useState<string | number>(state.tasa);
   const [empresa, setEmpresa] = useState(state.empresa);
   const [pinDevolucion, setPinDevolucion] = useState(state.pinDevolucion || '');
 
-  // Sincronizar estados locales cuando el estado global cambie (ej: desde otra pestaña)
+  // Sincronizar estados locales cuando el estado global cambie
   useEffect(() => {
     setTasa(state.tasa);
     setEmpresa(state.empresa);
@@ -33,6 +34,20 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
     if (pinDevolucion.length !== 6) return alert('El PIN debe ser de 6 dígitos exactos');
     updateState({ pinDevolucion });
     toast({ title: "Seguridad Actualizada", description: "PIN de autorización establecido correctamente." });
+  };
+
+  const formatearSistema = () => {
+    if(confirm('¿ESTÁ TOTALMENTE SEGURO? Esta acción borrará PRODUCTOS, VENTAS, CRÉDITOS Y CONFIGURACIÓN de la nube. Los usuarios NO se borrarán. Esta acción no se puede deshacer.')) {
+      // 1. Sobrescribir la base de datos en la nube (RTDB) con el estado inicial
+      // Conservamos solo la estructura base. Los usuarios están en Firestore y no se tocan.
+      Store.set(initialState);
+      
+      // 2. Limpiar cache local
+      localStorage.clear();
+      
+      // 3. Reiniciar la aplicación para cargar el estado limpio
+      window.location.reload();
+    }
   };
 
   return (
@@ -136,11 +151,11 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
         </div>
         <div className="card-body p-6">
           <p className="text-xs text-ink font-bold mb-5 uppercase leading-relaxed tracking-tight">
-            Esta acción borrará permanentemente la base de datos en la nube y reiniciará el sistema.
+            Esta acción borrará permanentemente la base de datos en la nube (excepto usuarios) y reiniciará el sistema.
           </p>
           <button 
             className="btn btn-danger h-12 px-8 font-black uppercase text-xs shadow-xl" 
-            onClick={() => { if(confirm('¿ESTÁ SEGURO DE ELIMINAR TODA LA INFORMACIÓN? ESTO NO SE PUEDE DESHACER.')) { localStorage.clear(); window.location.reload(); } }}
+            onClick={formatearSistema}
           >
             <AlertTriangle className="w-4 h-4" /> Formatear Sistema Completo
           </button>
