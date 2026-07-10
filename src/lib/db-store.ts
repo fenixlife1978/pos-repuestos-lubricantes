@@ -23,16 +23,16 @@ export const initialState: AppState = {
   proximaDevolucion: 1,
   acumuladoHistorico: 0,
   empresa: { 
-    nombre: 'Licorería El Buen Beber', 
-    rif: 'J-12345678-9', 
-    direccion: 'Av. Principal, Local 5', 
-    telefono: '0412-1234567' 
+    nombre: 'NOMBRE DE SU NEGOCIO', 
+    rif: 'J-00000000-0', 
+    direccion: 'DIRECCIÓN FISCAL', 
+    telefono: '0000-0000000' 
   },
-  departamentos: ['Licores', 'Viveres', 'Charcuteria', 'Tabaco', 'Snacks', 'Limpieza', 'Otros'],
-  categorias: ['Whisky', 'Ron', 'Vino', 'Cerveza', 'Tequila', 'Champagne', 'Vodka', 'Gin', 'Licores', 'Cerveza Artesanal', 'Sin Alcohol', 'Otros'],
-  marcas: ['Johnnie Walker', 'Santa Teresa', 'Pampero', 'Polar', 'Regional', 'Casillero del Diablo', 'Chivas Regal', 'Jack Daniel\'s'],
-  presentaciones: ['750ml', '1L', '1.75L', '355ml', 'Caja 12', 'Caja 24', 'Litro', 'Unidad'],
-  proveedores: ['Distribuidora Nacional', 'Licorera Central', 'Bodegas del Sur', 'Cervecería Polar', 'Pepsi-Cola Venezuela']
+  departamentos: ['Licores', 'Viveres', 'Otros'],
+  categorias: ['Ron', 'Vino', 'Cerveza', 'Whisky', 'Refrescos', 'Otros'],
+  marcas: ['Genérica'],
+  presentaciones: ['750ml', '1L', 'Unidad', 'Caja'],
+  proveedores: ['Distribuidor General']
 };
 
 export const Store = {
@@ -42,9 +42,9 @@ export const Store = {
     onValue(dataRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
+        // Combinar con arrays vacíos si faltan nodos en DB
         callback({ ...initialState, ...val });
       } else {
-        // Si no hay datos en RTDB, inicializar con el estado por defecto o local
         const local = localStorage.getItem(STORAGE_KEY);
         const data = local ? JSON.parse(local) : initialState;
         this.set(data);
@@ -67,7 +67,6 @@ export const Store = {
 
   set(state: AppState) {
     if (typeof window === 'undefined') return;
-    // Persistencia Dual: Local (Cache) + RTDB (Sincronización)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     const dataRef = ref(rtdb, RTDB_PATH);
     set(dataRef, state).catch(err => console.error("Error RTDB Sync:", err));
@@ -98,7 +97,10 @@ export const Utils = {
   },
   hoy: () => Utils.getVzlaDate().slice(0, 10),
   ahora: () => Utils.getVzlaDate(),
-  round: (v: number) => Math.round((v + Number.EPSILON) * 100) / 100,
+  round: (v: any) => {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : Math.round((n + Number.EPSILON) * 100) / 100;
+  },
   fmtUSD: (v: number) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   fmtBS: (v: number) => 'Bs. ' + Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   fmtFecha: (f: string) => {
