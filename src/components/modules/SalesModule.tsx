@@ -14,7 +14,6 @@ import {
   X, 
   CheckCircle2, 
   FileText,
-  RotateCcw,
   History,
   ClipboardList,
   ArrowLeft,
@@ -32,6 +31,7 @@ import {
   Check
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
+import { ReceiptModal } from '@/components/pos/ReceiptModal';
 
 // ✅ Declarar el tipo de electronAPI en Window para soporte de impresión nativa
 declare global {
@@ -999,7 +999,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           </div>
         </div>
       ) : (
-        /* VISTA DE DEVOLUCIONES INTEGRADA (sin cambios) */
+        /* VISTA DE DEVOLUCIONES INTEGRADA */
         <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-2 duration-300 flex-1 overflow-y-auto">
           <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-line shadow-sm shrink-0">
             <div>
@@ -1084,7 +1084,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   </div>
                 </div>
               ) : (
-                /* ETAPA 2: PROCESAMIENTO (CON SCROLL) - igual que antes */
+                /* ETAPA 2: PROCESAMIENTO (CON SCROLL) */
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-y-auto pr-1 animate-in slide-in-from-right-2 duration-300">
                   <div className="lg:col-span-2 flex flex-col gap-4">
                     <div className="card bg-white border-status-info/30 flex flex-col min-h-[200px] rounded-xl overflow-hidden shadow-sm">
@@ -1207,7 +1207,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* MODALES (sin cambios, se mantienen igual que en el original) */}
+      {/* MODALES */}
       {showDetailsModal && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowDetailsModal(null)}></div>
           <div className="modal-box bg-white border-2 border-line max-w-lg">
@@ -1546,6 +1546,27 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             </div>
           </div>
         </div>
+      )}
+
+      {/* RENDERIZADO DEL RECIBO DE VENTA */}
+      {showReceiptModal && lastProcessedSale && (
+        <ReceiptModal 
+          isOpen={showReceiptModal}
+          onClose={() => setShowReceiptModal(false)}
+          sale={{
+            ...lastProcessedSale,
+            date: lastProcessedSale.fecha || lastProcessedSale.date,
+            customerName: lastProcessedSale.cliente || lastProcessedSale.customerName,
+            paymentMethod: Utils.metodoLabel(lastProcessedSale.metodoPago || lastProcessedSale.paymentMethod),
+            items: (lastProcessedSale.items || []).map((it: any) => ({
+              ...it,
+              qty: it.cantidad || it.qty,
+              price: it.precioUnitUSD || it.price
+            })),
+            // Aseguramos que el tipo sea 'CONTADO' para ventas normales para mostrar cambio/recibido en el modal
+            type: lastProcessedSale.metodoPago !== 'credito' ? 'CONTADO' : 'CRÉDITO'
+          }}
+        />
       )}
     </div>
   );
