@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Package, 
@@ -23,10 +24,13 @@ import {
   Wifi,
   WifiOff,
   Clock as ClockIcon,
-  ShoppingBag
+  ShoppingBag,
+  LogOut
 } from 'lucide-react';
 import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import DashboardModule from '@/components/modules/DashboardModule';
 import InventoryModule from '@/components/modules/InventoryModule';
 import SalesModule from '@/components/modules/SalesModule';
@@ -38,18 +42,31 @@ import UsersModule from '@/components/modules/UsersModule';
 import PurchaseModule from '@/components/modules/PurchaseModule';
 
 export default function LicoreriaPOS() {
+  const router = useRouter();
   const [state, setState] = useState<AppState>(initialState);
   const [activeModule, setActiveModule] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isOnline, setIsOnline] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
+    // Verificación de autenticación
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      if (!currentUser) {
+        router.push('/login');
+      } else {
+        setUser(currentUser);
+        setLoading(false);
+      }
+    });
+
     setMounted(true);
     
     // Conexión en tiempo real con Firebase RTDB
-    const unsubscribe = Store.subscribe((newState) => {
+    const unsubscribeStore = Store.subscribe((newState) => {
       setState(newState);
     });
 
@@ -67,12 +84,20 @@ export default function LicoreriaPOS() {
     }
 
     return () => {
-      unsubscribe();
+      unsubscribeAuth();
+      unsubscribeStore();
       clearInterval(timer);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [router]);
+
+  const handleLogout = async () => {
+    if (confirm('¿Cerrar sesión del sistema?')) {
+      await signOut(auth);
+      router.push('/login');
+    }
+  };
 
   const updateState = (newState: Partial<AppState>) => {
     const updated = { ...state, ...newState };
@@ -116,7 +141,7 @@ export default function LicoreriaPOS() {
   ];
 
   const renderModule = () => {
-    if (!mounted) return null;
+    if (!mounted || loading) return null;
     switch (activeModule) {
       case 'dashboard': return <DashboardModule state={state} />;
       case 'inventario': return <InventoryModule state={state} updateState={updateState} />;
@@ -130,6 +155,17 @@ export default function LicoreriaPOS() {
       default: return <DashboardModule state={state} />;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-warm flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-brand-gold/20 border-t-brand-gold rounded-full animate-spin" />
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink/40">Cargando PosVEN Pro...</p>
+        </div>
+      </div>
+    );
+  }
 
   const timeStr = mounted ? currentTime.toLocaleTimeString('es-VE', { 
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/Caracas' 
@@ -193,7 +229,7 @@ export default function LicoreriaPOS() {
           ))}
         </nav>
         
-        <div className="p-4 border-t border-line bg-surface-warm/50">
+        <div className="p-4 border-t border-line bg-surface-warm/50 flex flex-col gap-2">
           <div className="bg-brand-gold-soft border border-[#EFD9A4] rounded-lg p-3 flex items-center gap-3 shadow-sm">
             <div className="w-7 h-7 rounded-full bg-gradient-to-b from-[#FFD700] via-[#003893] to-[#CF142B] border border-white/20 shadow-inner flex items-center justify-center overflow-hidden">
               <div className="w-full h-full bg-white/10" />
@@ -206,6 +242,14 @@ export default function LicoreriaPOS() {
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
           </div>
+          
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] text-[0.8rem] font-black text-status-danger hover:bg-status-danger-soft transition-all uppercase tracking-widest"
+          >
+            <LogOut className="w-4 h-4" />
+            Cerrar Sistema
+          </button>
         </div>
       </aside>
 
@@ -260,11 +304,11 @@ export default function LicoreriaPOS() {
             </button>
             <div className="flex items-center gap-2.5 pl-3 border-l border-line ml-1">
               <div className="text-right hidden sm:block">
-                <div className="text-sm font-bold text-ink leading-none">Administrador</div>
-                <div className="text-[0.66rem] font-bold text-ink opacity-60 uppercase mt-1 tracking-wider">Perfil Cloud</div>
+                <div className="text-sm font-bold text-ink leading-none">{user?.email?.split('@')[0] || 'Usuario'}</div>
+                <div className="text-[0.66rem] font-bold text-ink opacity-60 uppercase mt-1 tracking-wider">Perfil Activo</div>
               </div>
-              <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-brand-gold to-[#E7B857] flex items-center justify-center text-white font-black text-xs border border-white/20 shadow-sm">
-                AD
+              <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-brand-gold to-[#E7B857] flex items-center justify-center text-white font-black text-xs border border-white/20 shadow-sm uppercase">
+                {user?.email?.charAt(0) || 'U'}
               </div>
             </div>
           </div>
