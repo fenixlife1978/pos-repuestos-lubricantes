@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -21,7 +22,8 @@ import {
   Plus,
   Wifi,
   WifiOff,
-  Clock as ClockIcon
+  Clock as ClockIcon,
+  ShoppingBag
 } from 'lucide-react';
 import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
@@ -33,6 +35,7 @@ import CxPModule from '@/components/modules/CxPModule';
 import ReportsModule from '@/components/modules/ReportsModule';
 import ConfigModule from '@/components/modules/ConfigModule';
 import UsersModule from '@/components/modules/UsersModule';
+import PurchaseModule from '@/components/modules/PurchaseModule';
 
 export default function LicoreriaPOS() {
   const [state, setState] = useState<AppState>(initialState);
@@ -90,6 +93,7 @@ export default function LicoreriaPOS() {
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'inventario', label: 'Inventario', icon: Package, count: state.productos.length },
         { id: 'ventas', label: 'Ventas', icon: ShoppingCart, count: state.ventas.filter(v => v.fecha.startsWith(Utils.hoy())).length },
+        { id: 'compras', label: 'Entradas (Compras)', icon: ShoppingBag },
       ]
     },
     {
@@ -117,6 +121,7 @@ export default function LicoreriaPOS() {
       case 'dashboard': return <DashboardModule state={state} />;
       case 'inventario': return <InventoryModule state={state} updateState={updateState} />;
       case 'ventas': return <SalesModule state={state} updateState={updateState} />;
+      case 'compras': return <PurchaseModule state={state} updateState={updateState} />;
       case 'cxc': return <CxCModule state={state} updateState={updateState} />;
       case 'cxp': return <CxPModule state={state} updateState={updateState} />;
       case 'reportes': return <ReportsModule state={state} />;
