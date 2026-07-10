@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Sale } from '@/lib/types';
 import { Printer, Download, X } from 'lucide-react';
@@ -20,6 +20,11 @@ export function ReceiptModal({ isOpen, onClose, sale }: Props) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-xs p-0 bg-transparent border-none overflow-visible shadow-none">
+        {/* Título requerido por accesibilidad (Radix UI) - Oculto visualmente */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>Recibo de Venta {sale.id}</DialogTitle>
+        </DialogHeader>
+
         <div className="bg-white text-black p-6 font-mono text-[11px] leading-tight rounded-sm shadow-2xl relative">
           <Button variant="ghost" size="icon" className="absolute -top-4 -right-4 bg-primary text-white hover:bg-primary/90 no-print" onClick={onClose}>
             <X className="w-4 h-4" />
