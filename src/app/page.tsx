@@ -56,6 +56,7 @@ export default function LicoreriaPOS() {
   const [aperturaData, setAperturaData] = useState({ bs: '0', usd: '0' });
 
   useEffect(() => {
+    setMounted(true);
     let unsubscribeProfile: any = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -87,21 +88,27 @@ export default function LicoreriaPOS() {
                     router.push('/login');
                     return;
                  }
+                 
+                 setActiveModule('ventas');
+                 setShowApertura(true);
+              } else {
+                 setActiveModule('dashboard');
+                 setShowApertura(false);
               }
 
               setUserRole(data.rol);
               setUserProfile(data);
-              
-              if (data.rol === 'cajero') {
-                setActiveModule('ventas');
-                if (!mounted) setShowApertura(true);
-              } else {
-                setActiveModule('dashboard');
-              }
-              
               setUser(currentUser);
               setLoading(false);
+            } else {
+              // Si el usuario no tiene perfil (ej. admin creado manual), permitir dashboard por defecto
+              setUserRole('administrador');
+              setActiveModule('dashboard');
+              setLoading(false);
             }
+          }, (err) => {
+            console.error("Error en tiempo real de perfil:", err);
+            setLoading(false); // No dejar colgado al usuario
           });
 
         } catch (error) {
@@ -111,8 +118,6 @@ export default function LicoreriaPOS() {
       }
     });
 
-    setMounted(true);
-    
     const unsubscribeStore = Store.subscribe((dbUpdate) => {
       setState(prev => ({ ...prev, ...dbUpdate }));
     });
@@ -238,62 +243,60 @@ export default function LicoreriaPOS() {
   return (
     <div className="flex min-h-screen bg-surface-warm text-ink">
       
-      {showApertura && (
+      {showApertura && isCajero && (
         <div className="fixed inset-0 z-[100] bg-surface-warm flex items-center justify-center p-4 no-print">
-           <div className="w-full max-w-lg bg-white rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-7 space-y-5 animate-in fade-in zoom-in duration-500 border border-line">
+           <div className="w-full max-w-md bg-white rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-6 space-y-4 animate-in fade-in zoom-in duration-500 border border-line">
               <div className="text-center">
-                <div className="flex items-center justify-center gap-3 mb-1.5">
-                  <div className="w-10 h-10 bg-brand-gold rounded-lg flex items-center justify-center text-black font-black text-xl shadow-lg">P</div>
-                  <div className="font-display font-black text-2xl text-ink tracking-tighter uppercase">
+                <div className="flex items-center justify-center gap-3 mb-1">
+                  <div className="w-9 h-9 bg-brand-gold rounded-lg flex items-center justify-center text-black font-black text-xl shadow-lg">P</div>
+                  <div className="font-display font-black text-xl text-ink tracking-tighter uppercase">
                     Pos<span className="text-brand-gold">VEN</span> Pro
                   </div>
                 </div>
-                <div className="h-1 w-10 bg-brand-gold rounded-full mx-auto mb-3"></div>
-                <h1 className="text-xl font-extrabold text-ink tracking-tight uppercase italic">Apertura de Jornada</h1>
+                <div className="h-0.5 w-10 bg-brand-gold rounded-full mx-auto mb-2"></div>
+                <h1 className="text-lg font-extrabold text-ink tracking-tight uppercase italic">Apertura de Jornada</h1>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-surface-soft rounded-xl border border-line">
+                  <div className="p-2.5 bg-surface-soft rounded-xl border border-line">
                     <label className="text-[8px] font-black uppercase text-ink/50 block mb-0.5">Responsable</label>
-                    <p className="text-xs font-black text-ink uppercase truncate">{userProfile?.nombre || 'Operador'}</p>
+                    <p className="text-[10px] font-black text-ink uppercase truncate">{userProfile?.nombre || 'Operador'}</p>
                   </div>
-                  <div className="p-3 bg-surface-soft rounded-xl border border-line">
-                    <label className="text-[8px] font-black uppercase text-ink/50 block mb-0.5">Recibo de Inicio</label>
-                    <p className="text-xs font-black text-brand-gold-deep"># {String(state.proximoRecibo).padStart(9, '0')}</p>
+                  <div className="p-2.5 bg-surface-soft rounded-xl border border-line">
+                    <label className="text-[8px] font-black uppercase text-ink/50 block mb-0.5">Recibo Inicio</label>
+                    <p className="text-[10px] font-black text-brand-gold-deep"># {String(state.proximoRecibo).padStart(9, '0')}</p>
                   </div>
                 </div>
 
-                <div className="p-3 bg-ink text-white rounded-xl flex justify-between items-center shadow-inner">
+                <div className="p-2.5 bg-ink text-white rounded-xl flex justify-between items-center">
                   <div className="space-y-0">
                     <label className="text-[7px] font-bold uppercase opacity-50 block tracking-widest">Fecha</label>
-                    <p className="text-[10px] font-black uppercase">{dateStr}</p>
+                    <p className="text-[9px] font-black uppercase">{dateStr}</p>
                   </div>
                   <div className="text-right space-y-0">
                     <label className="text-[7px] font-bold uppercase opacity-50 block tracking-widest">Hora</label>
-                    <p className="text-[10px] font-black uppercase">{timeStr}</p>
+                    <p className="text-[9px] font-black uppercase">{timeStr}</p>
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                    <div className="form-group">
-                      <label className="text-ink text-[9px] font-black uppercase block mb-1 ml-1 opacity-70">Efectivo Inicial Bolívares (Bs.)</label>
+                      <label className="text-ink text-[9px] font-black uppercase block mb-1 ml-1 opacity-70">Fondo Efectivo Bs.</label>
                       <input 
                         type="text" 
-                        className="form-input h-12 text-xl font-black text-center text-ink bg-surface-soft/40 border-line focus:bg-white" 
+                        className="form-input h-10 text-lg font-black text-center text-ink bg-surface-soft/40 border-line" 
                         value={aperturaData.bs} 
                         onChange={e => setAperturaData({...aperturaData, bs: e.target.value.replace(/[^0-9.]/g, '')})}
-                        placeholder="0.00"
                       />
                    </div>
                    <div className="form-group">
-                      <label className="text-ink text-[9px] font-black uppercase block mb-1 ml-1 opacity-70">Efectivo Inicial Divisas (USD)</label>
+                      <label className="text-ink text-[9px] font-black uppercase block mb-1 ml-1 opacity-70">Fondo Efectivo USD</label>
                       <input 
                         type="text" 
-                        className="form-input h-12 text-xl font-black text-center text-brand-gold-deep bg-surface-soft/40 border-line focus:bg-white" 
+                        className="form-input h-10 text-lg font-black text-center text-brand-gold-deep bg-surface-soft/40 border-line" 
                         value={aperturaData.usd} 
                         onChange={e => setAperturaData({...aperturaData, usd: e.target.value.replace(/[^0-9.]/g, '')})}
-                        placeholder="0.00"
                       />
                    </div>
                 </div>
@@ -301,14 +304,10 @@ export default function LicoreriaPOS() {
                 <button 
                   disabled={aperturaData.bs === '' || aperturaData.usd === ''}
                   onClick={() => setShowApertura(false)}
-                  className="w-full h-14 bg-brand-gold text-ink font-black text-base rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-[0.1em] disabled:opacity-20 active:scale-[0.98]"
+                  className="w-full h-12 bg-brand-gold text-ink font-black text-sm rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-widest"
                 >
-                  Aperturar Caja de Venta
+                  Confirmar Apertura
                 </button>
-              </div>
-
-              <div className="text-center pt-1">
-                 <p className="text-[8px] text-ink/30 font-bold uppercase tracking-widest">Verifique el fondo de caja antes de iniciar.</p>
               </div>
            </div>
         </div>

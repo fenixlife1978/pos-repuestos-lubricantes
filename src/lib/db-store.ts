@@ -56,11 +56,15 @@ export const Store = {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       } else {
         // Si el documento no existe (primer arranque), inicializarlo
+        // Notificamos con initialState inmediatamente para no bloquear la UI
+        callback(initialState);
         const { carrito, ...toPersist } = initialState;
         setDoc(docRef, toPersist).catch(e => console.error("Error init firestore:", e));
       }
     }, (error) => {
       console.error("Firestore Sync Error:", error);
+      // En caso de error, proveer el estado inicial o el cache para no colgar el sistema
+      callback(initialState);
     });
   },
 
