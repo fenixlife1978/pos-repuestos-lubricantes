@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -10,10 +11,9 @@ import {
   EyeOff,
   ChevronDown 
 } from 'lucide-react';
-import { auth, db, rtdb } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserSessionPersistence, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { ref, get as getRTDB } from 'firebase/database';
 import { toast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
@@ -44,11 +44,11 @@ export default function LoginPage() {
                return;
             }
 
-            // 2. Verificar terminal para cajeros
+            // 2. Verificar terminal para cajeros desde Firestore
             if (userData.rol === 'cajero') {
-               const terminalsSnap = await getRTDB(ref(rtdb, 'pos_system_data/terminales'));
-               const terminalsRaw = terminalsSnap.val() || [];
-               const terminalsArr = Array.isArray(terminalsRaw) ? terminalsRaw : Object.values(terminalsRaw);
+               const configSnap = await getDoc(doc(db, 'pos_system_data', 'state'));
+               const terminals = configSnap.data()?.terminales || [];
+               const terminalsArr = Array.isArray(terminals) ? terminals : Object.values(terminals);
                const hasTerminal = terminalsArr.some((t: any) => t.usuarioId === userDocId);
                
                if (!hasTerminal) {
@@ -100,9 +100,9 @@ export default function LoginPage() {
         }
 
         if (userData.rol === 'cajero') {
-           const terminalsSnap = await getRTDB(ref(rtdb, 'pos_system_data/terminales'));
-           const terminalsRaw = terminalsSnap.val() || [];
-           const terminalsArr = Array.isArray(terminalsRaw) ? terminalsRaw : Object.values(terminalsRaw);
+           const configSnap = await getDoc(doc(db, 'pos_system_data', 'state'));
+           const terminals = configSnap.data()?.terminales || [];
+           const terminalsArr = Array.isArray(terminals) ? terminals : Object.values(terminals);
            const hasTerminal = terminalsArr.some((t: any) => t.usuarioId === userDocId);
            
            if (!hasTerminal) {

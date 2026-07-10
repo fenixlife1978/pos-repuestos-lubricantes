@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -24,10 +25,9 @@ import {
 } from 'lucide-react';
 import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
-import { auth, db, rtdb } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { ref, get as getRTDB } from 'firebase/database';
 import DashboardModule from '@/components/modules/DashboardModule';
 import InventoryModule from '@/components/modules/InventoryModule';
 import SalesModule from '@/components/modules/SalesModule';
@@ -79,8 +79,9 @@ export default function LicoreriaPOS() {
 
               // VALIDACIÓN DE SEGURIDAD: TERMINAL ASIGNADO PARA CAJEROS
               if (data.rol === 'cajero') {
-                 const snap = await getRTDB(ref(rtdb, 'pos_system_data/terminales'));
-                 const terminals = snap.val() || [];
+                 // Obtenemos terminales desde el nuevo nodo de Firestore
+                 const configSnap = await getDoc(doc(db, 'pos_system_data', 'state'));
+                 const terminals = configSnap.data()?.terminales || [];
                  const terminalsArr = Array.isArray(terminals) ? terminals : Object.values(terminals);
                  const hasTerminal = terminalsArr.some((t: any) => t.usuarioId === userDocId);
                  

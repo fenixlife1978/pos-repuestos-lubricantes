@@ -1,11 +1,13 @@
+
 "use client";
 
 import { AppState } from './types';
-import { rtdb } from './firebase';
-import { ref, set, onValue, off } from "firebase/database";
+import { db } from './firebase';
+import { doc, setDoc, onSnapshot, getDoc } from "firebase/firestore";
 
 const STORAGE_KEY = 'licoreriaPOS_v2_cache';
-const RTDB_PATH = 'pos_system_data';
+const COLLECTION = 'pos_system_data';
+const DOC_ID = 'state';
 
 export const initialState: AppState = {
   tasa: 36.50,
@@ -38,12 +40,13 @@ export const initialState: AppState = {
 };
 
 export const Store = {
-  // Suscribirse a cambios en tiempo real
+  // Suscribirse a cambios en tiempo real usando Firestore
   subscribe(callback: (state: Partial<AppState>) => void) {
-    const dataRef = ref(rtdb, RTDB_PATH);
-    onValue(dataRef, (snapshot) => {
-      const val = snapshot.val();
-      if (val) {
+    const docRef = doc(db, COLLECTION, DOC_ID);
+    
+    return onSnapshot(docRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const val = snapshot.data();
         // Combinar con initialState para asegurar que todos los campos existan
         const merged = { ...initialState, ...val };
         // El carrito NO se sincroniza, es local por pestaña
@@ -52,19 +55,13 @@ export const Store = {
         // Guardar cache local
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       } else {
-        // Si la DB está vacía, inicializar con el estado base
-        // Solo en el primer arranque del sistema
-        const local = localStorage.getItem(STORAGE_KEY);
-        const data = local ? JSON.parse(local) : initialState;
-        // Omitimos carrito para la DB
-        const { carrito, ...toPersist } = data;
-        set(dataRef, toPersist);
-        callback(toPersist);
+        // Si el documento no existe (primer arranque), inicializarlo
+        const { carrito, ...toPersist } = initialState;
+        setDoc(docRef, toPersist).catch(e => console.error("Error init firestore:", e));
       }
     }, (error) => {
-      console.error("RTDB Sync Error:", error);
+      console.error("Firestore Sync Error:", error);
     });
-    return () => off(dataRef);
   },
 
   get(): AppState {
@@ -109,9 +106,9 @@ export const Store = {
     // Persistencia local
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToPersist));
     
-    // Persistencia en la nube (RTDB)
-    const dataRef = ref(rtdb, RTDB_PATH);
-    set(dataRef, dataToPersist).catch(err => console.error("Error RTDB Write:", err));
+    // Persistencia en la nube (Firestore)
+    const docRef = doc(db, COLLECTION, DOC_ID);
+    setDoc(docRef, dataToPersist).catch(err => console.error("Error Firestore Write:", err));
   },
 
   uid(): string {
