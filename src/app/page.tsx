@@ -31,18 +31,18 @@ import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import DashboardModule from '@/components/modules/DashboardModule';
 import InventoryModule from '@/components/modules/InventoryModule';
 import SalesModule from '@/components/modules/SalesModule';
+import PurchaseModule from '@/components/modules/PurchaseModule';
 import CxCModule from '@/components/modules/CxCModule';
 import CxPModule from '@/components/modules/CxPModule';
 import ReportsModule from '@/components/modules/ReportsModule';
 import ConfigModule from '@/components/modules/ConfigModule';
 import UsersModule from '@/components/modules/UsersModule';
-import PurchaseModule from '@/components/modules/PurchaseModule';
 import GlobalControlModule from '@/components/modules/GlobalControlModule';
 
 export default function LicoreriaPOS() {
   const router = useRouter();
   const [state, setState] = useState<AppState>(initialState);
-  const [activeModule, setActiveModule] = useState('dashboard');
+  const [activeModule, setActiveModule] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -65,21 +65,17 @@ export default function LicoreriaPOS() {
         try {
           const userDocId = currentUser.email!.replace(/\W/g, '_');
           
-          // Suscripción en tiempo real al perfil para detectar bloqueos remotos
           unsubscribeProfile = onSnapshot(doc(db, 'users', userDocId), async (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               
-              // VALIDACIÓN DE SEGURIDAD: BLOQUEO ACTIVO
               if (data.accesoBloqueado) {
                 await signOut(auth);
                 router.push('/login');
                 return;
               }
 
-              // VALIDACIÓN DE SEGURIDAD: TERMINAL ASIGNADO PARA CAJEROS
               if (data.rol === 'cajero') {
-                 // Obtenemos terminales desde el nuevo nodo de Firestore
                  const configSnap = await getDoc(doc(db, 'pos_system_data', 'state'));
                  const terminals = configSnap.data()?.terminales || [];
                  const terminalsArr = Array.isArray(terminals) ? terminals : Object.values(terminals);
@@ -87,7 +83,7 @@ export default function LicoreriaPOS() {
                  
                  if (!hasTerminal) {
                     await signOut(auth);
-                    alert("ACCESO RESTRINGIDO: Su usuario no tiene un terminal de venta asignado. Contacte al administrador.");
+                    alert("ACCESO RESTRINGIDO: Su usuario no tiene un terminal de venta asignado.");
                     router.push('/login');
                     return;
                  }
@@ -95,19 +91,23 @@ export default function LicoreriaPOS() {
 
               setUserRole(data.rol);
               setUserProfile(data);
+              
               if (data.rol === 'cajero') {
                 setActiveModule('ventas');
-                // Solo mostrar apertura si no ha sido procesada en esta sesión
                 if (!mounted) setShowApertura(true);
+              } else {
+                setActiveModule('dashboard');
               }
+              
+              setUser(currentUser);
+              setLoading(false);
             }
           });
 
         } catch (error) {
           console.error("Error fetching role:", error);
+          setLoading(false);
         }
-        setUser(currentUser);
-        setLoading(false);
       }
     });
 
@@ -142,7 +142,6 @@ export default function LicoreriaPOS() {
     if (confirm('¿Cerrar sesión del sistema?')) {
       if (userRole === 'cajero' && user) {
         try {
-          // PROTOCOLO DE AUTO-BLOQUEO POST-SALIDA (REQUERIDO)
           const userDocId = user.email.replace(/\W/g, '_');
           await updateDoc(doc(db, 'users', userDocId), { accesoBloqueado: true });
         } catch (e) {
@@ -199,7 +198,7 @@ export default function LicoreriaPOS() {
   ];
 
   const renderModule = () => {
-    if (!mounted || loading) return null;
+    if (!mounted || loading || !activeModule) return null;
     switch (activeModule) {
       case 'dashboard': return <DashboardModule state={state} />;
       case 'inventario': return <InventoryModule state={state} updateState={updateState} />;
@@ -211,7 +210,7 @@ export default function LicoreriaPOS() {
       case 'config': return <ConfigModule state={state} updateState={updateState} />;
       case 'usuarios': return <UsersModule />;
       case 'global_control': return <GlobalControlModule state={state} updateState={updateState} />;
-      default: return <DashboardModule state={state} />;
+      default: return null;
     }
   };
 
@@ -239,60 +238,59 @@ export default function LicoreriaPOS() {
   return (
     <div className="flex min-h-screen bg-surface-warm text-ink">
       
-      {/* PANTALLA DE APERTURA DE CAJA (BLOQUEO) */}
       {showApertura && (
-        <div className="fixed inset-0 z-[100] bg-surface-warm flex items-center justify-center p-6 no-print">
-           <div className="w-full max-w-lg bg-white rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-10 space-y-8 animate-in fade-in zoom-in duration-500 border border-line">
+        <div className="fixed inset-0 z-[100] bg-surface-warm flex items-center justify-center p-4 no-print">
+           <div className="w-full max-w-lg bg-white rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-7 space-y-5 animate-in fade-in zoom-in duration-500 border border-line">
               <div className="text-center">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <div className="w-12 h-12 bg-brand-gold rounded-xl flex items-center justify-center text-black font-black text-2xl shadow-lg">P</div>
-                  <div className="font-display font-black text-3xl text-ink tracking-tighter uppercase">
+                <div className="flex items-center justify-center gap-3 mb-1.5">
+                  <div className="w-10 h-10 bg-brand-gold rounded-lg flex items-center justify-center text-black font-black text-xl shadow-lg">P</div>
+                  <div className="font-display font-black text-2xl text-ink tracking-tighter uppercase">
                     Pos<span className="text-brand-gold">VEN</span> Pro
                   </div>
                 </div>
-                <div className="h-1 w-12 bg-brand-gold rounded-full mx-auto mb-4"></div>
-                <h1 className="text-2xl font-extrabold text-ink tracking-tight uppercase italic">Apertura de Jornada</h1>
+                <div className="h-1 w-10 bg-brand-gold rounded-full mx-auto mb-3"></div>
+                <h1 className="text-xl font-extrabold text-ink tracking-tight uppercase italic">Apertura de Jornada</h1>
               </div>
 
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-surface-soft rounded-2xl border border-line">
-                    <label className="text-[9px] font-black uppercase text-ink/50 block mb-1">Cajero(a) Responsable</label>
-                    <p className="text-sm font-black text-ink uppercase truncate">{userProfile?.nombre || 'Operador'}</p>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-surface-soft rounded-xl border border-line">
+                    <label className="text-[8px] font-black uppercase text-ink/50 block mb-0.5">Responsable</label>
+                    <p className="text-xs font-black text-ink uppercase truncate">{userProfile?.nombre || 'Operador'}</p>
                   </div>
-                  <div className="p-4 bg-surface-soft rounded-2xl border border-line">
-                    <label className="text-[9px] font-black uppercase text-ink/50 block mb-1">Recibo de Inicio</label>
-                    <p className="text-sm font-black text-brand-gold-deep"># {String(state.proximoRecibo).padStart(9, '0')}</p>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-ink text-white rounded-2xl flex justify-between items-center shadow-inner">
-                  <div className="space-y-0.5">
-                    <label className="text-[8px] font-bold uppercase opacity-50 block tracking-widest">Fecha del Sistema</label>
-                    <p className="text-xs font-black uppercase">{dateStr}</p>
-                  </div>
-                  <div className="text-right space-y-0.5">
-                    <label className="text-[8px] font-bold uppercase opacity-50 block tracking-widest">Hora de Apertura</label>
-                    <p className="text-xs font-black uppercase">{timeStr}</p>
+                  <div className="p-3 bg-surface-soft rounded-xl border border-line">
+                    <label className="text-[8px] font-black uppercase text-ink/50 block mb-0.5">Recibo de Inicio</label>
+                    <p className="text-xs font-black text-brand-gold-deep"># {String(state.proximoRecibo).padStart(9, '0')}</p>
                   </div>
                 </div>
 
-                <div className="space-y-5">
+                <div className="p-3 bg-ink text-white rounded-xl flex justify-between items-center shadow-inner">
+                  <div className="space-y-0">
+                    <label className="text-[7px] font-bold uppercase opacity-50 block tracking-widest">Fecha</label>
+                    <p className="text-[10px] font-black uppercase">{dateStr}</p>
+                  </div>
+                  <div className="text-right space-y-0">
+                    <label className="text-[7px] font-bold uppercase opacity-50 block tracking-widest">Hora</label>
+                    <p className="text-[10px] font-black uppercase">{timeStr}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
                    <div className="form-group">
-                      <label className="text-ink text-[10px] font-black uppercase block mb-1.5 ml-1 opacity-70">Efectivo Inicial en Bolívares (Bs.)</label>
+                      <label className="text-ink text-[9px] font-black uppercase block mb-1 ml-1 opacity-70">Efectivo Inicial Bolívares (Bs.)</label>
                       <input 
                         type="text" 
-                        className="form-input h-14 text-2xl font-black text-center text-ink bg-surface-soft/40 border-line focus:bg-white" 
+                        className="form-input h-12 text-xl font-black text-center text-ink bg-surface-soft/40 border-line focus:bg-white" 
                         value={aperturaData.bs} 
                         onChange={e => setAperturaData({...aperturaData, bs: e.target.value.replace(/[^0-9.]/g, '')})}
                         placeholder="0.00"
                       />
                    </div>
                    <div className="form-group">
-                      <label className="text-ink text-[10px] font-black uppercase block mb-1.5 ml-1 opacity-70">Efectivo Inicial en Divisas (USD)</label>
+                      <label className="text-ink text-[9px] font-black uppercase block mb-1 ml-1 opacity-70">Efectivo Inicial Divisas (USD)</label>
                       <input 
                         type="text" 
-                        className="form-input h-14 text-2xl font-black text-center text-brand-gold-deep bg-surface-soft/40 border-line focus:bg-white" 
+                        className="form-input h-12 text-xl font-black text-center text-brand-gold-deep bg-surface-soft/40 border-line focus:bg-white" 
                         value={aperturaData.usd} 
                         onChange={e => setAperturaData({...aperturaData, usd: e.target.value.replace(/[^0-9.]/g, '')})}
                         placeholder="0.00"
@@ -303,20 +301,19 @@ export default function LicoreriaPOS() {
                 <button 
                   disabled={aperturaData.bs === '' || aperturaData.usd === ''}
                   onClick={() => setShowApertura(false)}
-                  className="w-full h-16 bg-brand-gold text-ink font-black text-lg rounded-2xl shadow-xl shadow-brand-gold/20 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-[0.15em] disabled:opacity-20 active:scale-[0.98]"
+                  className="w-full h-14 bg-brand-gold text-ink font-black text-base rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-[0.1em] disabled:opacity-20 active:scale-[0.98]"
                 >
                   Aperturar Caja de Venta
                 </button>
               </div>
 
-              <div className="text-center pt-2">
-                 <p className="text-[9px] text-ink/30 font-bold uppercase tracking-widest">Asegúrese de contar el efectivo físico antes de aperturar.</p>
+              <div className="text-center pt-1">
+                 <p className="text-[8px] text-ink/30 font-bold uppercase tracking-widest">Verifique el fondo de caja antes de iniciar.</p>
               </div>
            </div>
         </div>
       )}
 
-      {/* SIDEBAR - HIDDEN FOR CAJERO */}
       {!isCajero && (
         <aside className={`fixed lg:sticky top-0 left-0 w-[260px] h-screen bg-white border-line flex flex-col z-50 transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} border-r`}>
           <div className="p-6 border-b border-line flex flex-col gap-1">
@@ -394,9 +391,7 @@ export default function LicoreriaPOS() {
         </aside>
       )}
 
-      {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col min-h-screen max-w-full overflow-hidden">
-        {/* TOPBAR */}
         <header className="sticky top-0 z-30 bg-surface-warm/85 backdrop-blur-md border-b border-line px-7 py-3.5 flex items-center gap-6 no-print">
           {!isCajero && (
             <button className="lg:hidden p-2 -ml-2 text-ink" onClick={() => setIsSidebarOpen(true)}>
@@ -470,12 +465,10 @@ export default function LicoreriaPOS() {
           </div>
         </header>
         
-        {/* MODULE CONTAINER */}
         <div className="p-7 flex-1">
           {renderModule()}
         </div>
 
-        {/* FOOTER */}
         <footer className="px-8 py-6 border-t border-line text-[0.76rem] font-black text-ink flex flex-col sm:flex-row justify-between gap-4 no-print bg-surface-warm/30">
           <div>© 2026 PosVEN Pro · Datos persistidos en la nube</div>
           <div className="flex gap-4 items-center">
@@ -485,7 +478,6 @@ export default function LicoreriaPOS() {
         </footer>
       </main>
 
-      {/* MOBILE DRAWER OVERLAY */}
       {isSidebarOpen && (
         <div className="fixed inset-0 bg-black/60 z-[45] backdrop-blur-sm lg:hidden" onClick={() => setIsSidebarOpen(false)} />
       )}
