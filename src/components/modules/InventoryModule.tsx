@@ -1,40 +1,14 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Package, 
-  Plus, 
-  Search, 
-  Edit2, 
-  Trash2, 
-  Boxes, 
-  X, 
-  BarChart3, 
-  FileText, 
-  History, 
-  RotateCcw, 
-  Box, 
-  ClipboardList, 
-  PlusCircle,
-  AlertCircle,
-  TrendingUp,
-  Check
-} from 'lucide-react';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import { AppState, Product, Movimiento, Sale } from '@/lib/types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AppState, Product, Movimiento, KitItem, PaymentMethod } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
+import { 
+  Plus, Search, Edit2, Trash2, Boxes, X, BarChart3, FileText, History, 
+  Layers, Trash, ShoppingBag, TrendingUp, RotateCcw, Box, ClipboardList, 
+  Info, Tag, DollarSign, Settings, PlusCircle, MinusCircle, AlertTriangle, 
+  Check, Calendar, ChevronRight
+} from 'lucide-react';
 import { 
   generarPDFInventarioSimple, 
   exportarPDFInventarioGeneral, 
@@ -44,15 +18,22 @@ import {
   exportarPDFConsumoInterno,
   exportarPDFDevoluciones
 } from '@/lib/pdf-generator';
+import { Card } from '@/components/ui/card';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
 export function InventoryModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [activeTab, setActiveTab] = useState('productos');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
   const [selectedKardexId, setSelectedKardexId] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(undefined);
+  
   const [showAjuste, setShowAjuste] = useState<string | null>(null);
+  const [showProducto, setShowProducto] = useState<string | null | 'nuevo'>(null);
   
   const prods = (state.productos || []).filter(p => 
     p.activo && 
@@ -60,113 +41,79 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
     (catFilter ? p.categoria === catFilter : true)
   );
 
-  const lowStockCount = (state.productos || []).filter(p => p.activo && p.stock <= (p.stockMinimo || 0)).length;
-
   const eliminar = (id: string) => {
     if (!confirm('¿Seguro que desea eliminar este producto?')) return;
     const nuevos = state.productos.map(p => p.id === id ? { ...p, activo: false } : p);
     updateState({ productos: nuevos });
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <Package className="w-6 h-6 text-brand-gold" />
-          <h2 className="text-2xl font-bold uppercase italic tracking-tighter">Control de Inventario</h2>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => generarPDFInventarioSimple(prods, state.empresa)} className="gap-2">
-            <FileText className="w-4 h-4" /> Catálogo PDF
-          </Button>
-          <Button className="bg-brand-gold text-black hover:bg-brand-gold/90 gap-2 font-bold" onClick={() => { setSelectedProduct(undefined); setIsModalOpen(true); }}>
-            <Plus className="w-4 h-4" /> Nuevo Producto
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-white border-line shadow-md">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-brand-gold/10 rounded-xl"><Package className="w-6 h-6 text-brand-gold" /></div>
-              <div>
-                <p className="text-[10px] font-black uppercase text-ink opacity-40">Total Productos</p>
-                <p className="text-2xl font-black text-ink">{state.productos.filter(p => p.activo).length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className={`border-line shadow-md ${lowStockCount > 0 ? 'bg-status-danger-soft' : 'bg-white'}`}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-xl ${lowStockCount > 0 ? 'bg-status-danger/20' : 'bg-surface-soft'}`}>
-                <AlertCircle className={`w-6 h-6 ${lowStockCount > 0 ? 'text-status-danger' : 'text-ink/20'}`} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase text-ink opacity-40">Stock Bajo</p>
-                <p className={`text-2xl font-black ${lowStockCount > 0 ? 'text-status-danger' : 'text-ink'}`}>{lowStockCount}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="tabs border-b border-line no-print flex overflow-x-auto">
-        <button onClick={() => setActiveTab('productos')} className={`tab ${activeTab === 'productos' ? 'active' : 'text-ink font-black'}`}>Catálogo</button>
-        <button onClick={() => setActiveTab('reporte_general')} className={`tab ${activeTab === 'reporte_general' ? 'active' : 'text-ink font-black'}`}>Inventario CPP</button>
-        <button onClick={() => setActiveTab('reporte_ventas')} className={`tab ${activeTab === 'reporte_ventas' ? 'active' : 'text-ink font-black'}`}>Ventas Agrupadas</button>
-        <button onClick={() => setActiveTab('kardex')} className={`tab ${activeTab === 'kardex' ? 'active' : 'text-ink font-black'}`}>Kardex</button>
-        <button onClick={() => setActiveTab('historial_ajustes')} className={`tab ${activeTab === 'historial_ajustes' ? 'active' : 'text-ink font-black'}`}>Ajustes</button>
-        <button onClick={() => setActiveTab('consumo_colab')} className={`tab ${activeTab === 'consumo_colab' ? 'active' : 'text-ink font-black'}`}>Consumo</button>
-      </div>
-
-      <div className="animate-in fade-in duration-300">
-        {activeTab === 'productos' && (
-          <div className="space-y-4">
-            <div className="flex flex-col md:flex-row gap-4">
+  const renderContent = () => {
+    switch(activeTab) {
+      case 'productos': return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center flex-wrap gap-4">
+            <div className="flex gap-4 flex-1 min-w-[300px]">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-ink opacity-30" />
-                <Input className="pl-10" placeholder="Buscar por nombre o código..." value={search} onChange={e => setSearch(e.target.value)} />
+                <Search className="absolute left-3 top-3 w-4 h-4 text-ink" />
+                <input className="form-input pl-10" placeholder="Buscar producto por nombre o código..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
-              <select className="form-select w-full md:w-auto h-10 px-4 font-bold text-xs" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
-                <option value="">TODAS LAS CATEGORÍAS</option>
-                {state.categorias?.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
+              <select className="form-select w-auto bg-white border-line rounded-md px-3 py-2 text-sm font-bold text-ink" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+                <option value="">Todas las categorías</option>
+                {(state.categorias || []).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
+            <div className="flex gap-2">
+              <button className="btn btn-secondary shadow-sm" onClick={() => generarPDFInventarioSimple(prods, state.empresa)}><FileText className="w-4 h-4" /> Exportar PDF</button>
+              <button className="btn btn-primary shadow-md" onClick={() => setShowProducto('nuevo')}><Plus className="w-4 h-4" /> Nuevo Producto</button>
+            </div>
+          </div>
 
-            <Card className="overflow-hidden shadow-lg border-line">
+          <div className="card shadow-lg rounded-xl overflow-hidden">
+            <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
+              <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+                <Box className="w-5 h-5 text-brand-gold" /> CATALOGO DE PRODUCTOS ACTIVOS
+              </h3>
+            </div>
+            <div className="table-wrap">
               <Table>
-                <TableHeader className="bg-surface-soft">
-                  <TableRow>
-                    <TableHead className="font-black text-[10px] uppercase">Código</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase">Producto</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase">Costo</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase">Venta</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase text-center">Stock</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase text-right">Acciones</TableHead>
+                <TableHeader>
+                  <TableRow className="bg-surface-soft">
+                    <TableHead className="font-black text-ink uppercase text-[10px]">Código</TableHead>
+                    <TableHead className="font-black text-ink uppercase text-[10px]">Nombre Producto</TableHead>
+                    <TableHead className="font-black text-ink uppercase text-[10px]">Categoría</TableHead>
+                    <TableHead className="font-black text-ink uppercase text-[10px] text-right">Costo USD</TableHead>
+                    <TableHead className="font-black text-ink uppercase text-[10px] text-right">P. Venta USD</TableHead>
+                    <TableHead className="font-black text-ink uppercase text-[10px] text-center">Stock</TableHead>
+                    <TableHead className="font-black text-ink uppercase text-[10px] text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody className="bg-white">
                   {prods.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-20 text-ink/20 font-black italic uppercase">No hay productos registrados</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-20 text-ink/20 font-black italic uppercase">No se encontraron productos</TableCell></TableRow>
                   ) : (
                     prods.map(p => (
-                      <TableRow key={p.id} className="hover:bg-surface-warm/20">
-                        <TableCell className="mono text-xs font-bold">{p.codigo}</TableCell>
-                        <TableCell className="font-black uppercase text-xs">{p.nombre}</TableCell>
-                        <TableCell className="mono text-xs font-bold text-ink/50">{Utils.fmtUSD(p.costoUSD)}</TableCell>
-                        <TableCell className="mono text-xs font-black text-brand-gold-deep">{Utils.fmtUSD(p.precioUSD)}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={p.stock <= (p.stockMinimo || 0) ? 'destructive' : 'secondary'} className="font-black">
-                            {p.stock}
-                          </Badge>
+                      <TableRow key={p.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
+                        <TableCell className="mono text-xs font-black text-ink">{p.codigo}</TableCell>
+                        <TableCell className="font-black text-ink uppercase">
+                          <div className="flex items-center gap-2">
+                            {p.isKit && <Layers className="w-3.5 h-3.5 text-brand-gold" />}
+                            {p.nombre}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-brand-gold" onClick={() => { setSelectedProduct(p); setIsModalOpen(true); }}><Edit2 className="w-4 h-4"/></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-status-success" onClick={() => setShowAjuste(p.id)}><Boxes className="w-4 h-4"/></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-status-danger" onClick={() => eliminar(p.id)}><Trash2 className="w-4 h-4"/></Button>
+                        <TableCell><span className="badge badge-neutral font-black">{p.categoria}</span></TableCell>
+                        <TableCell className="mono font-bold text-ink text-right">{Utils.fmtUSD(p.costoUSD)}</TableCell>
+                        <TableCell className="mono text-brand-gold-deep font-black text-right">{Utils.fmtUSD(p.precioUSD)}</TableCell>
+                        <TableCell className="text-center">
+                          <span className={`badge ${p.stock <= (p.stockMinimo || 0) ? 'badge-err' : 'badge-ok'} font-black px-3`}>
+                            {p.stock}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-center gap-1">
+                            <button className="btn-icon h-8 w-8 text-ink hover:text-brand-gold" onClick={() => setShowProducto(p.id)}><Edit2 className="w-4 h-4" /></button>
+                            <button className="btn-icon h-8 w-8 text-ink hover:text-status-info" onClick={() => { setSelectedKardexId(p.id); setActiveTab('kardex'); }}><History className="w-4 h-4" /></button>
+                            <button className="btn-icon h-8 w-8 text-ink hover:text-status-success" onClick={() => setShowAjuste(p.id)}><Boxes className="w-4 h-4" /></button>
+                            <button className="btn-icon h-8 w-8 text-ink hover:text-status-danger" onClick={() => eliminar(p.id)}><Trash2 className="w-4 h-4" /></button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -174,47 +121,73 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
                   )}
                 </TableBody>
               </Table>
-            </Card>
+            </div>
           </div>
-        )}
+        </div>
+      );
+      case 'reporte_general': return <ReporteGeneral state={state} />;
+      case 'reporte_ventas': return <ReporteVentas state={state} />;
+      case 'reporte_devoluciones': return <ReporteDevoluciones state={state} />;
+      case 'historial_ajustes': return <HistorialAjustes state={state} />;
+      case 'kardex': return <ReporteKardex state={state} selectedId={selectedKardexId} onSelect={setSelectedKardexId} />;
+      case 'consumo_colab': return <ReporteConsumo state={state} />;
+      default: return null;
+    }
+  };
 
-        {activeTab === 'reporte_general' && <ReporteGeneralComponent state={state} />}
-        {activeTab === 'reporte_ventas' && <ReporteVentasComponent state={state} />}
-        {activeTab === 'kardex' && <ReporteKardexComponent state={state} selectedId={selectedKardexId} onSelect={setSelectedKardexId} />}
-        {activeTab === 'historial_ajustes' && <HistorialAjustesComponent state={state} />}
-        {activeTab === 'consumo_colab' && <ReporteConsumoComponent state={state} />}
+  return (
+    <div className="space-y-6">
+      <div className="tabs border-b border-line no-print">
+        <button onClick={() => setActiveTab('productos')} className={`tab ${activeTab === 'productos' ? 'active' : 'text-ink font-black'}`}>Productos</button>
+        <button onClick={() => setActiveTab('reporte_general')} className={`tab ${activeTab === 'reporte_general' ? 'active' : 'text-ink font-black'}`}>Inventario CPP</button>
+        <button onClick={() => setActiveTab('reporte_ventas')} className={`tab ${activeTab === 'reporte_ventas' ? 'active' : 'text-ink font-black'}`}>Ventas</button>
+        <button onClick={() => setActiveTab('reporte_devoluciones')} className={`tab ${activeTab === 'reporte_devoluciones' ? 'active' : 'text-ink font-black'}`}>Devoluciones</button>
+        <button onClick={() => setActiveTab('kardex')} className={`tab ${activeTab === 'kardex' ? 'active' : 'text-ink font-black'}`}>Kardex</button>
+        <button onClick={() => setActiveTab('historial_ajustes')} className={`tab ${activeTab === 'historial_ajustes' ? 'active' : 'text-ink font-black'}`}>Ajustes</button>
+        <button onClick={() => setActiveTab('consumo_colab')} className={`tab ${activeTab === 'consumo_colab' ? 'active' : 'text-ink font-black'}`}>Consumo</button>
       </div>
 
-      {isModalOpen && (
+      <div className="animate-in fade-in duration-300">
+        {renderContent()}
+      </div>
+
+      {showProducto && (
         <ModalProducto 
-          state={state} 
-          producto={selectedProduct} 
-          onClose={() => setIsModalOpen(false)} 
+          state={state}
+          producto={showProducto === 'nuevo' ? undefined : state.productos.find(p => p.id === showProducto)}
+          onClose={() => setShowProducto(null)}
+          onUpdateLists={(lists: any) => updateState(lists)}
           onSave={(datos: any) => {
-            let nuevos;
-            if (selectedProduct) {
-              nuevos = state.productos.map(p => p.id === selectedProduct.id ? { ...p, ...datos } : p);
-            } else {
-              const p = { ...datos, id: Store.uid(), fechaCreacion: Utils.hoy(), activo: true };
-              nuevos = [...state.productos, p];
-              if (p.stock > 0) {
+            let nuevosProds;
+            if (showProducto === 'nuevo') {
+              const nuevo: Product = {
+                ...datos,
+                id: Store.uid(),
+                fechaCreacion: Utils.hoy(),
+                activo: true
+              };
+              nuevosProds = [...state.productos, nuevo];
+              if (nuevo.stock > 0) {
                 const mov: Movimiento = {
                   id: Store.uid(),
-                  productoId: p.id,
-                  tipo: 'inicial' as any,
-                  cantidad: p.stock,
+                  productoId: nuevo.id,
+                  tipo: 'ajuste_entrada',
+                  cantidad: nuevo.stock,
                   stockAntes: 0,
-                  stockDespues: p.stock,
+                  stockDespues: nuevo.stock,
                   fecha: Utils.ahora(),
                   referencia: 'INICIAL'
                 };
-                updateState({ movimientos: [...state.movimientos, mov] });
+                updateState({ productos: nuevosProds, movimientos: [...state.movimientos, mov] });
+              } else {
+                updateState({ productos: nuevosProds });
               }
+            } else {
+              nuevosProds = state.productos.map(p => p.id === showProducto ? { ...p, ...datos } : p);
+              updateState({ productos: nuevosProds });
             }
-            updateState({ productos: nuevos });
-            setIsModalOpen(false);
+            setShowProducto(null);
           }}
-          onUpdateLists={(lists: any) => updateState(lists)}
         />
       )}
 
@@ -226,9 +199,9 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
             const nuevosProds = state.productos.map(p => {
               if (p.id === mov.productoId) {
                 let finalCosto = p.costoUSD;
-                if (mov.tipo === 'ajuste_entrada' || (mov.tipo as any) === 'compra') {
+                if (mov.tipo === 'ajuste_entrada' || mov.tipo === 'compra') {
                   const stockActual = p.stock;
-                  const cantidadNueva = mov.cantidad;
+                  const cantidadNueva = Math.abs(mov.cantidad);
                   const costoNuevo = nuevoCosto || p.costoUSD;
                   const stockTotal = stockActual + cantidadNueva;
                   if (stockTotal > 0) {
@@ -251,142 +224,269 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
   );
 }
 
-function ReporteVentasComponent({ state }: { state: AppState }) {
-  const [desde, setDesde] = useState(Utils.hoy());
-  const [hasta, setHasta] = useState(Utils.hoy());
-  const [useDates, setUseDates] = useState(false);
+// ============================================================
+// SUB-COMPONENTES DE REPORTES
+// ============================================================
 
-  const applyQuickFilter = (f: string) => {
-    setUseDates(true);
-    const today = new Date();
-    if (f === 'hoy') { setDesde(Utils.hoy()); setHasta(Utils.hoy()); }
-    else if (f === 'ayer') {
-      const y = new Date(today); y.setDate(today.getDate() - 1);
-      const s = y.toISOString().split('T')[0];
-      setDesde(s); setHasta(s);
-    }
-  };
+function ReporteGeneral({ state }: { state: AppState }) {
+  const [groupBy, setGroupBy] = useState<'categoria' | 'departamento' | 'proveedor'>('categoria');
+  const [filterValue, setFilterValue] = useState<string>('');
 
-  const filteredVentas = state.ventas.filter(v => {
-    const d = v.fecha.slice(0, 10);
-    return useDates ? (d >= desde && d <= hasta) : (d === Utils.hoy());
+  const filteredProducts = state.productos.filter(p => {
+    const matchesGroup = (filterValue === '' || ((p[groupBy] as string) || 'Sin asignar') === filterValue);
+    return p.activo && matchesGroup;
   });
 
-  const grouped = useMemo(() => {
-    const res: Record<string, { nombre: string, cant: number, totalUSD: number }> = {};
-    filteredVentas.forEach(v => {
-      v.items.forEach(it => {
-        if (!res[it.nombre]) res[it.nombre] = { nombre: it.nombre, cant: 0, totalUSD: 0 };
-        res[it.nombre].cant += it.cantidad;
-        res[it.nombre].totalUSD += it.subtotalUSD;
-      });
-    });
-    return Object.values(res).sort((a, b) => b.cant - a.cant);
-  }, [filteredVentas]);
-
-  return (
-    <div className="space-y-4">
-      <div className="card p-4 bg-white border-line flex flex-wrap gap-4 items-end shadow-sm">
-        <div className="flex gap-2">
-          <Button variant={!useDates ? 'default' : 'outline'} size="sm" onClick={() => setUseDates(false)}>HOY</Button>
-          <Button variant={useDates ? 'default' : 'outline'} size="sm" onClick={() => applyQuickFilter('ayer')}>AYER</Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Input type="date" className="h-9 text-xs" value={desde} onChange={e => { setDesde(e.target.value); setUseDates(true); }} />
-          <span className="text-[10px] font-black opacity-30">AL</span>
-          <Input type="date" className="h-9 text-xs" value={hasta} onChange={e => { setHasta(e.target.value); setUseDates(true); }} />
-        </div>
-        <div className="flex-1 flex justify-end">
-          <Button variant="outline" size="sm" onClick={() => exportarPDFVentasDetallado(filteredVentas, state.empresa, 'Resumen', {})}>
-            <FileText className="w-4 h-4 mr-2" /> Exportar PDF
-          </Button>
-        </div>
-      </div>
-
-      <Card className="overflow-hidden shadow-lg">
-        <Table>
-          <TableHeader className="bg-surface-soft">
-            <TableRow>
-              <TableHead className="font-black text-[10px] uppercase">Producto / Ítem</TableHead>
-              <TableHead className="font-black text-[10px] uppercase text-center">Unidades Vendidas</TableHead>
-              <TableHead className="font-black text-[10px] uppercase text-right">Recaudado (USD)</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {grouped.length === 0 ? (
-              <TableRow><TableCell colSpan={3} className="text-center py-20 text-ink/20 font-black italic uppercase">Sin ventas en este periodo</TableCell></TableRow>
-            ) : (
-              grouped.map((g, idx) => (
-                <TableRow key={idx} className="hover:bg-surface-warm/20">
-                  <TableCell className="font-black uppercase text-xs">{g.nombre}</TableCell>
-                  <TableCell className="text-center font-black mono">{g.cant}</TableCell>
-                  <TableCell className="text-right font-black text-brand-gold-deep mono">{Utils.fmtUSD(g.totalUSD)}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-    </div>
-  );
-}
-
-function ReporteGeneralComponent({ state }: { state: AppState }) {
-  const products = state.productos.filter(p => p.activo);
-  const totalCosto = products.reduce((s, p) => s + (p.costoUSD * p.stock), 0);
-  const totalVenta = products.reduce((s, p) => s + (p.precioUSD * p.stock), 0);
+  const totalCosto = Utils.round(filteredProducts.reduce((acc, p) => acc + (p.costoUSD * p.stock), 0));
+  const totalVenta = Utils.round(filteredProducts.reduce((acc, p) => acc + (p.precioUSD * p.stock), 0));
+  const uniqueValues = Array.from(new Set(state.productos.filter(p => p.activo).map(p => (p[groupBy] as string) || 'Sin asignar'))).sort();
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="kpi p-6 bg-white border-line shadow-md border-l-8 border-l-ink">
-          <div className="text-[10px] font-black uppercase text-ink opacity-40 mb-1">Inversión Total (CPP)</div>
+        <div className="kpi p-6 border-line shadow-md bg-white">
+          <div className="text-[10px] font-black uppercase mb-1 text-ink opacity-60">Valor al Costo (CPP Total)</div>
           <div className="text-3xl font-black text-ink">{Utils.fmtUSD(totalCosto)}</div>
         </div>
-        <div className="kpi p-6 bg-white border-line shadow-md border-l-8 border-l-status-success">
-          <div className="text-[10px] font-black uppercase text-ink opacity-40 mb-1">Capital a la Venta</div>
+        <div className="kpi p-6 border-line shadow-md bg-white">
+          <div className="text-[10px] font-black uppercase mb-1 text-ink opacity-60">Valor al Precio de Venta (Total)</div>
           <div className="text-3xl font-black text-status-success">{Utils.fmtUSD(totalVenta)}</div>
         </div>
       </div>
-
-      <Card className="overflow-hidden shadow-lg border-line">
-        <div className="card-head bg-ink text-white px-6 py-4 flex justify-between items-center">
-          <h3 className="font-black text-xs uppercase tracking-tighter flex items-center gap-2"><BarChart3 className="w-4 h-4 text-brand-gold" /> Valorización de Inventario</h3>
-          <Button variant="secondary" size="sm" onClick={() => exportarPDFInventarioGeneral(products, state.empresa, 'categoria', { costo: totalCosto, venta: totalVenta })}>PDF Detallado</Button>
+      
+      <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <h3 className="text-white font-black text-xs uppercase italic tracking-tighter">INVENTARIO VALORIZADO</h3>
+            <select className="form-select bg-white text-ink border-none text-[10px] font-black h-8 px-3 rounded" value={filterValue} onChange={e => setFilterValue(e.target.value)}>
+              <option value="">TODOS</option>
+              {uniqueValues.map(v => <option key={v} value={v}>{v.toUpperCase()}</option>)}
+            </select>
+          </div>
+          <button className="btn btn-secondary h-8 px-4 font-black uppercase text-[9px]" onClick={() => exportarPDFInventarioGeneral(filteredProducts, state.empresa, groupBy, { costo: totalCosto, venta: totalVenta })}>
+            PDF Profesional
+          </button>
         </div>
-        <Table>
-          <TableHeader className="bg-surface-soft">
-            <TableRow>
-              <TableHead className="font-black text-[10px] uppercase">Producto</TableHead>
-              <TableHead className="font-black text-[10px] uppercase text-right">Costo Unit</TableHead>
-              <TableHead className="font-black text-[10px] uppercase text-center">Stock</TableHead>
-              <TableHead className="font-black text-[10px] uppercase text-right">Total Costo</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {products.map(p => (
-              <TableRow key={p.id}>
-                <TableCell className="font-black uppercase text-xs">{p.nombre}</TableCell>
-                <TableCell className="text-right mono text-xs">{Utils.fmtUSD(p.costoUSD)}</TableCell>
-                <TableCell className="text-center font-bold">{p.stock}</TableCell>
-                <TableCell className="text-right font-black mono text-brand-gold-deep">{Utils.fmtUSD(p.costoUSD * p.stock)}</TableCell>
+        <div className="table-wrap">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-surface-soft">
+                <TableHead className="font-black text-ink uppercase text-[10px]">Cod.</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px]">Producto</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-right">Costo Unit.</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-right">Venta Unit.</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-center">Stock</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-right">Subtotal Costo</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+            </TableHeader>
+            <TableBody className="bg-white">
+              {filteredProducts.map(p => (
+                <TableRow key={p.id} className="border-b border-line/30">
+                  <TableCell className="mono text-[11px] font-black text-ink">{p.codigo}</TableCell>
+                  <TableCell className="font-black uppercase text-xs text-ink">{p.nombre}</TableCell>
+                  <TableCell className="mono text-right text-xs font-bold text-ink/60">{Utils.fmtUSD(p.costoUSD)}</TableCell>
+                  <TableCell className="mono text-right text-brand-gold-deep font-black">{Utils.fmtUSD(p.precioUSD)}</TableCell>
+                  <TableCell className="text-center"><span className="badge badge-neutral font-black">{p.stock}</span></TableCell>
+                  <TableCell className="mono text-right font-black text-ink">{Utils.fmtUSD(Utils.round(p.costoUSD * p.stock))}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   );
 }
 
-function ReporteKardexComponent({ state, selectedId, onSelect }: { state: AppState, selectedId: string | null, onSelect: (id: string) => void }) {
+function ReporteVentas({ state }: { state: AppState }) {
+  const [desde, setDesde] = useState(Utils.hoy());
+  const [hasta, setHasta] = useState(Utils.hoy());
+  const [useDates, setUseDates] = useState(false);
+
+  const filteredVentas = useMemo(() => {
+    return state.ventas.filter(v => {
+      const d = v.fecha.slice(0, 10);
+      if (!useDates) return d === Utils.hoy();
+      return d >= desde && d <= hasta;
+    });
+  }, [state.ventas, desde, hasta, useDates]);
+
+  const groupedVentas = useMemo(() => {
+    const groups: Record<string, { nombre: string, cantidad: number, totalUSD: number }> = {};
+    filteredVentas.forEach(v => {
+      v.items.forEach(item => {
+        if (!groups[item.nombre]) {
+          groups[item.nombre] = { nombre: item.nombre, cantidad: 0, totalUSD: 0 };
+        }
+        groups[item.nombre].cantidad += item.cantidad;
+        groups[item.nombre].totalUSD += item.subtotalUSD;
+      });
+    });
+    return Object.values(groups).sort((a, b) => b.cantidad - a.cantidad);
+  }, [filteredVentas]);
+
+  return (
+    <div className="space-y-4">
+      <div className="card p-5 bg-white border-line flex flex-wrap gap-4 items-end shadow-sm">
+        <div className="flex items-center gap-3 bg-surface-soft p-1 rounded-lg border border-line">
+           <button onClick={() => setUseDates(false)} className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase transition-all ${!useDates ? 'bg-ink text-white' : 'text-ink/40'}`}>Hoy</button>
+           <button onClick={() => setUseDates(true)} className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase transition-all ${useDates ? 'bg-brand-gold text-white' : 'text-ink/40'}`}>Periodo</button>
+        </div>
+        {useDates && (
+           <div className="flex items-center gap-2">
+              <input type="date" className="form-input h-8 text-xs font-bold" value={desde} onChange={e => setDesde(e.target.value)} />
+              <input type="date" className="form-input h-8 text-xs font-bold" value={hasta} onChange={e => setHasta(e.target.value)} />
+           </div>
+        )}
+      </div>
+
+      <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
+           <h3 className="text-white font-black text-xs uppercase italic tracking-tighter">RESUMEN DE VENTAS POR PRODUCTO</h3>
+        </div>
+        <div className="table-wrap">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-surface-soft">
+                <TableHead className="font-black text-ink uppercase text-[10px]">Producto / Ítem</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-center">Unidades Vendidas</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-right">Recaudado (USD)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="bg-white">
+              {groupedVentas.length === 0 ? (
+                <TableRow><TableCell colSpan={3} className="text-center py-20 text-ink/20 font-black italic uppercase">Sin ventas registradas</TableCell></TableRow>
+              ) : (
+                groupedVentas.map((g, idx) => (
+                  <TableRow key={idx} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
+                    <TableCell className="font-black uppercase text-xs text-ink">{g.nombre}</TableCell>
+                    <TableCell className="text-center font-black mono">{g.cantidad}</TableCell>
+                    <TableCell className="text-right font-black text-brand-gold-deep mono">{Utils.fmtUSD(g.totalUSD)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReporteDevoluciones({ state }: { state: AppState }) {
+  const devoluciones = state.devoluciones || [];
+  const totalUSD = devoluciones.reduce((acc, d) => acc + d.totalUSD, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-white font-black text-xs uppercase italic tracking-tighter">HISTORIAL DE DEVOLUCIONES</h3>
+          <button className="btn btn-secondary h-8 px-4 font-black text-[9px]" onClick={() => exportarPDFDevoluciones(devoluciones, state.empresa, 'Histórico', { totalUSD })}>PDF</button>
+        </div>
+        <div className="table-wrap">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-surface-soft">
+                <TableHead className="text-[10px] font-black uppercase">Fecha</TableHead>
+                <TableHead className="text-[10px] font-black uppercase">Venta Ref.</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-right">Total Dev.</TableHead>
+                <TableHead className="text-[10px] font-black uppercase">Motivo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="bg-white">
+               {devoluciones.map(d => (
+                 <TableRow key={d.id} className="border-b border-line/30">
+                   <TableCell className="text-xs font-bold">{Utils.fmtFecha(d.fecha)}</TableCell>
+                   <TableCell className="text-xs font-black mono">{d.ventaId}</TableCell>
+                   <TableCell className="text-right font-black text-status-danger">{Utils.fmtUSD(d.totalUSD)}</TableCell>
+                   <TableCell className="text-xs italic uppercase opacity-60">{d.motivo}</TableCell>
+                 </TableRow>
+               ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HistorialAjustes({ state }: { state: AppState }) {
+  const ajustes = state.movimientos.filter(m => 
+    m.tipo.includes('ajuste') || m.tipo === 'compra' || m.tipo === 'inicial'
+  ).sort((a,b) => b.fecha.localeCompare(a.fecha));
+
+  return (
+    <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+      <div className="table-wrap">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-surface-soft">
+              <TableHead className="font-black text-ink uppercase text-[10px]">Fecha</TableHead>
+              <TableHead className="font-black text-ink uppercase text-[10px]">Producto</TableHead>
+              <TableHead className="font-black text-ink uppercase text-[10px]">Operación</TableHead>
+              <TableHead className="font-black text-ink uppercase text-[10px] text-center">Cant</TableHead>
+              <TableHead className="font-black text-ink uppercase text-[10px]">Motivo / Ref</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="bg-white">
+            {ajustes.map(m => (
+              <TableRow key={m.id} className="border-b border-line/30">
+                <TableCell className="text-xs font-bold">{m.fecha.slice(0,16).replace('T', ' ')}</TableCell>
+                <TableCell className="font-black uppercase text-xs">{state.productos.find(p => p.id === m.productoId)?.nombre || 'ELIMINADO'}</TableCell>
+                <TableCell><span className="badge badge-neutral text-[9px] font-black uppercase">{m.tipo}</span></TableCell>
+                <TableCell className={`text-center font-black ${m.cantidad > 0 ? 'text-status-success' : 'text-status-danger'}`}>{m.cantidad}</TableCell>
+                <TableCell className="text-[10px] opacity-40 italic uppercase">{m.referencia}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function ReporteConsumo({ state }: { state: AppState }) {
+  const consumos = state.movimientos.filter(m => m.tipo === 'consumo' || m.tipo === 'colaboracion').sort((a,b) => b.fecha.localeCompare(a.fecha));
+  return (
+    <div className="card shadow-lg border-line rounded-xl overflow-hidden">
+      <div className="table-wrap">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-surface-soft">
+              <TableHead className="font-black text-ink uppercase text-[10px]">Fecha</TableHead>
+              <TableHead className="font-black text-ink uppercase text-[10px]">Producto</TableHead>
+              <TableHead className="font-black text-ink uppercase text-[10px] text-center">Cant</TableHead>
+              <TableHead className="font-black text-ink uppercase text-[10px]">Motivo</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody className="bg-white">
+            {consumos.map(m => (
+              <TableRow key={m.id} className="border-b border-line/30">
+                <TableCell className="text-xs font-bold">{m.fecha.slice(0,10)}</TableCell>
+                <TableCell className="font-black uppercase text-xs">{state.productos.find(p => p.id === m.productoId)?.nombre}</TableCell>
+                <TableCell className={`text-center font-black text-status-danger`}>{Math.abs(m.cantidad)}</TableCell>
+                <TableCell className="text-[10px] uppercase font-bold opacity-40">{m.referencia}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selectedId: string | null, onSelect: (id: string) => void }) {
   const [search, setSearch] = useState('');
-  const selectedProd = state.productos.find(p => p.id === selectedId);
-  const movs = state.movimientos.filter(m => m.productoId === selectedId).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const selectedProd = selectedId ? state.productos.find(p => p.id === selectedId) : null;
+  const movs = selectedId ? state.movimientos.filter(m => m.productoId === selectedId).sort((a, b) => b.fecha.localeCompare(a.fecha)) : [];
 
   const matches = useMemo(() => {
-    if (search.length < 2) return [];
-    return state.productos.filter(p => p.activo && (p.nombre.toLowerCase().includes(search.toLowerCase()) || p.codigo.includes(search))).slice(0, 5);
+    if (search.trim().length < 2) return [];
+    return state.productos.filter(p => 
+      p.activo && 
+      (p.nombre.toLowerCase().includes(search.toLowerCase()) || p.codigo.includes(search))
+    ).slice(0, 5);
   }, [search, state.productos]);
 
   return (
@@ -394,7 +494,7 @@ function ReporteKardexComponent({ state, selectedId, onSelect }: { state: AppSta
       <div className="card p-5 bg-white border-line shadow-sm">
         <label className="text-[10px] font-black uppercase text-ink opacity-40 block mb-2">Buscar producto para ver Kardex</label>
         <div className="relative">
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Escriba nombre o código..." className="h-12 text-sm font-bold" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Escriba nombre o código..." className="form-input h-12 text-sm font-bold" />
           {matches.length > 0 && (
             <div className="absolute top-full left-0 right-0 bg-white border border-line shadow-2xl z-50 mt-1 rounded-xl overflow-hidden">
               {matches.map(p => (
@@ -409,154 +509,272 @@ function ReporteKardexComponent({ state, selectedId, onSelect }: { state: AppSta
       </div>
 
       {selectedProd && (
-        <Card className="overflow-hidden shadow-lg">
+        <Card className="overflow-hidden shadow-lg border-line">
           <div className="card-head bg-ink text-white px-6 py-3 flex justify-between items-center">
             <h3 className="font-black text-xs uppercase tracking-widest text-brand-gold">{selectedProd.nombre}</h3>
-            <Button variant="secondary" size="sm" onClick={() => exportarPDFKardex(selectedProd, movs, state.empresa)}>Exportar Kardex</Button>
+            <button className="btn btn-secondary h-8 px-4 font-black uppercase text-[9px]" onClick={() => exportarPDFKardex(selectedProd, movs, state.empresa)}>Exportar Kardex</button>
           </div>
-          <Table>
-            <TableHeader className="bg-surface-soft">
-              <TableRow>
-                <TableHead className="font-black text-[10px] uppercase">Fecha</TableHead>
-                <TableHead className="font-black text-[10px] uppercase">Tipo</TableHead>
-                <TableHead className="font-black text-[10px] uppercase text-center">Cant</TableHead>
-                <TableHead className="font-black text-[10px] uppercase text-center">Stock Final</TableHead>
-                <TableHead className="font-black text-[10px] uppercase">Referencia</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {movs.map(m => (
-                <TableRow key={m.id}>
-                  <TableCell className="text-xs font-bold">{m.fecha.replace('T', ' ')}</TableCell>
-                  <TableCell><span className="badge badge-neutral text-[9px] uppercase font-black">{m.tipo}</span></TableCell>
-                  <TableCell className={`text-center font-black ${m.cantidad > 0 ? 'text-status-success' : 'text-status-danger'}`}>{m.cantidad > 0 ? '+' : ''}{m.cantidad}</TableCell>
-                  <TableCell className="text-center font-bold">{m.stockDespues}</TableCell>
-                  <TableCell className="text-[10px] italic opacity-40">{m.referencia}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="table-wrap">
+             <Table>
+                <TableHeader>
+                   <TableRow className="bg-surface-soft">
+                      <TableHead className="font-black text-ink uppercase text-[10px]">Fecha</TableHead>
+                      <TableHead className="font-black text-ink uppercase text-[10px]">Tipo</TableHead>
+                      <TableHead className="font-black text-ink uppercase text-[10px] text-center">Cant</TableHead>
+                      <TableHead className="font-black text-ink uppercase text-[10px] text-center">Stock Final</TableHead>
+                      <TableHead className="font-black text-ink uppercase text-[10px]">Referencia</TableHead>
+                   </TableRow>
+                </TableHeader>
+                <TableBody className="bg-white">
+                   {movs.map(m => (
+                      <TableRow key={m.id} className="border-b border-line/30">
+                         <TableCell className="text-xs font-bold">{m.fecha.replace('T', ' ')}</TableCell>
+                         <TableCell><span className="badge badge-neutral text-[9px] uppercase font-black">{m.tipo}</span></TableCell>
+                         <TableCell className={`text-center font-black ${m.cantidad > 0 ? 'text-status-success' : 'text-status-danger'}`}>{m.cantidad > 0 ? '+' : ''}{m.cantidad}</TableCell>
+                         <TableCell className="text-center font-bold">{m.stockDespues}</TableCell>
+                         <TableCell className="text-[10px] italic opacity-40 uppercase">{m.referencia}</TableCell>
+                      </TableRow>
+                   ))}
+                </TableBody>
+             </Table>
+          </div>
         </Card>
       )}
     </div>
   );
 }
 
-function HistorialAjustesComponent({ state }: { state: AppState }) {
-  const ajustes = state.movimientos.filter(m => m.tipo.includes('ajuste') || m.tipo === 'compra').sort((a,b) => b.fecha.localeCompare(a.fecha));
-  return (
-    <Card className="overflow-hidden shadow-lg">
-      <Table>
-        <TableHeader className="bg-surface-soft">
-          <TableRow>
-            <TableHead className="font-black text-[10px] uppercase">Fecha</TableHead>
-            <TableHead className="font-black text-[10px] uppercase">Producto</TableHead>
-            <TableHead className="font-black text-[10px] uppercase">Operación</TableHead>
-            <TableHead className="font-black text-[10px] uppercase text-center">Cant</TableHead>
-            <TableHead className="font-black text-[10px] uppercase">Motivo / Ref</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {ajustes.map(m => (
-            <TableRow key={m.id}>
-              <TableCell className="text-xs font-bold">{m.fecha.slice(0,10)}</TableCell>
-              <TableCell className="font-black uppercase text-xs">{state.productos.find(p => p.id === m.productoId)?.nombre || 'Eliminado'}</TableCell>
-              <TableCell><span className="badge badge-neutral text-[9px] font-black uppercase">{m.tipo}</span></TableCell>
-              <TableCell className={`text-center font-black ${m.cantidad > 0 ? 'text-status-success' : 'text-status-danger'}`}>{m.cantidad}</TableCell>
-              <TableCell className="text-[10px] opacity-40 italic">{m.referencia}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
-  );
-}
+// ============================================================
+// MODAL DE PRODUCTO (LÓGICA TRIDIRECCIONAL)
+// ============================================================
 
-function ReporteConsumoComponent({ state }: { state: AppState }) {
-  const consumos = state.movimientos.filter(m => m.tipo === 'consumo' || m.tipo === 'colaboracion').sort((a,b) => b.fecha.localeCompare(a.fecha));
-  return (
-    <Card className="overflow-hidden shadow-lg">
-      <Table>
-        <TableHeader className="bg-surface-soft">
-          <TableRow>
-            <TableHead className="font-black text-[10px] uppercase">Fecha</TableHead>
-            <TableHead className="font-black text-[10px] uppercase">Producto</TableHead>
-            <TableHead className="font-black text-[10px] uppercase text-center">Cant</TableHead>
-            <TableHead className="font-black text-[10px] uppercase">Motivo</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {consumos.map(m => (
-            <TableRow key={m.id}>
-              <TableCell className="text-xs font-bold">{m.fecha.slice(0,10)}</TableCell>
-              <TableCell className="font-black uppercase text-xs">{state.productos.find(p => p.id === m.productoId)?.nombre}</TableCell>
-              <TableCell className="text-center font-black text-status-danger">{Math.abs(m.cantidad)}</TableCell>
-              <TableCell className="text-[10px] uppercase font-bold opacity-40">{m.referencia}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
-  );
-}
-
-function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: any) {
-  const [datos, setDatos] = useState({
+function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { producto?: Product, state: AppState, onClose: () => void, onSave: (p: any) => void, onUpdateLists: (l: any) => void }) {
+  const [activeTab, setActiveTab] = useState<'general' | 'precios' | 'kit'>('general');
+  const [datos, setDatos] = useState<any>({
     codigo: producto?.codigo || '',
     nombre: producto?.nombre || '',
-    categoria: producto?.categoria || state.categorias[0] || 'Otros',
-    costoUSD: producto?.costoUSD?.toString() || '0',
-    precioUSD: producto?.precioUSD?.toString() || '0',
-    stock: producto?.stock?.toString() || '0',
-    stockMinimo: producto?.stockMinimo?.toString() || '5'
+    categoria: producto?.categoria || state.categorias[0] || '',
+    marca: producto?.marca || state.marcas[0] || '',
+    costoUSD: producto?.costoUSD?.toString() ?? '0',
+    margen: producto?.margen?.toString() ?? '0',
+    precioUSD: producto?.precioUSD?.toString() ?? '0',
+    precioBS: producto ? (producto.precioUSD * state.tasa).toFixed(2) : '0',
+    precioMayorUSD: producto?.precioMayorUSD?.toString() ?? '0',
+    precioOfertaUSD: producto?.precioOfertaUSD?.toString() ?? '0',
+    precioPromoUSD: producto?.precioPromoUSD?.toString() ?? '0',
+    stock: producto?.stock?.toString() ?? '0',
+    stockMinimo: producto?.stockMinimo?.toString() ?? '3',
+    aplicaIVA: producto?.aplicaIVA ?? false,
+    isKit: producto?.isKit || false,
+    kitType: producto?.kitType || 'stock_propio',
+    kitItems: producto?.kitItems || [],
+    proveedor: producto?.proveedor || (state.proveedores[0]?.nombre || '')
   });
 
+  const [kitSearch, setKitSearch] = useState('');
+  const filteredProdsForKit = useMemo(() => {
+    if (kitSearch.length < 2) return [];
+    return state.productos.filter(p => !p.isKit && (p.nombre.toLowerCase().includes(kitSearch.toLowerCase()) || p.codigo.toLowerCase().includes(kitSearch.toLowerCase()))).slice(0, 5);
+  }, [kitSearch, state.productos]);
+
+  const validarDecimal = (val: string) => /^[\d]*\.?[\d]*$/.test(val) || val === '';
+
+  // LÓGICA TRIDIRECCIONAL (MARKUP SOBRE VENTA)
+  // Formula: Price = Cost / (1 - Margin/100)
+  
+  const handleCostoChange = (val: string) => {
+    if (!validarDecimal(val)) return;
+    const cost = parseFloat(val) || 0;
+    const margin = parseFloat(datos.margen) || 0;
+    let priceUSD = 0;
+    if (margin < 100) {
+      priceUSD = cost / (1 - (margin / 100));
+    }
+    const priceBS = priceUSD * state.tasa;
+    setDatos({...datos, costoUSD: val, precioUSD: priceUSD.toFixed(2), precioBS: priceBS.toFixed(2)});
+  };
+
+  const handleMargenChange = (val: string) => {
+    if (!validarDecimal(val)) return;
+    const margin = parseFloat(val) || 0;
+    const cost = parseFloat(datos.costoUSD) || 0;
+    let priceUSD = 0;
+    if (margin < 100) {
+      priceUSD = cost / (1 - (margin / 100));
+    }
+    const priceBS = priceUSD * state.tasa;
+    setDatos({...datos, margen: val, precioUSD: priceUSD.toFixed(2), precioBS: priceBS.toFixed(2)});
+  };
+
+  const handlePriceUSDChange = (val: string) => {
+    if (!validarDecimal(val)) return;
+    const priceUSD = parseFloat(val) || 0;
+    const cost = parseFloat(datos.costoUSD) || 0;
+    let margin = 0;
+    if (priceUSD > 0 && priceUSD > cost) {
+      margin = ((priceUSD - cost) / priceUSD) * 100;
+    }
+    const priceBS = priceUSD * state.tasa;
+    setDatos({...datos, precioUSD: val, margen: margin.toFixed(2), precioBS: priceBS.toFixed(2)});
+  };
+
+  const handlePriceBSChange = (val: string) => {
+    if (!validarDecimal(val)) return;
+    const priceBS = parseFloat(val) || 0;
+    const priceUSD = priceBS / state.tasa;
+    const cost = parseFloat(datos.costoUSD) || 0;
+    let margin = 0;
+    if (priceUSD > 0 && priceUSD > cost) {
+      margin = ((priceUSD - cost) / priceUSD) * 100;
+    }
+    setDatos({...datos, precioBS: val, precioUSD: priceUSD.toFixed(2), margen: margin.toFixed(2)});
+  };
+
+  const handleAddListItem = (listName: 'categorias' | 'marcas') => {
+    const newVal = prompt(`Ingrese nueva opción para ${listName.toUpperCase()}:`);
+    if (newVal) {
+      onUpdateLists({ [listName]: [...(state[listName] || []), newVal] });
+      setDatos((prev: any) => ({ ...prev, [listName === 'categorias' ? 'categoria' : 'marca']: newVal }));
+    }
+  };
+
+  const handleRemoveListItem = (listName: 'categorias' | 'marcas', current: string) => {
+    if (confirm(`¿Eliminar "${current}" de la lista?`)) {
+      const newList = (state[listName] || []).filter(i => i !== current);
+      onUpdateLists({ [listName]: newList });
+      setDatos((prev: any) => ({ ...prev, [listName === 'categorias' ? 'categoria' : 'marca']: newList[0] || '' }));
+    }
+  };
+
+  const handleSave = () => {
+    if (!datos.nombre || !datos.codigo) return alert('Nombre y Código requeridos');
+    onSave({
+      ...datos,
+      costoUSD: parseFloat(datos.costoUSD) || 0,
+      margen: parseFloat(datos.margen) || 0,
+      precioUSD: parseFloat(datos.precioUSD) || 0,
+      precioMayorUSD: parseFloat(datos.precioMayorUSD) || 0,
+      precioOfertaUSD: parseFloat(datos.precioOfertaUSD) || 0,
+      precioPromoUSD: parseFloat(datos.precioPromoUSD) || 0,
+      stock: parseFloat(datos.stock) || 0,
+      stockMinimo: parseFloat(datos.stockMinimo) || 0
+    });
+  };
+
   return (
     <div className="modal show"><div className="modal-bg" onClick={onClose}></div>
-      <div className="modal-box bg-white max-w-md border-2 border-line rounded-2xl overflow-hidden shadow-2xl">
-        <div className="modal-head py-4 px-6 bg-ink text-white border-b border-white/10 flex justify-between items-center">
-          <h3 className="font-black uppercase text-xs italic tracking-widest text-brand-gold">{producto ? 'Editar Producto' : 'Nuevo Producto'}</h3>
-          <button onClick={onClose}><X className="w-5 h-5 text-white/40 hover:text-white" /></button>
+      <div className="modal-box bg-white max-w-2xl border-2 border-line rounded-xl overflow-hidden shadow-2xl">
+        <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center">
+          <h3 className="text-white font-black uppercase italic tracking-tighter text-sm flex items-center gap-2">
+            <Box className="w-5 h-5 text-brand-gold" /> {producto ? 'EDITAR FICHA' : 'NUEVO ÍTEM / PRODUCTO'}
+          </h3>
+          <button onClick={onClose} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
         </div>
-        <div className="modal-body p-8 space-y-5">
-           <div className="space-y-1"><Label className="text-[10px] font-black uppercase opacity-40">Código de Barras</Label><Input value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} /></div>
-           <div className="space-y-1"><Label className="text-[10px] font-black uppercase opacity-40">Nombre del Producto</Label><Input className="uppercase" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} /></div>
-           <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1"><Label className="text-[10px] font-black uppercase opacity-40">Costo USD</Label><Input type="number" value={datos.costoUSD} onChange={e => setDatos({...datos, costoUSD: e.target.value})} /></div>
-              <div className="space-y-1"><Label className="text-[10px] font-black uppercase opacity-40">Venta USD</Label><Input type="number" value={datos.precioUSD} onChange={e => setDatos({...datos, precioUSD: e.target.value})} /></div>
-           </div>
-           <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1"><Label className="text-[10px] font-black uppercase opacity-40">Stock Inicial</Label><Input type="number" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} /></div>
-              <div className="space-y-1"><Label className="text-[10px] font-black uppercase opacity-40">Stock Mínimo</Label><Input type="number" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} /></div>
-           </div>
-           <Button className="w-full bg-brand-gold text-black font-black uppercase h-14 shadow-xl" onClick={() => onSave({ ...datos, costoUSD: parseFloat(datos.costoUSD), precioUSD: parseFloat(datos.precioUSD), stock: parseFloat(datos.stock), stockMinimo: parseFloat(datos.stockMinimo) })}><Check className="w-5 h-5 mr-2" /> Guardar Producto</Button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function ModalAjuste({ producto, onClose, onSave }: any) {
-  const [tipo, setTipo] = useState('ajuste_entrada');
-  const [cant, setCant] = useState('1');
-  const [motivo, setMotivo] = useState('');
+        <div className="flex bg-surface-soft border-b border-line">
+          {['general', 'precios', 'kit'].map(t => (
+            <button key={t} onClick={() => setActiveTab(t as any)} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === t ? 'border-brand-gold text-brand-gold bg-white' : 'border-transparent text-ink/40'}`}>{t}</button>
+          ))}
+        </div>
 
-  return (
-    <div className="modal show"><div className="modal-bg" onClick={onClose}></div>
-      <div className="modal-box bg-white max-w-sm border-2 border-line rounded-2xl overflow-hidden shadow-2xl">
-        <div className="modal-head py-4 px-6 bg-ink text-white border-b border-white/10">
-          <h3 className="font-black uppercase text-xs text-brand-gold">Ajuste: {producto.nombre}</h3>
+        <div className="modal-body p-6 space-y-6 bg-white max-h-[70vh] overflow-y-auto">
+          {activeTab === 'general' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-ink/50 block">Código (Scanner/Manual)</label>
+                  <input className="form-input h-10 font-black text-ink" value={datos.codigo} onChange={e => setDatos({...datos, codigo: e.target.value})} placeholder="00000000" autoFocus />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-ink/50 block">Nombre del Producto</label>
+                  <input className="form-input h-10 font-black text-ink uppercase" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center"><label className="text-[10px] font-black uppercase text-ink/50">Categoría</label>
+                    <div className="flex gap-1"><button onClick={() => handleAddListItem('categorias')} className="text-brand-gold"><PlusCircle className="w-3.5 h-3.5"/></button>
+                      <button onClick={() => handleRemoveListItem('categorias', datos.categoria)} className="text-status-danger"><MinusCircle className="w-3.5 h-3.5"/></button></div>
+                  </div>
+                  <select className="form-select h-10 text-xs font-bold" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
+                    {(state.categorias || []).map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-4">
+                 <div className="space-y-1">
+                   <label className="text-[10px] font-black uppercase text-ink/50 block">Proveedor</label>
+                   <select className="form-select h-10 text-xs font-bold" value={datos.proveedor} onChange={e => setDatos({...datos, proveedor: e.target.value})}>
+                     {state.proveedores.map(p => <option key={p.id} value={p.nombre}>{p.nombre.toUpperCase()}</option>)}
+                   </select>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                   <div className={`p-3 bg-surface-soft border border-line rounded-xl text-center ${producto ? 'opacity-50 pointer-events-none' : ''}`}>
+                     <label className="text-[9px] font-black uppercase text-ink/50 block mb-1">Stock Inicial</label>
+                     <input className="bg-transparent border-none text-center font-black text-xl w-full focus:outline-none" type="text" value={datos.stock} onChange={e => setDatos({...datos, stock: e.target.value})} />
+                   </div>
+                   <div className="p-3 bg-status-danger-soft border border-status-danger/20 rounded-xl text-center">
+                     <label className="text-[9px] font-black uppercase text-status-danger/70 block mb-1">Mínimo</label>
+                     <input className="bg-transparent border-none text-center font-black text-xl w-full text-status-danger focus:outline-none" type="text" value={datos.stockMinimo} onChange={e => setDatos({...datos, stockMinimo: e.target.value})} />
+                   </div>
+                 </div>
+                 <div className="flex items-center gap-3 p-4 bg-surface-soft rounded-xl border border-line">
+                   <button onClick={() => setDatos({...datos, aplicaIVA: !datos.aplicaIVA})} className={`w-12 h-6 rounded-full transition-all relative ${datos.aplicaIVA ? 'bg-status-success' : 'bg-ink/20'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${datos.aplicaIVA ? 'right-1' : 'left-1'}`} /></button>
+                   <label className="text-[10px] font-black uppercase text-ink">Aplica IVA (16%)</label>
+                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'precios' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-surface-soft p-5 rounded-2xl border border-line">
+                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-ink/50">Costo USD</label><input className="form-input h-12 font-black text-lg" value={datos.costoUSD} onChange={e => handleCostoChange(e.target.value)} /></div>
+                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-brand-gold-deep">Margen %</label><input className="form-input h-12 font-black text-lg text-brand-gold-deep" value={datos.margen} onChange={e => handleMargenChange(e.target.value)} /></div>
+                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-status-success">Venta USD</label><input className="form-input h-12 font-black text-lg text-status-success" value={datos.precioUSD} onChange={e => handlePriceUSDChange(e.target.value)} /></div>
+                <div className="space-y-1"><label className="text-[9px] font-black uppercase text-ink">Venta BS</label><input className="form-input h-12 font-black text-lg" value={datos.precioBS} onChange={e => handlePriceBSChange(e.target.value)} /></div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                 <div className="space-y-1"><label className="text-[9px] font-black uppercase text-ink/40">P. Mayor USD</label><input className="form-input h-10 font-bold" value={datos.precioMayorUSD} onChange={e => setDatos({...datos, precioMayorUSD: e.target.value})} /></div>
+                 <div className="space-y-1"><label className="text-[9px] font-black uppercase text-ink/40">P. Descuento USD</label><input className="form-input h-10 font-bold" value={datos.precioOfertaUSD} onChange={e => setDatos({...datos, precioOfertaUSD: e.target.value})} /></div>
+                 <div className="space-y-1"><label className="text-[9px] font-black uppercase text-ink/40">P. Promoción USD</label><input className="form-input h-10 font-bold" value={datos.precioPromoUSD} onChange={e => setDatos({...datos, precioPromoUSD: e.target.value})} /></div>
+              </div>
+              <div className="p-4 bg-brand-gold-soft/20 rounded-xl border border-brand-gold/10 flex items-start gap-3"><Info className="w-5 h-5 text-brand-gold shrink-0 mt-0.5" /><p className="text-[10px] text-brand-gold-deep font-bold leading-tight uppercase">Los precios adicionales (Mayor, Descuento, Promo) pueden ser seleccionados en el Terminal de Ventas.</p></div>
+            </div>
+          )}
+
+          {activeTab === 'kit' && (
+            <div className="space-y-6">
+              <div className="flex flex-col gap-4 p-4 bg-ink text-white rounded-xl">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setDatos({...datos, isKit: !datos.isKit})} className={`w-12 h-6 rounded-full transition-all relative ${datos.isKit ? 'bg-brand-gold' : 'bg-white/20'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${datos.isKit ? 'right-1' : 'left-1'}`} /></button>
+                  <label className="text-[11px] font-black uppercase tracking-widest">Habilitar KIT / COMBO</label>
+                </div>
+                {datos.isKit && (
+                  <div className="flex gap-6 border-t border-white/10 pt-4">
+                    <div className="flex items-center gap-2"><input type="radio" checked={datos.kitType === 'stock_propio'} onChange={() => setDatos({...datos, kitType: 'stock_propio'})} /><label className="text-[9px] font-black uppercase">Stock Propio (Pre-armado)</label></div>
+                    <div className="flex items-center gap-2"><input type="radio" checked={datos.kitType === 'stock_componentes'} onChange={() => setDatos({...datos, kitType: 'stock_componentes'})} /><label className="text-[9px] font-black uppercase">Sin Stock (Descuenta de Ítems)</label></div>
+                  </div>
+                )}
+              </div>
+              {datos.isKit && (
+                <div className="space-y-4">
+                  <div className="relative"><Search className="absolute left-3 top-3 w-4 h-4 text-ink/30" /><input className="form-input h-12 pl-10 text-xs font-black uppercase" placeholder="Buscar productos para el combo..." value={kitSearch} onChange={e => setKitSearch(e.target.value)} />{filteredProdsForKit.length > 0 && (<div className="absolute top-full left-0 right-0 bg-white border border-line rounded-lg shadow-2xl z-50 mt-1 overflow-hidden">{filteredProdsForKit.map(pk => (<div key={pk.id} onClick={() => { setDatos({...datos, kitItems: [...datos.kitItems, { productoId: pk.id, nombre: pk.nombre, cantidad: 1 }]}); setKitSearch(''); }} className="p-3 border-b border-line hover:bg-brand-gold-soft cursor-pointer flex justify-between items-center"><span className="text-xs font-black uppercase">{pk.nombre}</span><Plus className="w-4 h-4 text-brand-gold"/></div>))}</div>)}</div>
+                  <div className="card border-line shadow-sm overflow-hidden">
+                    <Table>
+                      <TableHeader><TableRow className="bg-surface-soft"><TableHead className="text-[10px] font-black uppercase">Componente</TableHead><TableHead className="text-[10px] font-black uppercase text-center">Cant</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {datos.kitItems.map((ki: KitItem, index: number) => (
+                          <TableRow key={index} className="border-b border-line/30"><TableCell className="text-[11px] font-black uppercase text-ink">{ki.nombre}</TableCell><TableCell className="text-center"><input className="w-12 h-8 text-center font-black bg-surface-soft border-line" type="number" value={ki.cantidad} onChange={e => { const n = [...datos.kitItems]; n[index].cantidad = parseInt(e.target.value) || 1; setDatos({...datos, kitItems: n}); }} /></TableCell><TableCell className="text-center"><button onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_:any, i:number) => i !== index)})} className="text-status-danger"><Trash2 className="w-4 h-4"/></button></TableCell></TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <div className="modal-body p-6 space-y-4">
-           <div className="grid grid-cols-2 gap-3">
-              <select className="form-select text-xs font-black h-10" value={tipo} onChange={e => setTipo(e.target.value)}>
-                <option value="ajuste_entrada">Entrada (+)</option><option value="ajuste_salida">Salida (-)</option>
-              </select>
-              <Input type="number" value={cant} onChange={e => setCant(e.target.value)} />
-           </div>
-           <Input className="uppercase text-xs" placeholder="Motivo del ajuste..." value={motivo} onChange={e => setMotivo(e.target.value)} />
-           <Button className="w-full bg-brand-gold text-black font-black uppercase" onClick={() => onSave({ id: Store.uid(), productoId: producto.id, tipo: tipo as any, cantidad: tipo === 'ajuste_entrada' ? parseFloat(cant) : -parseFloat(cant), stockAntes: producto.stock, stockDespues: tipo === 'ajuste_entrada' ? producto.stock + parseFloat(cant) : producto.stock - parseFloat(cant), fecha: Utils.ahora(), referencia: motivo.toUpperCase() })}>Confirmar</Button>
-        </div>
+        <div className="modal-foot p-5 bg-surface-soft border-t border-line flex justify-end gap-3"><button className="btn btn-secondary px-8 font-black uppercase text-[10px]" onClick={onClose}>Cerrar</button><button className="btn btn-primary px-10 font-black uppercase text-[10px] shadow-lg flex items-center gap-2" onClick={handleSave}><Check className="w-4 h-4" /> {producto ? 'ACTUALIZAR' : 'CREAR PRODUCTO'}</button></div>
       </div>
     </div>
   );
