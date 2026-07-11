@@ -158,7 +158,7 @@ export default function LicoreriaPOS() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [router]);
+  }, [router, activeModule]);
 
   useEffect(() => {
     if (mounted) {
