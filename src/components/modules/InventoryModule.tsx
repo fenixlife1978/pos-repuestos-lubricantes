@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { AppState, Product, Movimiento, KitItem } from '@/lib/types';
+import { AppState, Product, Movimiento, KitItem, Supplier } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
   Plus, 
@@ -19,7 +19,8 @@ import {
   Check, 
   Filter, 
   PackageCheck, 
-  AlertCircle 
+  AlertCircle,
+  Truck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,15 +45,23 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
   const [activeTab, setActiveTab] = useState('productos');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
+  const [provFilter, setProvFilter] = useState('');
   const [selectedKardexId, setSelectedKardexId] = useState<string | null>(null);
   
   const [showAjuste, setShowAjuste] = useState<string | null>(null);
   const [showProducto, setShowProducto] = useState<string | null | 'nuevo'>(null);
   
+  const safeProveedores = useMemo(() => {
+    return (state.proveedores || []).map(p => 
+      typeof p === 'string' ? { id: p, nombre: p } : p
+    );
+  }, [state.proveedores]);
+
   const prods = (state.productos || []).filter(p => 
     p.activo && 
     (p.nombre.toLowerCase().includes(search.toLowerCase()) || p.codigo.toLowerCase().includes(search.toLowerCase())) &&
-    (catFilter ? p.categoria === catFilter : true)
+    (catFilter ? p.categoria === catFilter : true) &&
+    (provFilter ? p.proveedor === provFilter : true)
   );
 
   const lowStockCount = prods.filter(p => p.stock <= (p.stockMinimo || 0)).length;
@@ -87,8 +96,8 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
           </div>
 
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex gap-4 flex-1 w-full">
-              <div className="relative flex-1">
+            <div className="flex flex-wrap gap-4 flex-1 w-full">
+              <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-ink/30" />
                 <Input 
                   className="pl-9 h-11 text-sm font-bold bg-white border-line" 
@@ -106,6 +115,19 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
                 >
                   <option value="">Todas las categorías</option>
                   {(state.categorias || []).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Truck className="w-4 h-4 text-ink/30" />
+                <select 
+                  className="form-select h-11 bg-white border-line text-xs font-black uppercase"
+                  value={provFilter} 
+                  onChange={e => setProvFilter(e.target.value)}
+                >
+                  <option value="">Todos los proveedores</option>
+                  {safeProveedores.map(p => (
+                    <option key={p.id} value={p.nombre}>{p.nombre?.toUpperCase()}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -276,12 +298,42 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
 }
 
 function ReporteGeneral({ state }: { state: AppState }) {
-  const filteredProducts = state.productos.filter(p => p.activo);
+  const [provFilter, setProvFilter] = useState('');
+
+  const safeProveedores = useMemo(() => {
+    return (state.proveedores || []).map(p => 
+      typeof p === 'string' ? { id: p, nombre: p } : p
+    );
+  }, [state.proveedores]);
+
+  const filteredProducts = state.productos.filter(p => 
+    p.activo && (provFilter ? p.proveedor === provFilter : true)
+  );
+
   const totalCosto = Utils.round(filteredProducts.reduce((acc, p) => acc + (p.costoUSD * p.stock), 0));
   const totalVenta = Utils.round(filteredProducts.reduce((acc, p) => acc + (p.precioUSD * p.stock), 0));
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap gap-4 items-end bg-white p-5 rounded-xl border border-line shadow-sm no-print">
+        <div className="form-group mb-0">
+          <label className="text-ink text-[10px] font-black uppercase block mb-1.5 opacity-70">Filtrar por Proveedor</label>
+          <div className="relative">
+            <Truck className="absolute left-3 top-2.5 w-4 h-4 text-brand-gold opacity-50" />
+            <select 
+              className="form-select pl-10 h-10 bg-surface-soft border-line text-ink font-bold text-sm rounded-lg"
+              value={provFilter}
+              onChange={e => setProvFilter(e.target.value)}
+            >
+              <option value="">TODOS LOS PROVEEDORES</option>
+              {safeProveedores.map(p => (
+                <option key={p.id} value={p.nombre}>{p.nombre?.toUpperCase()}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="kpi p-6 border-line shadow-md bg-white rounded-2xl">
           <div className="text-[10px] font-black uppercase mb-1 text-ink opacity-60">Valor al Costo (CPP Total)</div>
@@ -315,16 +367,20 @@ function ReporteGeneral({ state }: { state: AppState }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredProducts.map(p => (
-                <TableRow key={p.id} className="border-b border-line/30">
-                  <TableCell className="mono text-[11px] font-black text-ink">{p.codigo}</TableCell>
-                  <TableCell className="font-black uppercase text-xs text-ink">{p.nombre}</TableCell>
-                  <TableCell className="mono text-right text-xs font-bold text-ink/60">{Utils.fmtUSD(p.costoUSD)}</TableCell>
-                  <TableCell className="mono text-right text-brand-gold-deep font-black">{Utils.fmtUSD(p.precioUSD)}</TableCell>
-                  <TableCell className="text-center py-3 px-4"><span className="badge badge-neutral font-black">{p.stock}</span></TableCell>
-                  <TableCell className="mono text-right font-black text-ink">{Utils.fmtUSD(Utils.round(p.costoUSD * p.stock))}</TableCell>
-                </TableRow>
-              ))}
+              {filteredProducts.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center py-20 text-ink/20 font-black italic uppercase">No se encontraron productos para el proveedor seleccionado</TableCell></TableRow>
+              ) : (
+                filteredProducts.map(p => (
+                  <TableRow key={p.id} className="border-b border-line/30">
+                    <TableCell className="mono text-[11px] font-black text-ink">{p.codigo}</TableCell>
+                    <TableCell className="font-black uppercase text-xs text-ink">{p.nombre}</TableCell>
+                    <TableCell className="mono text-right text-xs font-bold text-ink/60">{Utils.fmtUSD(p.costoUSD)}</TableCell>
+                    <TableCell className="mono text-right text-brand-gold-deep font-black">{Utils.fmtUSD(p.precioUSD)}</TableCell>
+                    <TableCell className="text-center py-3 px-4"><span className="badge badge-neutral font-black">{p.stock}</span></TableCell>
+                    <TableCell className="mono text-right font-black text-ink">{Utils.fmtUSD(Utils.round(p.costoUSD * p.stock))}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
