@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore } from "firebase/firestore";
 import { getDatabase } from "firebase/database";
 
 export const firebaseConfig = {
@@ -17,6 +17,16 @@ export const firebaseConfig = {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Habilitar persistencia de datos offline con soporte multi-pestaña SOLO en el cliente
+// Esto evita el "Internal Server Error" durante el pre-renderizado de Next.js
+export const db = typeof window !== "undefined" 
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    })
+  : getFirestore(app);
+
 export const rtdb = getDatabase(app);
 export default app;

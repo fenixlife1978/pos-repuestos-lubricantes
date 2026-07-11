@@ -2,9 +2,11 @@
 
 import { AppState } from './types';
 import { db } from './firebase';
-import { doc, setDoc, onSnapshot, getDoc } from "firebase/firestore";
+import { doc, setDoc, onSnapshot } from "firebase/firestore";
 
-const STORAGE_KEY = 'licoreriaPOS_v2_cache_session';
+// Usamos sessionStorage para garantizar INDEPENDENCIA TOTAL ENTRE PESTAÑAS
+// y asegurar que la información no se mezcle entre diferentes inicios de sesión o usuarios.
+const STORAGE_KEY = 'posven_pro_session_data_cache';
 const COLLECTION = 'pos_system_data';
 const DOC_ID = 'state';
 
@@ -39,8 +41,10 @@ export const initialState: AppState = {
 };
 
 export const Store = {
-  // Suscribirse a cambios en tiempo real usando Firestore
+  // Suscribirse a cambios en tiempo real usando Firestore con soporte Offline
   subscribe(callback: (state: Partial<AppState>) => void) {
+    if (typeof window === 'undefined') return () => {};
+
     const docRef = doc(db, COLLECTION, DOC_ID);
     
     return onSnapshot(docRef, (snapshot) => {
@@ -48,21 +52,26 @@ export const Store = {
         const val = snapshot.data();
         // Combinar con initialState para asegurar que todos los campos existan
         const merged = { ...initialState, ...val };
-        // El carrito NO se sincroniza, es local por pestaña
+        
+        // El carrito NO se sincroniza globalmente por diseño, es local por pestaña
         delete (merged as any).carrito; 
+        
         callback(merged);
-        // Guardar cache de sesión
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-        }
+        
+        // Guardar cache de seguridad en sessionStorage para persistir ante recargas (F5)
+        // pero aislarlo de otras pestañas o navegadores.
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       } else {
-        callback(initialState);
+        // Fallback a cache local si no hay documento (pestaña nueva offline sin data previa en firestore)
+        const local = Store.get();
+        callback(local);
+        
         const { carrito, ...toPersist } = initialState;
         setDoc(docRef, toPersist).catch(e => console.error("Error init firestore:", e));
       }
     }, (error) => {
-      console.error("Firestore Sync Error:", error);
-      callback(initialState);
+      console.warn("Firestore Sync Warning (Normal if Offline):", error);
+      callback(Store.get());
     });
   },
 
@@ -105,12 +114,15 @@ export const Store = {
       acumuladoHistorico: state.acumuladoHistorico || 0
     };
 
-    // Persistencia en sesión local
+    // Actualización inmediata del cache de sesión de la pestaña actual
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(dataToPersist));
     
-    // Persistencia en la nube (Firestore)
+    // Persistencia asíncrona en la nube. Si no hay internet, Firebase lo encola automáticamente.
     const docRef = doc(db, COLLECTION, DOC_ID);
-    setDoc(docRef, dataToPersist).catch(err => console.error("Error Firestore Write:", err));
+    setDoc(docRef, dataToPersist).catch(err => {
+        // El error de red es manejado internamente por el SDK offline
+        console.error("Firestore Error (Will retry automatically):", err);
+    });
   },
 
   uid(): string {

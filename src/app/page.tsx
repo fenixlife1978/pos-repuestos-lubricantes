@@ -77,6 +77,7 @@ export default function LicoreriaPOS() {
         try {
           const userDocId = currentUser.email!.replace(/\W/g, '_');
           
+          // onSnapshot leerá automáticamente del cache local si está offline
           unsubscribeProfile = onSnapshot(doc(db, 'users', userDocId), async (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
@@ -87,11 +88,11 @@ export default function LicoreriaPOS() {
                 return;
               }
 
-              // Lógica de recuperación de sesión independiente por pestaña
               const savedModule = sessionStorage.getItem('posven_active_module');
               const aperturaConfirmada = sessionStorage.getItem('posven_apertura_done');
 
               if (data.rol === 'cajero') {
+                 // Recuperar config desde cache local si es necesario
                  const configSnap = await getDoc(doc(db, 'pos_system_data', 'state'));
                  const terminals = configSnap.data()?.terminales || [];
                  const terminalsArr = Array.isArray(terminals) ? terminals : Object.values(terminals);
@@ -116,14 +117,12 @@ export default function LicoreriaPOS() {
               setUser(currentUser);
               setLoading(false);
             } else {
-              // Manejo preventivo para administradores o perfiles migrados
               setUserRole('administrador');
               if (!activeModule) setActiveModule('dashboard');
               setLoading(false);
             }
           }, (err) => {
-            console.error("Error en tiempo real de perfil:", err);
-            // En caso de error de red, permitimos el acceso si ya estaba autenticado
+            console.warn("Perfil cargando en modo offline...");
             setLoading(false);
           });
 
@@ -135,7 +134,10 @@ export default function LicoreriaPOS() {
     });
 
     const unsubscribeStore = Store.subscribe((dbUpdate) => {
-      setState(prev => ({ ...prev, ...dbUpdate }));
+      setState(prev => {
+         // Mantener el carrito local de la pestaña
+         return { ...prev, ...dbUpdate };
+      });
     });
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -159,7 +161,27 @@ export default function LicoreriaPOS() {
     };
   }, [router]);
 
-  // Efecto para guardar módulo activo en cada cambio por pestaña
+  // Persistencia del CARRITO por pestaña ante recargas (F5)
+  useEffect(() => {
+    if (mounted) {
+      const savedCart = sessionStorage.getItem('posven_current_cart');
+      if (savedCart) {
+        try {
+          const items = JSON.parse(savedCart);
+          if (items.length > 0) {
+            setState(prev => ({ ...prev, carrito: items }));
+          }
+        } catch (e) {}
+      }
+    }
+  }, [mounted]);
+
+  useEffect(() => {
+    if (mounted && state.carrito) {
+      sessionStorage.setItem('posven_current_cart', JSON.stringify(state.carrito));
+    }
+  }, [state.carrito, mounted]);
+
   useEffect(() => {
     if (activeModule) {
       sessionStorage.setItem('posven_active_module', activeModule);
@@ -168,9 +190,7 @@ export default function LicoreriaPOS() {
 
   const handleLogout = async () => {
     if (confirm('¿Cerrar sesión del sistema?')) {
-      // Limpiar rastro de sesión UI exclusiva de esta pestaña
-      sessionStorage.removeItem('posven_active_module');
-      sessionStorage.removeItem('posven_apertura_done');
+      sessionStorage.clear(); // Limpia carrito y UI de esta pestaña
       
       if (userRole === 'cajero' && user) {
         try {
@@ -459,7 +479,7 @@ export default function LicoreriaPOS() {
                 <div className="flex items-center gap-1.5 leading-none">
                   <div className={`w-1.5 h-1.5 rounded-full ${mounted ? (isOnline ? 'bg-status-success animate-pulse' : 'bg-status-danger') : 'bg-ink/20'}`} />
                   <span className={`text-[0.74rem] font-black uppercase ${mounted ? (isOnline ? 'text-status-success' : 'text-status-danger') : 'text-ink/20'}`}>
-                    {mounted ? (isOnline ? 'Conectado' : 'Offline') : 'Conectando...'}
+                    {mounted ? (isOnline ? 'En Línea' : 'Modo Offline') : 'Iniciando...'}
                   </span>
                 </div>
               </div>
@@ -501,10 +521,13 @@ export default function LicoreriaPOS() {
         </div>
 
         <footer className="px-8 py-6 border-t border-line text-[0.76rem] font-black text-ink flex flex-col sm:flex-row justify-between gap-4 no-print bg-surface-warm/30">
-          <div>© 2026 PosVEN Pro · Datos persistidos en la nube</div>
+          <div>© 2026 PosVEN Pro · Persistencia Offline Activa</div>
           <div className="flex gap-4 items-center">
-            <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-status-success animate-pulse" /> Nube Activa</span>
-            <span className="px-2 py-0.5 bg-white border border-line rounded text-[0.65rem] font-black">v2.5.0-secure</span>
+            <span className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-status-success animate-pulse' : 'bg-status-warn'}`} /> 
+              {isOnline ? 'Nube Sincronizada' : 'Sincronización Pendiente'}
+            </span>
+            <span className="px-2 py-0.5 bg-white border border-line rounded text-[0.65rem] font-black">v2.5.0-resilient</span>
           </div>
         </footer>
       </main>
