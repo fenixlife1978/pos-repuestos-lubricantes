@@ -122,7 +122,7 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
           <Card className="bg-white border-line shadow-xl rounded-xl overflow-hidden">
             <div className="card-head bg-ink border-b border-white/10 px-6 py-4">
                <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
-                 <Box className="w-5 h-5 text-brand-gold" /> CATALOGO MAESTRO DE INVENTARIO
+                 <Box className="w-5 h-5 text-brand-gold" /> CATÁLOGO MAESTRO DE INVENTARIO
                </h3>
             </div>
             <div className="table-wrap">
@@ -195,7 +195,7 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
         <button onClick={() => setActiveTab('reporte_devoluciones')} className={`tab ${activeTab === 'reporte_devoluciones' ? 'active' : 'text-ink font-black'}`}>Devoluciones</button>
         <button onClick={() => setActiveTab('kardex')} className={`tab ${activeTab === 'kardex' ? 'active' : 'text-ink font-black'}`}>Kardex</button>
         <button onClick={() => setActiveTab('historial_ajustes')} className={`tab ${activeTab === 'historial_ajustes' ? 'active' : 'text-ink font-black'}`}>Ajustes</button>
-        <button onClick={() => setActiveTab('consumo_colab')} className={`tab ${activeTab === 'consumo_colab' ? 'active' : 'text-ink font-black'}`}>Consumo</button>
+        <button onClick={() => setActiveTab('consumo_colab')} className={`tab ${activeTab === 'consumo_colab' ? 'active' : 'text-ink font-black'}`}>Consumo / Colaboraciones</button>
       </div>
 
       <div className="animate-in fade-in duration-300">
@@ -469,7 +469,7 @@ function HistorialAjustes({ state }: { state: AppState }) {
               <TableRow key={m.id} className="border-b border-line/30">
                 <TableCell className="text-xs font-bold text-ink">{m.fecha.slice(0,16).replace('T', ' ')}</TableCell>
                 <TableCell className="font-black uppercase text-xs text-ink">{state.productos.find(p => p.id === m.productoId)?.nombre || 'ELIMINADO'}</TableCell>
-                <TableCell><span className="badge badge-neutral text-[9px] font-black uppercase">{m.tipo}</span></TableCell>
+                <TableCell><span className="badge badge-neutral text-[9px] font-black uppercase">{m.tipo.replace('_', ' ')}</span></TableCell>
                 <TableCell className={`text-center font-black ${m.cantidad > 0 ? 'text-status-success' : 'text-status-danger'}`}>{m.cantidad}</TableCell>
                 <TableCell className="text-[10px] opacity-40 italic uppercase text-ink">{m.referencia}</TableCell>
               </TableRow>
@@ -485,12 +485,16 @@ function ReporteConsumo({ state }: { state: AppState }) {
   const consumos = state.movimientos.filter(m => ['consumo', 'colaboracion'].includes(m.tipo)).sort((a,b) => b.fecha.localeCompare(a.fecha));
   return (
     <Card className="shadow-lg border-line rounded-xl overflow-hidden bg-white">
+      <div className="card-head bg-ink border-b border-white/10 px-6 py-4 text-white">
+         <h3 className="font-black text-xs uppercase italic tracking-tighter">HISTORIAL DE CONSUMO Y COLABORACIONES</h3>
+      </div>
       <div className="table-wrap">
         <Table>
           <TableHeader className="bg-surface-soft">
             <TableRow>
               <TableHead className="font-black text-ink uppercase text-[10px]">Fecha</TableHead>
               <TableHead className="font-black text-ink uppercase text-[10px]">Producto</TableHead>
+              <TableHead className="font-black text-ink uppercase text-[10px]">Tipo</TableHead>
               <TableHead className="font-black text-ink uppercase text-[10px] text-center">Cant</TableHead>
               <TableHead className="font-black text-ink uppercase text-[10px]">Motivo</TableHead>
             </TableRow>
@@ -500,10 +504,14 @@ function ReporteConsumo({ state }: { state: AppState }) {
               <TableRow key={m.id} className="border-b border-line/30">
                 <TableCell className="text-xs font-bold text-ink">{m.fecha.slice(0,10)}</TableCell>
                 <TableCell className="font-black uppercase text-xs text-ink">{state.productos.find(p => p.id === m.productoId)?.nombre}</TableCell>
+                <TableCell><span className="badge badge-neutral font-black text-[9px] uppercase">{m.tipo.replace('_', ' ')}</span></TableCell>
                 <TableCell className={`text-center font-black text-status-danger`}>{Math.abs(m.cantidad)}</TableCell>
                 <TableCell className="text-[10px] uppercase font-bold opacity-40 text-ink">{m.referencia}</TableCell>
               </TableRow>
             ))}
+            {consumos.length === 0 && (
+              <TableRow><TableCell colSpan={5} className="py-20 text-center text-ink/20 font-black italic uppercase">No se registran consumos o colaboraciones</TableCell></TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
@@ -564,7 +572,7 @@ function ReporteKardex({ state, selectedId, onSelect }: { state: AppState, selec
                    {movs.map(m => (
                       <TableRow key={m.id} className="border-b border-line/30">
                          <TableCell className="text-xs font-bold text-ink">{m.fecha.replace('T', ' ')}</TableCell>
-                         <TableCell><span className="badge badge-neutral text-[9px] uppercase font-black">{m.tipo}</span></TableCell>
+                         <TableCell><span className="badge badge-neutral text-[9px] uppercase font-black">{m.tipo.replace('_', ' ')}</span></TableCell>
                          <TableCell className={`text-center font-black ${m.cantidad > 0 ? 'text-status-success' : 'text-status-danger'}`}>{m.cantidad > 0 ? '+' : ''}{m.cantidad}</TableCell>
                          <TableCell className="text-center font-bold text-ink">{m.stockDespues}</TableCell>
                          <TableCell className="text-[10px] italic opacity-40 uppercase text-ink">{m.referencia}</TableCell>
@@ -595,9 +603,9 @@ function ModalAjuste({ producto, onClose, onSave }: { producto: Product, onClose
       id: Store.uid(),
       productoId: producto.id,
       tipo,
-      cantidad: tipo === 'ajuste_entrada' ? pCant : -Math.abs(pCant),
+      cantidad: (tipo === 'ajuste_entrada') ? pCant : -Math.abs(pCant),
       stockAntes: producto.stock,
-      stockDespues: tipo === 'ajuste_entrada' ? producto.stock + pCant : producto.stock - Math.abs(pCant),
+      stockDespues: (tipo === 'ajuste_entrada') ? producto.stock + pCant : producto.stock - Math.abs(pCant),
       fecha: Utils.ahora(),
       referencia: motivo.toUpperCase()
     };
@@ -617,6 +625,8 @@ function ModalAjuste({ producto, onClose, onSave }: { producto: Product, onClose
                <select className="form-select h-10 text-xs font-bold" value={tipo} onChange={e => setTipo(e.target.value as any)}>
                  <option value="ajuste_entrada">Entrada (+)</option>
                  <option value="ajuste_salida">Salida (-)</option>
+                 <option value="consumo">Consumo Propio</option>
+                 <option value="colaboracion">Colaboración</option>
                </select>
              </div>
              <div className="form-group"><Label className="text-[10px] font-black uppercase text-ink/60 mb-1 block">Cantidad</Label>
