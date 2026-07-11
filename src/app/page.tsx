@@ -293,7 +293,7 @@ export default function LicoreriaPOS() {
     <div className="flex min-h-screen bg-surface-warm text-ink">
       {showApertura && isCajero && (
         <div className="fixed inset-0 z-[100] bg-surface-warm flex items-center justify-center p-4 no-print">
-           <div className="w-full max-w-sm bg-white rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-5 space-y-3 animate-in fade-in zoom-in duration-500 border border-line">
+           <div className="w-full max-sm bg-white rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-5 space-y-3 animate-in fade-in zoom-in duration-500 border border-line">
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2.5 mb-1">
                   <div className="w-8 h-8 bg-brand-gold rounded-lg flex items-center justify-center text-black font-black text-lg shadow-lg">P</div>
