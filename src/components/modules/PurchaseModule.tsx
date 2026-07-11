@@ -186,7 +186,9 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
         montoUSD: totalUSD,
         abonadoUSD: pMontoPagadoUSD,
         saldoUSD: saldoPendienteUSD,
-        estado: Math.abs(saldoPendienteUSD - totalUSD) < 0.0001 ? 'pendiente' : 'parcial'
+        estado: Math.abs(saldoPendienteUSD - totalUSD) < 0.0001 ? 'pendiente' : 'parcial',
+        items: [...loteTemporal],
+        numeroFactura: numeroFactura
       });
     }
 

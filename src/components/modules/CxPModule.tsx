@@ -1,14 +1,18 @@
-
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { AppState } from '@/lib/types';
 import { Utils } from '@/lib/db-store';
-import { FileText, Calculator } from 'lucide-react';
+import { FileText, Calculator, Eye, X } from 'lucide-react';
 
 export default function CxPModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
+  const [showDetails, setShowDetails] = useState<any>(null);
+
   const pendientes = state.cxp.filter(x => x.estado !== 'pagada');
   const totalPendiente = pendientes.reduce((s, x) => s + x.saldoUSD, 0);
+
+  // Helper local para 4 decimales
+  const fmt4 = (v: number) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
   return (
     <div className="space-y-6">
@@ -61,10 +65,13 @@ export default function CxPModule({ state, updateState }: { state: AppState, upd
                     </td>
                     <td className="text-ink font-black text-xs uppercase py-4">{x.proveedor}</td>
                     <td className="text-ink font-medium text-xs py-4">{x.concepto}</td>
-                    <td className="text-ink font-bold text-xs text-right py-4 mono">{Utils.fmtUSD(x.montoUSD)}</td>
-                    <td className="text-brand-gold-deep font-black text-sm text-right py-4 mono">{Utils.fmtUSD(x.saldoUSD)}</td>
+                    <td className="text-ink font-bold text-xs text-right py-4 mono">{fmt4(x.montoUSD)}</td>
+                    <td className="text-brand-gold-deep font-black text-sm text-right py-4 mono">{fmt4(x.saldoUSD)}</td>
                     <td className="py-4 px-6 text-center">
-                      <button className="btn btn-primary h-8 px-4 font-black text-[9px] uppercase shadow-sm">Pagar</button>
+                       <div className="flex justify-center gap-1">
+                          <button onClick={() => setShowDetails(x)} className="btn-icon h-8 w-8 text-ink hover:text-brand-gold" title="Ver Detalle de Compra"><Eye className="w-4 h-4"/></button>
+                          <button className="btn btn-primary h-8 px-4 font-black text-[9px] uppercase shadow-sm">Pagar</button>
+                       </div>
                     </td>
                   </tr>
                 ))
@@ -73,6 +80,71 @@ export default function CxPModule({ state, updateState }: { state: AppState, upd
           </table>
         </div>
       </div>
+
+      {/* MODAL DETALLES AVANZADOS DE COMPRA */}
+      {showDetails && (
+        <div className="modal show"><div className="modal-bg" onClick={() => setShowDetails(null)}></div>
+          <div className="modal-box max-w-[600px] bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl">
+            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center">
+              <h3 className="text-white font-black text-xs uppercase italic tracking-tighter">DETALLE DE COMPRA: {showDetails.id}</h3>
+              <button onClick={() => setShowDetails(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="modal-body p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="p-3 bg-surface-soft rounded-lg border border-line">
+                    <label className="text-[8px] font-black uppercase text-ink/50 block mb-1">Monto de la Factura</label>
+                    <p className="text-lg font-black text-ink">{fmt4(showDetails.montoUSD)}</p>
+                 </div>
+                 <div className="p-3 bg-brand-gold-soft border border-brand-gold/20 rounded-lg">
+                    <label className="text-[8px] font-black uppercase text-brand-gold-deep block mb-1">Saldo por Pagar</label>
+                    <p className="text-lg font-black text-brand-gold-deep">{fmt4(showDetails.saldoUSD)}</p>
+                 </div>
+              </div>
+
+              {showDetails.items && (
+                <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+                  <div className="flex justify-between items-center border-b border-line pb-2">
+                     <h4 className="text-[10px] font-black uppercase text-ink/40 tracking-[0.2em]">ARTÍCULOS INTEGRANTES DE ESTA DEUDA</h4>
+                     <span className="text-[9px] font-black text-ink/60 uppercase">FACTURA #{showDetails.numeroFactura || '-'}</span>
+                  </div>
+                  <div className="bg-surface-soft/50 rounded-lg overflow-hidden border border-line/30">
+                     <table className="w-full">
+                        <thead>
+                          <tr className="bg-ink/5">
+                             <th className="text-[8px] font-black uppercase p-2 text-left">Cant</th>
+                             <th className="text-[8px] font-black uppercase p-2 text-left">Descripción</th>
+                             <th className="text-[8px] font-black uppercase p-2 text-right">Costo Unit.</th>
+                             <th className="text-[8px] font-black uppercase p-2 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {showDetails.items.map((it: any, idx: number) => (
+                            <tr key={idx} className="border-b border-line/20">
+                               <td className="text-[9px] font-bold p-2 text-ink">{it.cantidad}</td>
+                               <td className="text-[9px] font-black uppercase p-2 text-ink truncate max-w-[180px]">{it.nombre}</td>
+                               <td className="text-[9px] font-bold p-2 text-right text-ink">{fmt4(it.costoUnitarioUSD)}</td>
+                               <td className="text-[9px] font-black p-2 text-right text-brand-gold-deep">{fmt4(it.subtotalUSD)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                     </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 bg-surface-soft rounded-lg border border-line flex flex-col gap-1">
+                 <p className="text-[8px] font-black uppercase text-ink/40">Información del Proveedor</p>
+                 <p className="text-xs font-black text-ink uppercase">{showDetails.proveedor}</p>
+                 <p className="text-[10px] font-bold text-ink/60">FECHA DE EMISIÓN: {Utils.fmtFecha(showDetails.fecha)}</p>
+                 <p className="text-[10px] font-bold text-status-danger">VENCIMIENTO: {Utils.fmtFecha(showDetails.fechaVencimiento)}</p>
+              </div>
+            </div>
+            <div className="modal-foot p-4 bg-surface-soft border-t border-line text-right">
+               <button onClick={() => setShowDetails(null)} className="btn btn-primary px-8 font-black uppercase text-[10px] rounded-lg">Cerrar Ficha</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
