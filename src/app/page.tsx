@@ -30,7 +30,7 @@ import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import DashboardModule from '@/components/modules/DashboardModule';
-import InventoryModule from '@/components/modules/InventoryModule';
+import { InventoryModule } from '@/components/modules/InventoryModule';
 import SalesModule from '@/components/modules/SalesModule';
 import PurchaseModule from '@/components/modules/PurchaseModule';
 import CxCModule from '@/components/modules/CxCModule';
@@ -45,7 +45,7 @@ import AccountingModule from '@/components/modules/AccountingModule';
 export default function LicoreriaPOS() {
   const router = useRouter();
   const [state, setState] = useState<AppState>(initialState);
-  const [activeModule, setActiveModule] = useState('');
+  const [activeModule, setActiveTab] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -105,13 +105,13 @@ export default function LicoreriaPOS() {
                     return;
                  }
                  
-                 if (!savedModule) setActiveModule('ventas');
-                 else setActiveModule(savedModule);
+                 if (!savedModule) setActiveTab('ventas');
+                 else setActiveTab(savedModule);
                  
                  setShowApertura(!aperturaConfirmada);
               } else {
-                 if (!savedModule) setActiveModule('dashboard');
-                 else setActiveModule(savedModule);
+                 if (!savedModule) setActiveTab('dashboard');
+                 else setActiveTab(savedModule);
                  setShowApertura(false);
               }
 
@@ -121,7 +121,7 @@ export default function LicoreriaPOS() {
               setLoading(false);
             } else {
               setUserRole('administrador');
-              if (!activeModule) setActiveModule('dashboard');
+              if (!activeModule) setActiveTab('dashboard');
               setLoading(false);
             }
           }, (err) => {
@@ -214,7 +214,7 @@ export default function LicoreriaPOS() {
 
   const handleModuleChange = (moduleId: string) => {
     if (userRole === 'cajero' && moduleId !== 'ventas') return;
-    setActiveModule(moduleId);
+    setActiveTab(moduleId);
     setIsSidebarOpen(false);
   };
 
@@ -331,7 +331,7 @@ export default function LicoreriaPOS() {
 
                 <div className="space-y-2.5">
                    <div className="form-group">
-                      <label className="text-ink text-[8px] font-black uppercase block mb-1 ml-1 opacity-70">Fondo Efectivo Bs.</label>
+                      <label className="text-ink text-[8px] font-black uppercase block mb-1 opacity-70">Fondo Efectivo Bs.</label>
                       <input 
                         type="text" 
                         className="form-input h-9 text-base font-black text-center text-ink bg-surface-soft/40 border-line" 
@@ -340,7 +340,7 @@ export default function LicoreriaPOS() {
                       />
                    </div>
                    <div className="form-group">
-                      <label className="text-ink text-[8px] font-black uppercase block mb-1 ml-1 opacity-70">Fondo Efectivo USD</label>
+                      <label className="text-ink text-[8px] font-black uppercase block mb-1 opacity-70">Fondo Efectivo USD</label>
                       <input 
                         type="text" 
                         className="form-input h-9 text-base font-black text-center text-brand-gold-deep bg-surface-soft/40 border-line" 
