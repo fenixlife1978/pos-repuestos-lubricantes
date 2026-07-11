@@ -33,6 +33,9 @@ interface PurchaseModuleProps {
 }
 
 export default function PurchaseModule({ state, updateState }: PurchaseModuleProps) {
+  // Helper local para formatear con 4 decimales
+  const fmt4 = (v: number) => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+
   // 1. DATOS DE LA FACTURA
   const [proveedor, setProveedor] = useState('');
   const [numeroFactura, setNumeroFactura] = useState('');
@@ -55,18 +58,18 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
   // Normalización de proveedores para evitar errores de tipo si hay datos antiguos (strings)
   const safeProveedores = useMemo(() => {
     return (state.proveedores || []).map(p => 
-      typeof p === 'string' ? { id: p, nombre: p } : p
+      typeof p === 'string' ? { id: p, nombre: p, rif: '', contacto: '', direccion: '', telefono: '' } : p
     );
   }, [state.proveedores]);
 
-  // Cálculos de Totales
+  // Cálculos de Totales (Usando precisión de 4 decimales)
   const totalUSD = loteTemporal.reduce((acc, item) => acc + item.subtotalUSD, 0);
   const tasaActual = parseFloat(tasaCompra.toString()) || 1;
 
   // Sincronizar montos al cambiar condición
   useEffect(() => {
     if (condicion === 'contado') {
-      setMontoPagadoUSD(totalUSD.toFixed(2));
+      setMontoPagadoUSD(totalUSD.toFixed(4));
       setMontoPagadoBS((totalUSD * tasaActual).toFixed(2));
     } else if (condicion === 'credito') {
       setMontoPagadoUSD('0');
@@ -89,7 +92,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
     if (!/^\d*\.?\d*$/.test(val)) return;
     setMontoPagadoBS(val);
     const nBS = parseFloat(val) || 0;
-    setMontoPagadoUSD((nBS / tasaActual).toFixed(2));
+    setMontoPagadoUSD((nBS / tasaActual).toFixed(4));
   };
 
   // Buscador de productos
@@ -117,7 +120,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
       nombre: itemSeleccionado.nombre,
       cantidad: pCant,
       costoUnitarioUSD: pCosto,
-      subtotalUSD: Utils.round(pCant * pCosto)
+      subtotalUSD: Math.round((pCant * pCosto + Number.EPSILON) * 10000) / 10000
     };
 
     setLoteTemporal([...loteTemporal, nuevo]);
@@ -150,7 +153,8 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
         const nuevoCosto = itemCompra.costoUnitarioUSD;
         
         const stockTotal = stockActual + nuevaCantidad;
-        const costoPromedio = Utils.round(((stockActual * costoActual) + (nuevaCantidad * nuevoCosto)) / stockTotal);
+        // Costo Promedio Ponderado con 4 decimales
+        const costoPromedio = Math.round((((stockActual * costoActual) + (nuevaCantidad * nuevoCosto)) / stockTotal + Number.EPSILON) * 10000) / 10000;
 
         return { ...p, stock: stockTotal, costoUSD: costoPromedio };
       }
@@ -172,7 +176,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
     });
 
     const nuevasCxP = [...state.cxp];
-    if (saldoPendienteUSD > 0) {
+    if (saldoPendienteUSD > 0.0001) {
       nuevasCxP.push({
         id: 'CXP-' + Store.uid().slice(0, 6).toUpperCase(),
         fecha: fecha,
@@ -182,7 +186,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
         montoUSD: totalUSD,
         abonadoUSD: pMontoPagadoUSD,
         saldoUSD: saldoPendienteUSD,
-        estado: saldoPendienteUSD === totalUSD ? 'pendiente' : 'parcial'
+        estado: Math.abs(saldoPendienteUSD - totalUSD) < 0.0001 ? 'pendiente' : 'parcial'
       });
     }
 
@@ -292,15 +296,15 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
               <div className="space-y-3 pt-2 border-t border-line/50">
                 <div className="flex justify-between items-center text-[10px] font-black uppercase">
                   <span className="text-ink opacity-40">TOTAL FACTURA:</span>
-                  <span className="text-ink text-base">{Utils.fmtUSD(totalUSD)}</span>
+                  <span className="text-ink text-base">{fmt4(totalUSD)}</span>
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-black uppercase">
                   <span className="text-ink opacity-40">PAGADO HOY:</span>
-                  <span className="text-status-success text-base">{Utils.fmtUSD(pMontoPagadoUSD)}</span>
+                  <span className="text-status-success text-base">{fmt4(pMontoPagadoUSD)}</span>
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-black uppercase border-t border-line/50 pt-3">
                   <span className="text-ink opacity-40">SALDO PENDIENTE:</span>
-                  <span className="text-status-danger text-lg">{Utils.fmtUSD(saldoPendienteUSD)}</span>
+                  <span className="text-status-danger text-lg">{fmt4(saldoPendienteUSD)}</span>
                 </div>
               </div>
             </div>
@@ -327,7 +331,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                       {matches.map(p => (
                         <div key={p.id} onClick={() => handleSelectItem(p)} className="p-3 border-b border-line hover:bg-brand-gold/10 cursor-pointer flex justify-between items-center transition-colors">
                           <div className="flex flex-col"><span className="text-xs font-black text-ink uppercase">{p.nombre}</span><span className="text-[9px] text-ink/40 mono">{p.codigo}</span></div>
-                          <div className="text-brand-gold-deep font-black text-xs">${p.costoUSD.toFixed(2)}</div>
+                          <div className="text-brand-gold-deep font-black text-xs">${p.costoUSD.toFixed(4)}</div>
                         </div>
                       ))}
                     </div>
@@ -363,8 +367,8 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                     <tr key={idx} className="border-b border-line/30 hover:bg-surface-warm/20">
                       <td className="text-xs font-black text-ink uppercase py-4 px-6">{item.nombre}</td>
                       <td className="text-center font-bold text-ink">{item.cantidad}</td>
-                      <td className="text-right font-bold text-ink">{Utils.fmtUSD(item.costoUnitarioUSD)}</td>
-                      <td className="text-right font-black text-brand-gold-deep">{Utils.fmtUSD(item.subtotalUSD)}</td>
+                      <td className="text-right font-bold text-ink">{fmt4(item.costoUnitarioUSD)}</td>
+                      <td className="text-right font-black text-brand-gold-deep">{fmt4(item.subtotalUSD)}</td>
                       <td className="text-center">
                         <button onClick={() => handleRemoveTempItem(idx)} className="text-ink/20 hover:text-status-danger transition-colors p-2"><Trash2 className="w-4 h-4" /></button>
                       </td>
@@ -381,7 +385,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
               <div className="flex gap-4">
                 <div className="bg-white p-3 px-6 rounded-xl border border-line text-center shadow-sm">
                    <span className="text-[9px] font-black uppercase opacity-40 block mb-0.5">Total Factura</span>
-                   <p className="text-lg font-black text-ink leading-none">{Utils.fmtUSD(totalUSD)}</p>
+                   <p className="text-lg font-black text-ink leading-none">{fmt4(totalUSD)}</p>
                 </div>
                 <div className="bg-white p-3 px-6 rounded-xl border border-line text-center shadow-sm">
                    <span className="text-[9px] font-black uppercase opacity-40 block mb-0.5">Equiv. BS</span>
