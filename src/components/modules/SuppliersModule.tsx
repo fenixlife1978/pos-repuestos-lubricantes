@@ -155,8 +155,8 @@ export default function SuppliersModule({ state, updateState }: { state: AppStat
               {filtered.length === 0 ? (
                 <tr><td colSpan={4} className="text-center py-20 text-ink/20 font-black uppercase italic">No se registran proveedores coincidentes</td></tr>
               ) : (
-                filtered.map((p) => (
-                  <tr key={p.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
+                filtered.map((p, idx) => (
+                  <tr key={`${p.id}-${idx}`} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
                     <td className="py-4 px-6">
                        <div className="text-ink font-black text-xs uppercase">{p.nombre}</div>
                        <div className="text-brand-gold-deep font-black text-[9px] mono">{p.rif}</div>
