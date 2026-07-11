@@ -78,7 +78,7 @@ export default function InventoryModule({ state, updateState }: { state: AppStat
               </div>
               <select className="form-select w-auto bg-white border-line rounded-md px-3 py-2 text-sm font-bold text-ink" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
                 <option value="">Todas las categorías</option>
-                {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                {(state.categorias || []).map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div className="flex gap-2">
@@ -806,13 +806,16 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                     </div>
                   </div>
                   <select className="form-select h-10 text-xs font-bold" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
-                    {state.categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                    {(state.categorias || []).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase text-ink/50 block mb-1">Proveedor Asignado</label>
                   <select className="form-select h-10 text-xs font-bold" value={datos.proveedor} onChange={e => setDatos({...datos, proveedor: e.target.value})}>
-                    {state.proveedores.map(p => <option key={p.id} value={p.nombre}>{p.nombre.toUpperCase()}</option>)}
+                    {(state.proveedores || []).map((p: any) => {
+                      const name = typeof p === 'string' ? p : p.nombre;
+                      return <option key={typeof p === 'string' ? p : p.id} value={name}>{name?.toUpperCase() || 'S/N'}</option>;
+                    })}
                   </select>
                 </div>
               </div>
@@ -827,7 +830,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                       </div>
                     </div>
                     <select className="form-select h-10 text-xs font-bold" value={datos.marca} onChange={e => setDatos({...datos, marca: e.target.value})}>
-                      {state.marcas.map(m => <option key={m} value={m}>{m}</option>)}
+                      {(state.marcas || []).map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1">
@@ -839,7 +842,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                       </div>
                     </div>
                     <select className="form-select h-10 text-xs font-bold" value={datos.presentacion} onChange={e => setDatos({...datos, presentacion: e.target.value})}>
-                      {state.presentaciones.map(p => <option key={p} value={p}>{p}</option>)}
+                      {(state.presentaciones || []).map(p => <option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                 </div>

@@ -17,7 +17,7 @@ import {
   Boxes
 } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
-import { AppState, Product, Movimiento, PaymentMethod, KitItem } from '@/lib/types';
+import { AppState, Product, Movimiento, PaymentMethod, KitItem, Supplier } from '@/lib/types';
 
 interface PurchaseItemTemp {
   productoId: string;
@@ -51,6 +51,13 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
   const [cantidad, setCantidad] = useState<string | number>(1);
   const [costoInput, setCostoInput] = useState<string | number>(0);
   const [loteTemporal, setLoteTemporal] = useState<PurchaseItemTemp[]>([]);
+
+  // Normalización de proveedores para evitar errores de tipo si hay datos antiguos (strings)
+  const safeProveedores = useMemo(() => {
+    return (state.proveedores || []).map(p => 
+      typeof p === 'string' ? { id: p, nombre: p } : p
+    );
+  }, [state.proveedores]);
 
   // Cálculos de Totales
   const totalUSD = loteTemporal.reduce((acc, item) => acc + item.subtotalUSD, 0);
@@ -217,7 +224,9 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                 <label className="text-ink text-[10px] font-black uppercase block mb-1">Proveedor</label>
                 <select className="form-select h-11 text-xs font-bold" value={proveedor} onChange={e => setProveedor(e.target.value)}>
                   <option value="">SELECCIONE PROVEEDOR</option>
-                  {state.proveedores.map(p => <option key={p.id} value={p.nombre}>{p.nombre.toUpperCase()}</option>)}
+                  {safeProveedores.map(p => (
+                    <option key={p.id} value={p.nombre}>{p.nombre?.toUpperCase() || 'S/N'}</option>
+                  ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">

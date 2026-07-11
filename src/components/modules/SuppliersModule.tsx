@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AppState, Supplier } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
@@ -33,16 +33,23 @@ export default function SuppliersModule({ state, updateState }: { state: AppStat
     telefono: ''
   });
 
-  const filtered = (state.proveedores || []).filter(p => 
-    p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    p.rif.toLowerCase().includes(search.toLowerCase())
+  // Normalización de proveedores para evitar errores de tipo con datos antiguos
+  const safeProveedores = useMemo(() => {
+    return (state.proveedores || []).map(p => 
+      typeof p === 'string' ? { id: p, nombre: p, rif: '', contacto: '', direccion: '', telefono: '' } : p
+    );
+  }, [state.proveedores]);
+
+  const filtered = safeProveedores.filter(p => 
+    (p.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.rif || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSave = () => {
     if (!formData.nombre.trim() || !formData.rif.trim()) return alert('Nombre y RIF son obligatorios');
     
     const rifLimpio = formData.rif.trim().toUpperCase();
-    const existeRif = state.proveedores.find(p => p.rif === rifLimpio && p.id !== editingId);
+    const existeRif = safeProveedores.find(p => p.rif === rifLimpio && p.id !== editingId);
     
     if (existeRif) {
       toast({ 
@@ -53,7 +60,7 @@ export default function SuppliersModule({ state, updateState }: { state: AppStat
       return;
     }
 
-    let nuevosProveedores = [...state.proveedores];
+    let nuevosProveedores = [...safeProveedores];
 
     if (editingId) {
       const idx = nuevosProveedores.findIndex(p => p.id === editingId);
@@ -73,7 +80,7 @@ export default function SuppliersModule({ state, updateState }: { state: AppStat
         id: 'PROV-' + Store.uid().toUpperCase().slice(0, 4),
         rif: rifLimpio
       };
-      updateState({ proveedores: [...state.proveedores, nuevo] });
+      updateState({ proveedores: [...safeProveedores, nuevo] });
       toast({ title: "Proveedor Registrado" });
     }
     
@@ -96,7 +103,7 @@ export default function SuppliersModule({ state, updateState }: { state: AppStat
 
   const handleDelete = (p: Supplier) => {
     if (!confirm(`¿Seguro que desea eliminar a "${p.nombre}"?`)) return;
-    const nuevos = state.proveedores.filter(item => item.id !== p.id);
+    const nuevos = safeProveedores.filter(item => item.id !== p.id);
     updateState({ proveedores: nuevos });
     toast({ title: "Proveedor Eliminado" });
   };
