@@ -12,8 +12,10 @@ export default function ReportsModule({ state }: { state: AppState }) {
   const [terminalFilter, setTerminalFilter] = useState('all');
   
   // Filtrado de Ventas por Fecha y Terminal
-  const ventasFiltradas = state.ventas.filter(v => {
-    const matchesFecha = v.fecha >= desde && v.fecha <= hasta;
+  const ventasFiltradas = (state.ventas || []).filter(v => {
+    // Normalizamos la fecha de la venta para comparar solo YYYY-MM-DD
+    const fechaVenta = v.fecha ? v.fecha.split('T')[0] : '';
+    const matchesFecha = fechaVenta >= desde && fechaVenta <= hasta;
     const matchesTerminal = terminalFilter === 'all' ? true : v.terminalId === terminalFilter;
     return matchesFecha && matchesTerminal;
   });
@@ -139,7 +141,7 @@ export default function ReportsModule({ state }: { state: AppState }) {
                   {ventasFiltradas.map(v => (
                     <tr key={v.id} className="border-b border-line/40 hover:bg-surface-warm/20 transition-colors">
                       <td className="text-ink font-bold text-xs py-4 px-6">{Utils.fmtFecha(v.fecha)}</td>
-                      <td className="text-ink font-black text-[10px] uppercase py-4">{state.terminales.find(t => t.id === v.terminalId)?.nombre || 'S/T'}</td>
+                      <td className="text-ink font-black text-[10px] uppercase py-4">{state.terminales?.find(t => t.id === v.terminalId)?.nombre || 'S/T'}</td>
                       <td className="text-ink font-black text-xs uppercase py-4">{v.cliente}</td>
                       <td className="py-4">
                         <span className="badge badge-neutral text-ink font-black text-[9px] uppercase px-2.5 py-1">
