@@ -541,40 +541,70 @@ function HistorialAjustes({ state }: { state: AppState }) {
 }
 
 function ReporteConsumo({ state }: { state: AppState }) {
-  const consumos = state.movimientos.filter(m => ['consumo', 'colaboracion'].includes(m.tipo)).sort((a,b) => b.fecha.localeCompare(a.fecha));
+  const consumos = state.movimientos
+    .filter(m => ['consumo', 'colaboracion'].includes(m.tipo))
+    .sort((a,b) => b.fecha.localeCompare(a.fecha));
+
+  const totalPerdida = consumos.reduce((acc, m) => {
+    const p = state.productos.find(prod => prod.id === m.productoId);
+    return acc + (Math.abs(m.cantidad) * (p?.costoUSD || 0));
+  }, 0);
+
   return (
-    <Card className="shadow-lg border-line rounded-xl overflow-hidden bg-white">
-      <div className="card-head bg-ink border-b border-white/10 px-6 py-4 text-white">
-         <h3 className="font-black text-xs uppercase italic tracking-tighter">HISTORIAL DE CONSUMO Y COLABORACIONES</h3>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="kpi bg-status-danger-soft border-status-danger/20 p-6 rounded-2xl shadow-sm border-l-[6px] border-l-status-danger flex items-center gap-4">
+          <div className="p-3 bg-status-danger text-white rounded-xl"><AlertCircle className="w-6 h-6" /></div>
+          <div>
+            <p className="text-[10px] font-black uppercase text-status-danger/70">Total Pérdida por Consumo</p>
+            <p className="text-2xl font-black text-status-danger">{Utils.fmtUSD(totalPerdida)}</p>
+          </div>
+        </div>
       </div>
-      <div className="table-wrap">
-        <Table>
-          <TableHeader className="bg-surface-soft">
-            <TableRow>
-              <TableHead className="font-black text-ink uppercase text-[10px]">Fecha</TableHead>
-              <TableHead className="font-black text-ink uppercase text-[10px]">Producto</TableHead>
-              <TableHead className="font-black text-ink uppercase text-[10px]">Tipo</TableHead>
-              <TableHead className="font-black text-ink uppercase text-[10px] text-center">Cant</TableHead>
-              <TableHead className="font-black text-ink uppercase text-[10px]">Motivo</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {consumos.map(m => (
-              <TableRow key={m.id} className="border-b border-line/30">
-                <TableCell className="text-xs font-bold text-ink">{m.fecha.slice(0,10)}</TableCell>
-                <TableCell className="font-black uppercase text-xs text-ink">{state.productos.find(p => p.id === m.productoId)?.nombre}</TableCell>
-                <TableCell><span className="badge badge-neutral font-black text-[9px] uppercase">{m.tipo.replace('_', ' ')}</span></TableCell>
-                <TableCell className={`text-center font-black text-status-danger`}>{Math.abs(m.cantidad)}</TableCell>
-                <TableCell className="text-[10px] uppercase font-bold opacity-40 text-ink">{m.referencia}</TableCell>
+
+      <Card className="shadow-lg border-line rounded-xl overflow-hidden bg-white">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4 text-white">
+           <h3 className="font-black text-xs uppercase italic tracking-tighter">HISTORIAL DE CONSUMO Y COLABORACIONES</h3>
+        </div>
+        <div className="table-wrap">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-surface-soft">
+                <TableHead className="font-black text-ink uppercase text-[10px]">Fecha</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px]">Producto</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px]">Tipo</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-right">P. Costo</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-center">Cant</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-right">Total Costo</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px]">Motivo</TableHead>
               </TableRow>
-            ))}
-            {consumos.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="py-20 text-center text-ink/20 font-black italic uppercase">No se registran consumos o colaboraciones</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </Card>
+            </TableHeader>
+            <TableBody className="bg-white">
+              {consumos.map(m => {
+                const p = state.productos.find(prod => prod.id === m.productoId);
+                const costo = p?.costoUSD || 0;
+                const subtotal = Math.abs(m.cantidad) * costo;
+                
+                return (
+                  <TableRow key={m.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
+                    <TableCell className="text-xs font-bold text-ink">{m.fecha.slice(0,10)}</TableCell>
+                    <TableCell className="font-black uppercase text-xs text-ink">{p?.nombre || 'Producto Eliminado'}</TableCell>
+                    <TableCell><span className="badge badge-neutral font-black text-[9px] uppercase">{m.tipo.replace('_', ' ')}</span></TableCell>
+                    <TableCell className="text-right mono text-xs text-ink/50">{Utils.fmtUSD(costo)}</TableCell>
+                    <TableCell className={`text-center font-black text-status-danger`}>{Math.abs(m.cantidad)}</TableCell>
+                    <TableCell className="text-right mono font-black text-status-danger">{Utils.fmtUSD(subtotal)}</TableCell>
+                    <TableCell className="text-[10px] uppercase font-bold opacity-40 text-ink max-w-[200px] truncate">{m.referencia}</TableCell>
+                  </TableRow>
+                );
+              })}
+              {consumos.length === 0 && (
+                <TableRow><TableCell colSpan={7} className="py-20 text-center text-ink/20 font-black italic uppercase">No se registran consumos o colaboraciones</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+    </div>
   );
 }
 
@@ -939,3 +969,4 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     </div>
   );
 }
+
