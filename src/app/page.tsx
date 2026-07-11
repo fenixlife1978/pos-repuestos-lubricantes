@@ -21,7 +21,8 @@ import {
   LogOut,
   Bell,
   ShieldCheck,
-  Truck
+  Truck,
+  BookOpen
 } from 'lucide-react';
 import { Store, Utils, initialState } from '@/lib/db-store';
 import { AppState } from '@/lib/types';
@@ -39,36 +40,31 @@ import ConfigModule from '@/components/modules/ConfigModule';
 import UsersModule from '@/components/modules/UsersModule';
 import GlobalControlModule from '@/components/modules/GlobalControlModule';
 import SuppliersModule from '@/components/modules/SuppliersModule';
+import AccountingModule from '@/components/modules/AccountingModule';
 
 export default function LicoreriaPOS() {
   const router = useRouter();
   const [state, setState] = useState<AppState>(initialState);
-  
-  // Persistencia de módulo activo POR PESTAÑA (sessionStorage)
-  const [activeModule, setActiveModule] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('posven_active_module') || '';
-    }
-    return '';
-  });
-  
+  const [activeModule, setActiveModule] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isOnline, setIsOnline] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
-  
-  // Persistencia de estado de apertura POR PESTAÑA
   const [showApertura, setShowApertura] = useState(false);
   const [aperturaData, setAperturaData] = useState({ bs: '0', usd: '0' });
 
   useEffect(() => {
     setMounted(true);
     let unsubscribeProfile: any = null;
+
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
@@ -77,7 +73,12 @@ export default function LicoreriaPOS() {
         try {
           const userDocId = currentUser.email!.replace(/\W/g, '_');
           
-          // onSnapshot leerá automáticamente del cache local si está offline
+          if (!db) {
+            setUser(currentUser);
+            setLoading(false);
+            return;
+          }
+
           unsubscribeProfile = onSnapshot(doc(db, 'users', userDocId), async (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
@@ -92,7 +93,6 @@ export default function LicoreriaPOS() {
               const aperturaConfirmada = sessionStorage.getItem('posven_apertura_done');
 
               if (data.rol === 'cajero') {
-                 // Recuperar config desde cache local si es necesario
                  const configSnap = await getDoc(doc(db, 'pos_system_data', 'state'));
                  const terminals = configSnap.data()?.terminales || [];
                  const terminalsArr = Array.isArray(terminals) ? terminals : Object.values(terminals);
@@ -106,9 +106,12 @@ export default function LicoreriaPOS() {
                  }
                  
                  if (!savedModule) setActiveModule('ventas');
+                 else setActiveModule(savedModule);
+                 
                  setShowApertura(!aperturaConfirmada);
               } else {
                  if (!savedModule) setActiveModule('dashboard');
+                 else setActiveModule(savedModule);
                  setShowApertura(false);
               }
 
@@ -134,10 +137,7 @@ export default function LicoreriaPOS() {
     });
 
     const unsubscribeStore = Store.subscribe((dbUpdate) => {
-      setState(prev => {
-         // Mantener el carrito local de la pestaña
-         return { ...prev, ...dbUpdate };
-      });
+      setState(prev => ({ ...prev, ...dbUpdate }));
     });
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -161,7 +161,6 @@ export default function LicoreriaPOS() {
     };
   }, [router]);
 
-  // Persistencia del CARRITO por pestaña ante recargas (F5)
   useEffect(() => {
     if (mounted) {
       const savedCart = sessionStorage.getItem('posven_current_cart');
@@ -183,16 +182,16 @@ export default function LicoreriaPOS() {
   }, [state.carrito, mounted]);
 
   useEffect(() => {
-    if (activeModule) {
+    if (mounted && activeModule) {
       sessionStorage.setItem('posven_active_module', activeModule);
     }
-  }, [activeModule]);
+  }, [activeModule, mounted]);
 
   const handleLogout = async () => {
     if (confirm('¿Cerrar sesión del sistema?')) {
-      sessionStorage.clear(); // Limpia carrito y UI de esta pestaña
+      sessionStorage.clear();
       
-      if (userRole === 'cajero' && user) {
+      if (userRole === 'cajero' && user && db) {
         try {
           const userDocId = user.email.replace(/\W/g, '_');
           await updateDoc(doc(db, 'users', userDocId), { accesoBloqueado: true });
@@ -200,7 +199,7 @@ export default function LicoreriaPOS() {
           console.error("Error al activar bloqueo de seguridad:", e);
         }
       }
-      await signOut(auth);
+      if (auth) await signOut(auth);
       router.push('/login');
     }
   };
@@ -234,8 +233,9 @@ export default function LicoreriaPOS() {
       id: 'finanzas',
       label: 'Finanzas',
       items: [
+        { id: 'contabilidad', label: 'Contabilidad', icon: BookOpen },
         { id: 'cxc', label: 'Cuentas por Cobrar', icon: HandCoins, count: (state.cxc || []).filter(x => x.estado !== 'pagada').length },
-        { id: 'cxp', label: 'Cuentas por Pagar', icon: FileText },
+        { id: 'cxp', label: 'Cuentas por Pagar', icon: FileText, count: (state.cxp || []).filter(x => x.estado !== 'pagada').length },
       ]
     },
     {
@@ -258,6 +258,7 @@ export default function LicoreriaPOS() {
       case 'ventas': return <SalesModule state={state} updateState={updateState} />;
       case 'compras': return <PurchaseModule state={state} updateState={updateState} />;
       case 'proveedores': return <SuppliersModule state={state} updateState={updateState} />;
+      case 'contabilidad': return <AccountingModule state={state} updateState={updateState} />;
       case 'cxc': return <CxCModule state={state} updateState={updateState} />;
       case 'cxp': return <CxPModule state={state} updateState={updateState} />;
       case 'reportes': return <ReportsModule state={state} />;
@@ -291,7 +292,6 @@ export default function LicoreriaPOS() {
 
   return (
     <div className="flex min-h-screen bg-surface-warm text-ink">
-      
       {showApertura && isCajero && (
         <div className="fixed inset-0 z-[100] bg-surface-warm flex items-center justify-center p-4 no-print">
            <div className="w-full max-w-sm bg-white rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-5 space-y-3 animate-in fade-in zoom-in duration-500 border border-line">

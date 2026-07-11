@@ -25,6 +25,18 @@ export interface Movimiento {
   referencia: string;
 }
 
+export interface LibroDiarioEntry {
+  id: string;
+  fecha: string;
+  tipo: 'ingreso' | 'egreso';
+  categoria: 'VENTA' | 'COBRO_DEUDA' | 'COMPRA' | 'PAGO_PROVEEDOR' | 'NOMINA' | 'SERVICIOS' | 'IMPUESTOS' | 'OTROS_GASTOS' | 'DEVOLUCION_DINERO';
+  concepto: string;
+  montoUSD: number;
+  montoBS: number;
+  metodo: PaymentMethod;
+  referencia?: string; // ID de factura, recibo, etc.
+}
+
 export interface Product {
   id: string;
   codigo: string;
@@ -161,6 +173,7 @@ export interface AppState {
   clientes: Customer[];
   devoluciones: Return[];
   movimientos: Movimiento[];
+  libroDiario: LibroDiarioEntry[];
   carrito: SaleItem[];
   terminales: Terminal[]; // Nuevo
   empresa: {

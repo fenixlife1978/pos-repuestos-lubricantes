@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, Movimiento, PagoRealizado, Customer, Return, ReturnItem, Product } from '@/lib/types';
+import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, Movimiento, PagoRealizado, Customer, Return, ReturnItem, Product, LibroDiarioEntry } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
   Search, 
@@ -191,6 +191,24 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     
     let prodsActualizados = [...state.productos];
     let nuevosMovimientos: Movimiento[] = [];
+    let nuevosAsientosDiario: LibroDiarioEntry[] = [];
+
+    // Generar asientos contables automáticos por cada pago real (no crédito)
+    pagos.forEach(p => {
+      if (p.metodo !== 'credito') {
+        nuevosAsientosDiario.push({
+          id: 'ING-' + Store.uid().toUpperCase().slice(0, 5),
+          fecha: ahoraStr,
+          tipo: 'ingreso',
+          categoria: 'VENTA',
+          concepto: `VENTA RECIBO #${reciboId} - CLIENTE: ${cliente.toUpperCase()}`,
+          montoUSD: p.montoUSD,
+          montoBS: p.montoBS,
+          metodo: p.metodo,
+          referencia: reciboId
+        });
+      }
+    });
 
     state.carrito.forEach(item => {
       const pIdx = prodsActualizados.findIndex(x => x.id === item.productoId);
@@ -271,6 +289,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       productos: prodsActualizados,
       ventas: [...state.ventas, nuevaVenta],
       movimientos: [...state.movimientos, ...nuevosMovimientos],
+      libroDiario: [...nuevosAsientosDiario, ...(state.libroDiario || [])],
       carrito: [],
       proximoRecibo: state.proximoRecibo + 1,
       acumuladoHistorico: state.acumuladoHistorico + subtotalUSD
@@ -381,6 +400,22 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     let restante = totalAbonoUSD;
     
     const nuevasDeudas = [...state.cxc].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    let nuevosAsientosDiario: LibroDiarioEntry[] = [];
+
+    // Generar asientos contables por el abono de deuda
+    abonoPagos.forEach(p => {
+       nuevosAsientosDiario.push({
+         id: 'ING-' + Store.uid().toUpperCase().slice(0, 5),
+         fecha: ahoraStr,
+         tipo: 'ingreso',
+         categoria: 'COBRO_DEUDA',
+         concepto: `ABONO DE DEUDA - CLIENTE: ${showAbonoModal.toUpperCase()} - RECIBO #${reciboId}`,
+         montoUSD: p.montoUSD,
+         montoBS: p.montoBS,
+         metodo: p.metodo,
+         referencia: reciboId
+       });
+    });
     
     const actualizadas = nuevasDeudas.map(d => {
       if (d.cliente === showAbonoModal && d.estado !== 'pagada' && restante > 0) {
@@ -430,6 +465,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     updateState({ 
       cxc: actualizadas, 
       ventas: [...state.ventas, registroAbono],
+      libroDiario: [...nuevosAsientosDiario, ...(state.libroDiario || [])],
       proximoRecibo: state.proximoRecibo + 1,
       clientes: (state.clientes || []).map(c => c.name === showAbonoModal ? { ...c, debt: Math.max(0, (c.debt || 0) - totalAbonoUSD) } : c)
     });
@@ -438,6 +474,66 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setShowReceiptModal(true);
     setShowAbonoModal(null);
     setAbonoPagos([]);
+  };
+
+  const ejecutarVentaACredito = () => {
+    const clienteNombre = selectedClient ? selectedClient.name : newClient.name;
+    if (!clienteNombre || state.carrito.length === 0) return;
+
+    const reciboId = String(state.proximoRecibo).padStart(9, '0');
+    const ahoraStr = Utils.ahora();
+    
+    // Las ventas a crédito NO generan asiento contable inmediato de ingreso de dinero real
+    
+    let prodsActualizados = [...state.productos];
+    state.carrito.forEach(item => {
+      const pIdx = prodsActualizados.findIndex(x => x.id === item.productoId);
+      if (pIdx >= 0) prodsActualizados[pIdx] = { ...prodsActualizados[pIdx], stock: prodsActualizados[pIdx].stock - item.cantidad };
+    });
+
+    const nuevaDeuda = {
+      id: 'DEU-' + Store.uid().toUpperCase().slice(0, 6),
+      fecha: ahoraStr.slice(0, 10),
+      fechaVencimiento: '2099-12-31',
+      cliente: clienteNombre,
+      montoUSD: subtotalUSD,
+      abonadoUSD: 0,
+      saldoUSD: subtotalUSD,
+      estado: 'pendiente',
+      items: [...state.carrito],
+      ventaId: reciboId
+    };
+
+    const nuevaVenta: Sale = {
+      id: reciboId,
+      fecha: ahoraStr,
+      cliente: clienteNombre,
+      items: [...state.carrito],
+      subtotalUSD,
+      descuentoUSD: 0,
+      totalUSD: subtotalUSD,
+      totalBS,
+      metodoPago: 'credito',
+      estado: 'completada',
+      type: 'VENTA',
+      customerName: clienteNombre
+    };
+
+    updateState({
+      productos: prodsActualizados,
+      ventas: [...state.ventas, nuevaVenta],
+      cxc: [...state.cxc, nuevaDeuda],
+      carrito: [],
+      proximoRecibo: state.proximoRecibo + 1,
+      clientes: selectedClient 
+        ? state.clientes.map(c => c.id === selectedClient.id ? { ...c, debt: (c.debt || 0) + subtotalUSD } : c)
+        : [...state.clientes, { id: Store.uid(), name: newClient.name, cedula: newClient.cedula, debt: subtotalUSD }]
+    });
+
+    setShowMultiModal(false);
+    setIsCreditView(false);
+    setLastProcessedSale(nuevaVenta);
+    setShowReceiptModal(true);
   };
 
   const buscarVentaParaDevolucion = () => {
@@ -460,11 +556,29 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const procesarDevolucionPOS = () => {
     if (!selectedSaleForReturn || returnItems.length === 0 || !returnReason.trim()) return;
     if (prompt('PIN de autorización:') !== state.pinDevolucion) return alert('PIN incorrecto');
-    const totalDev = returnItems.reduce((s, i) => s + (i.cantidad * i.precioUnitUSD), 0);
+    
+    const totalDevUSD = returnItems.reduce((s, i) => s + (i.cantidad * i.precioUnitUSD), 0);
     const idDev = 'DEV-' + String(state.proximaDevolucion).padStart(6, '0');
     const ahoraStr = Utils.ahora();
     const nuevosProds = [...state.productos];
     const nuevosMovs: Movimiento[] = [];
+    let nuevoAsientoDiario: LibroDiarioEntry | null = null;
+
+    // Solo genera asiento de egreso si se devuelve dinero real
+    if (refundMethod === 'EFECTIVO' || refundMethod === 'MISMO_METODO') {
+      nuevoAsientoDiario = {
+        id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
+        fecha: ahoraStr,
+        tipo: 'egreso',
+        categoria: 'DEVOLUCION_DINERO',
+        concepto: `DEVOLUCIÓN DE DINERO - VENTA #${selectedSaleForReturn.id} - ID DEV: ${idDev}`,
+        montoUSD: totalDevUSD,
+        montoBS: totalDevUSD * state.tasa,
+        metodo: refundMethod === 'EFECTIVO' ? 'efectivo_usd' : (selectedSaleForReturn.metodoPago as any),
+        referencia: idDev
+      };
+    }
+
     returnItems.forEach(it => {
       const pIdx = nuevosProds.findIndex(p => p.id === it.productoId);
       if (pIdx >= 0) {
@@ -473,7 +587,19 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         nuevosMovs.push({ id: Store.uid(), productoId: it.productoId, tipo: 'devolucion', cantidad: it.cantidad, stockAntes: p.stock - it.cantidad, stockDespues: p.stock, fecha: ahoraStr, referencia: `DEV ${idDev}` });
       }
     });
-    updateState({ productos: nuevosProds, devoluciones: [{ id: idDev, ventaId: selectedSaleForReturn.id, fecha: ahoraStr, items: [...returnItems], totalUSD: totalDev, metodoReembolso: refundMethod, motivo: returnReason }, ...(state.devoluciones || [])], movimientos: [...state.movimientos, ...nuevosMovs], proximaDevolucion: state.proximaDevolucion + 1 });
+
+    const updateData: any = { 
+      productos: nuevosProds, 
+      devoluciones: [{ id: idDev, ventaId: selectedSaleForReturn.id, fecha: ahoraStr, items: [...returnItems], totalUSD: totalDevUSD, metodoReembolso: refundMethod, motivo: returnReason }, ...(state.devoluciones || [])], 
+      movimientos: [...state.movimientos, ...nuevosMovs], 
+      proximaDevolucion: state.proximaDevolucion + 1 
+    };
+
+    if (nuevoAsientoDiario) {
+      updateData.libroDiario = [nuevoAsientoDiario, ...(state.libroDiario || [])];
+    }
+
+    updateState(updateData);
     alert('Procesada'); setReturnView('list'); setSelectedSaleForReturn(null);
   };
 

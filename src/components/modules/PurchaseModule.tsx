@@ -17,7 +17,7 @@ import {
   Boxes
 } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
-import { AppState, Product, Movimiento, PaymentMethod, KitItem, Supplier } from '@/lib/types';
+import { AppState, Product, Movimiento, PaymentMethod, KitItem, Supplier, LibroDiarioEntry } from '@/lib/types';
 
 interface PurchaseItemTemp {
   productoId: string;
@@ -175,6 +175,22 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
       };
     });
 
+    // ASIENTO CONTABLE: Solo el monto real pagado hoy
+    let nuevosAsientosDiario: LibroDiarioEntry[] = [];
+    if (pMontoPagadoUSD > 0.0001) {
+      nuevosAsientosDiario.push({
+        id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
+        fecha: ahoraStr,
+        tipo: 'egreso',
+        categoria: 'COMPRA',
+        concepto: `COMPRA MERCANCIA FACT #${numeroFactura} - PROV: ${proveedor.toUpperCase()}`,
+        montoUSD: pMontoPagadoUSD,
+        montoBS: pMontoPagadoUSD * tasaActual,
+        metodo: 'efectivo_usd', // Simplificado, idealmente elegir método
+        referencia: numeroFactura
+      });
+    }
+
     const nuevasCxP = [...state.cxp];
     if (saldoPendienteUSD > 0.0001) {
       nuevasCxP.push({
@@ -195,6 +211,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
     updateState({
       productos: nuevosProductos,
       movimientos: [...state.movimientos, ...nuevosMovimientos],
+      libroDiario: [...nuevosAsientosDiario, ...(state.libroDiario || [])],
       cxp: nuevasCxP
     });
 

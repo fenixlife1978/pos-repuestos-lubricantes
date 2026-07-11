@@ -1,7 +1,7 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore } from "firebase/firestore";
-import { getDatabase } from "firebase/database";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getAuth, Auth } from "firebase/auth";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, getFirestore, Firestore } from "firebase/firestore";
+import { getDatabase, Database } from "firebase/database";
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,20 +13,26 @@ export const firebaseConfig = {
   databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
 };
 
-// Inicializar Firebase evitando duplicidades
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+// Validar configuración mínima para evitar bloqueos en el servidor
+const isConfigValid = !!firebaseConfig.apiKey;
 
-export const auth = getAuth(app);
+let app: FirebaseApp | null = null;
+if (isConfigValid) {
+  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+}
 
-// Habilitar persistencia de datos offline con soporte multi-pestaña SOLO en el cliente
-// Esto evita el "Internal Server Error" durante el pre-renderizado de Next.js
-export const db = typeof window !== "undefined" 
-  ? initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
-    })
-  : getFirestore(app);
+export const auth = app ? getAuth(app) : null as unknown as Auth;
 
-export const rtdb = getDatabase(app);
+// Inicializar Firestore con persistencia solo si estamos en el cliente
+export const db = app 
+  ? (typeof window !== "undefined" 
+      ? initializeFirestore(app, {
+          localCache: persistentLocalCache({
+            tabManager: persistentMultipleTabManager()
+          })
+        })
+      : getFirestore(app))
+  : null as unknown as Firestore;
+
+export const rtdb = app ? getDatabase(app) : null as unknown as Database;
 export default app;

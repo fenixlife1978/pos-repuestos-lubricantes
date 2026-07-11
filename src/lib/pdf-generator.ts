@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Product, Movimiento, Sale, Supplier } from './types';
+import { Product, Movimiento, Sale, Supplier, LibroDiarioEntry } from './types';
 
 // Helper para formatear moneda en USD
 const fmt = (v: number) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -67,6 +67,38 @@ const drawHeader = (doc: jsPDF, title: string, empresa: CompanyInfo): number => 
   doc.line(margin, headerBottomY, pageWidth - margin, headerBottomY);
   
   return headerBottomY + 5;
+};
+
+// Reporte de Libro Diario (Ingresos y Egresos)
+export const exportarPDFLibroDiario = (diario: LibroDiarioEntry[], empresa: CompanyInfo, totals: any) => {
+  const doc = new jsPDF('p', 'mm', 'letter');
+  const startY = drawHeader(doc, 'Libro Diario de Ingresos y Egresos', empresa);
+
+  doc.setFillColor(20, 20, 20);
+  doc.rect(15, startY, 186, 12, 'F');
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text(`TOTAL INGRESOS: ${fmt(totals.totalIngresos)}`, 20, startY + 8);
+  doc.text(`TOTAL EGRESOS: ${fmt(totals.totalEgresos)}`, 85, startY + 8);
+  doc.text(`BALANCE NETO: ${fmt(totals.balanceNeto)}`, 150, startY + 8);
+
+  autoTable(doc, {
+    startY: startY + 16,
+    head: [['FECHA', 'CONCEPTO / CATEGORÍA', 'MÉTODO', 'INGRESO ($)', 'EGRESO ($)']],
+    body: diario.map(e => [
+      e.fecha.slice(0, 10),
+      `${e.concepto}\n[${e.categoria}]`,
+      e.metodo.toUpperCase(),
+      e.tipo === 'ingreso' ? fmt(e.montoUSD) : '-',
+      e.tipo === 'egreso' ? fmt(e.montoUSD) : '-'
+    ]),
+    headStyles: { fillColor: [40, 40, 40] },
+    styles: { fontSize: 7.5, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [250, 250, 250] }
+  });
+
+  doc.save(`Libro_Diario_${new Date().getTime()}.pdf`);
 };
 
 // 1. Reporte de Inventario Simple (Catálogo)

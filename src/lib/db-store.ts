@@ -4,8 +4,6 @@ import { AppState } from './types';
 import { db } from './firebase';
 import { doc, setDoc, onSnapshot } from "firebase/firestore";
 
-// Usamos sessionStorage para garantizar INDEPENDENCIA TOTAL ENTRE PESTAÑAS
-// y asegurar que la información no se mezcle entre diferentes inicios de sesión o usuarios.
 const STORAGE_KEY = 'posven_pro_session_data_cache';
 const COLLECTION = 'pos_system_data';
 const DOC_ID = 'state';
@@ -20,6 +18,7 @@ export const initialState: AppState = {
   clientes: [],
   devoluciones: [],
   movimientos: [],
+  libroDiario: [],
   carrito: [],
   terminales: [],
   reportesZ: [],
@@ -41,33 +40,24 @@ export const initialState: AppState = {
 };
 
 export const Store = {
-  // Suscribirse a cambios en tiempo real usando Firestore con soporte Offline
   subscribe(callback: (state: Partial<AppState>) => void) {
-    if (typeof window === 'undefined') return () => {};
+    if (typeof window === 'undefined' || !db) return () => {};
 
     const docRef = doc(db, COLLECTION, DOC_ID);
     
     return onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
         const val = snapshot.data();
-        // Combinar con initialState para asegurar que todos los campos existan
         const merged = { ...initialState, ...val };
-        
-        // El carrito NO se sincroniza globalmente por diseño, es local por pestaña
         delete (merged as any).carrito; 
-        
         callback(merged);
-        
-        // Guardar cache de seguridad en sessionStorage para persistir ante recargas (F5)
-        // pero aislarlo de otras pestañas o navegadores.
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
       } else {
-        // Fallback a cache local si no hay documento (pestaña nueva offline sin data previa en firestore)
         const local = Store.get();
         callback(local);
         
         const { carrito, ...toPersist } = initialState;
-        setDoc(docRef, toPersist).catch(e => console.error("Error init firestore:", e));
+        if (db) setDoc(docRef, toPersist).catch(e => console.error("Error init firestore:", e));
       }
     }, (error) => {
       console.warn("Firestore Sync Warning (Normal if Offline):", error);
@@ -89,7 +79,6 @@ export const Store = {
   set(state: AppState) {
     if (typeof window === 'undefined') return;
     
-    // Definimos qué datos son globales y deben persistir en la nube
     const dataToPersist = {
       tasa: state.tasa,
       pinDevolucion: state.pinDevolucion,
@@ -100,6 +89,7 @@ export const Store = {
       clientes: state.clientes || [],
       devoluciones: state.devoluciones || [],
       movimientos: state.movimientos || [],
+      libroDiario: state.libroDiario || [],
       terminales: state.terminales || [],
       empresa: state.empresa,
       departamentos: state.departamentos,
@@ -114,15 +104,14 @@ export const Store = {
       acumuladoHistorico: state.acumuladoHistorico || 0
     };
 
-    // Actualización inmediata del cache de sesión de la pestaña actual
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(dataToPersist));
     
-    // Persistencia asíncrona en la nube. Si no hay internet, Firebase lo encola automáticamente.
-    const docRef = doc(db, COLLECTION, DOC_ID);
-    setDoc(docRef, dataToPersist).catch(err => {
-        // El error de red es manejado internamente por el SDK offline
-        console.error("Firestore Error (Will retry automatically):", err);
-    });
+    if (db) {
+      const docRef = doc(db, COLLECTION, DOC_ID);
+      setDoc(docRef, dataToPersist).catch(err => {
+          console.error("Firestore Error (Will retry automatically):", err);
+      });
+    }
   },
 
   uid(): string {
