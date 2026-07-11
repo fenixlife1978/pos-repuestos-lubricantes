@@ -215,7 +215,12 @@ export const exportarPDFHistorialAjustes = (ajustes: any[], empresa: CompanyInfo
   const doc = new jsPDF('p', 'mm', 'letter');
   const startY = drawHeader(doc, 'Bitácora de Ajustes Manuales', empresa);
 
-  doc.setFillColor(efectoNeto < 0 ? [255, 235, 235] : [235, 255, 235]);
+  if (efectoNeto < 0) {
+    doc.setFillColor(255, 235, 235);
+  } else {
+    doc.setFillColor(235, 255, 235);
+  }
+  
   doc.rect(15, startY, 186, 10, 'F');
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
