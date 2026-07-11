@@ -425,7 +425,7 @@ function ReporteVentas({ state }: { state: AppState }) {
         </div>
         {useDates && (
            <div className="flex items-center gap-2">
-              <input type="date" className="form-input h-8 text-xs font-bold" value={desde} onChange={e => setDesde(e.target.value)} />
+              <input type="date" className="form-input h-8 text-xs font-bold" value={desde} onChange={e => setDesde(setDesde(e.target.value))} />
               <input type="date" className="form-input h-8 text-xs font-bold" value={hasta} onChange={e => setHasta(e.target.value)} />
            </div>
         )}
@@ -504,7 +504,7 @@ function ReporteDevoluciones({ state }: { state: AppState }) {
 
 function HistorialAjustes({ state }: { state: AppState }) {
   const ajustes = state.movimientos.filter(m => 
-    ['ajuste_entrada', 'ajuste_salida', 'consumo', 'colaboracion', 'compra', 'inicial'].includes(m.tipo)
+    ['ajuste_entrada', 'ajuste_salida'].includes(m.tipo)
   ).sort((a,b) => b.fecha.localeCompare(a.fecha));
 
   return (
@@ -530,6 +530,9 @@ function HistorialAjustes({ state }: { state: AppState }) {
                 <TableCell className="text-[10px] opacity-40 italic uppercase text-ink">{m.referencia}</TableCell>
               </TableRow>
             ))}
+            {ajustes.length === 0 && (
+              <TableRow><TableCell colSpan={5} className="py-24 text-center text-ink/20 font-black italic uppercase">No existen ajustes manuales registrados</TableCell></TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
