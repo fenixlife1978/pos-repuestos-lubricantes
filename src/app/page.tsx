@@ -68,23 +68,30 @@ export default function LicoreriaPOS() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
+        setLoading(false);
         router.push('/login');
       } else {
         try {
           const userDocId = currentUser.email!.toLowerCase().replace(/\W/g, '_');
           
           unsubscribeProfile = onSnapshot(doc(db, 'users', userDocId), (docSnap) => {
+            // Evitar procesar si el usuario está en proceso de salida
+            if (!auth.currentUser) return;
+
             if (docSnap.exists()) {
               const data = docSnap.data();
               
               if (data.accesoBloqueado) {
-                signOut(auth).then(() => router.push('/login'));
+                signOut(auth).then(() => {
+                  if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
+                  router.push('/login');
+                });
                 return;
               }
 
               if (!moduleInitialized.current) {
                 const savedModule = sessionStorage.getItem('posven_active_module');
-                const aperturaConfirmada = sessionStorage.getItem('posven_apertura_done');
+                const aperturaConfirmada = sessionStorage.getItem('posven_apertura_done') === 'true';
 
                 if (data.rol === 'cajero') {
                    getDoc(doc(db, 'pos_system_data', 'state')).then(configSnap => {
@@ -102,11 +109,13 @@ export default function LicoreriaPOS() {
                       const target = savedModule || 'ventas';
                       setActiveTab(target);
                       setShowApertura(!aperturaConfirmada);
+                      setLoading(false);
                    });
                 } else {
                    const target = savedModule || 'dashboard';
                    setActiveTab(target);
                    setShowApertura(false);
+                   setLoading(false);
                 }
                 moduleInitialized.current = true;
               }
@@ -114,11 +123,12 @@ export default function LicoreriaPOS() {
               setUserRole(data.rol);
               setUserProfile(data);
               setUser(currentUser);
-              setLoading(false);
             } else {
               setLoading(false);
             }
           }, (err) => {
+            // Ignorar errores de permisos durante el logout
+            if (err.code === 'permission-denied') return;
             console.error("Profile sync error:", err);
             setLoading(false);
           });
@@ -155,6 +165,7 @@ export default function LicoreriaPOS() {
     };
   }, [router]);
 
+  // Persistencia de Carrito
   useEffect(() => {
     if (mounted) {
       const savedCart = sessionStorage.getItem('posven_current_cart');
@@ -183,19 +194,26 @@ export default function LicoreriaPOS() {
 
   const handleLogout = async () => {
     if (confirm('¿Cerrar sesión del sistema?')) {
-      if (userRole === 'cajero' && userProfile?.email && db) {
-        try {
+      setLoading(true);
+      try {
+        if (userRole === 'cajero' && userProfile?.email && db) {
           const userDocId = userProfile.email.toLowerCase().replace(/\W/g, '_');
+          // Bloquear acceso ANTES de salir para asegurar permisos
           await updateDoc(doc(db, 'users', userDocId), { accesoBloqueado: true });
-        } catch (e) {
-          console.error("Error al bloquear salida:", e);
         }
+        
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.clear();
+        }
+        
+        if (auth) await signOut(auth);
+        router.push('/login');
+      } catch (e) {
+        console.error("Error al cerrar sesión:", e);
+        // Fallback forzoso
+        if (auth) await signOut(auth);
+        router.push('/login');
       }
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.clear();
-      }
-      if (auth) await signOut(auth);
-      router.push('/login');
     }
   };
 
@@ -331,7 +349,16 @@ export default function LicoreriaPOS() {
                  </div>
               </div>
 
-              <button disabled={aperturaData.bs === '' || aperturaData.usd === ''} onClick={() => { sessionStorage.setItem('posven_apertura_done', 'true'); setShowApertura(false); }} className="w-full h-14 bg-brand-gold text-ink font-black text-sm rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-widest">Confirmar Apertura</button>
+              <button 
+                disabled={aperturaData.bs === '' || aperturaData.usd === ''} 
+                onClick={() => { 
+                  sessionStorage.setItem('posven_apertura_done', 'true'); 
+                  setShowApertura(false); 
+                }} 
+                className="w-full h-14 bg-brand-gold text-ink font-black text-sm rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-widest"
+              >
+                Confirmar Apertura
+              </button>
             </div>
          </div>
       </div>
