@@ -169,6 +169,7 @@ export interface ReportZ {
 export interface AppState {
   tasa: number;
   pinDevolucion: string;
+  isInitialized?: boolean;
   productos: Product[];
   ventas: Sale[];
   cxc: Debt[];
@@ -198,10 +199,6 @@ export interface AppState {
 }
 
 export type PaymentMethod = 'efectivo_usd' | 'efectivo_bs' | 'punto_venta' | 'biopago' | 'pagomovil' | 'zelle' | 'transferencia' | 'credito' | 'mixto' | 'otros';
-
-// ============================================================
-// FUNCIONES AGREGADAS PARA CORREGIR ERRORES
-// ============================================================
 
 export function getProductBarcode(product: Product | any): string {
   return product?.codigo || product?.barcode || product?.sku || '';

@@ -6,19 +6,16 @@ service cloud.firestore {
     // FUNCIONES AUXILIARES
     // ============================================================
     
-    // Verifica si el usuario está autenticado
     function isAuthenticated() {
       return request.auth != null;
     }
     
-    // Verifica si el usuario es administrador
     function isAdmin() {
       return isAuthenticated() && 
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'administrador';
     }
     
-    // Verifica si el usuario es el propietario de su perfil
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -27,70 +24,37 @@ service cloud.firestore {
     // REGLAS PARA USUARIOS
     // ============================================================
     match /users/{userId} {
-      // Cualquier usuario autenticado puede leer
       allow read: if isAuthenticated();
-      
-      // Solo el propietario o administrador pueden escribir
       allow write: if isOwner(userId) || isAdmin();
     }
 
     // ============================================================
-    // REGLAS PARA POS_SYSTEM_DATA Y TODAS SUS SUBCOLECCIONES
+    // REGLAS PARA POS_SYSTEM_DATA (CONFIGURACIÓN)
     // ============================================================
     match /pos_system_data/{document} {
-      // Cualquier usuario autenticado puede leer y escribir en pos_system_data
-      allow read, write: if isAuthenticated();
+      // Permitimos lectura pública para que el Login pueda verificar si el sistema está inicializado
+      // y obtener la tasa de cambio actual.
+      allow read: if true;
       
-      // REGLA PARA SUBCOLECCIONES (state, productos, cxc, cxp, etc.)
+      // Solo usuarios autenticados pueden escribir configuraciones
+      allow write: if isAuthenticated();
+      
       match /{subcollection}/{subdocument} {
-        // Cualquier usuario autenticado puede leer y escribir en todas las subcolecciones
         allow read, write: if isAuthenticated();
       }
     }
 
     // ============================================================
-    // REGLAS PARA OTRAS COLECCIONES RAÍZ
+    // REGLAS PARA OTRAS COLECCIONES
     // ============================================================
-    
-    // Productos
-    match /products/{document} {
-      allow read, write: if isAuthenticated();
-    }
-    
-    // Órdenes
-    match /orders/{document} {
-      allow read, write: if isAuthenticated();
-    }
-    
-    // Ventas
-    match /sales/{document} {
-      allow read, write: if isAuthenticated();
-    }
-    
-    // Clientes
-    match /customers/{document} {
-      allow read, write: if isAuthenticated();
-    }
-    
-    // Proveedores
-    match /suppliers/{document} {
-      allow read, write: if isAuthenticated();
-    }
-    
-    // Movimientos
-    match /movimientos/{document} {
-      allow read, write: if isAuthenticated();
-    }
-    
-    // Libro Diario
-    match /libro_diario/{document} {
-      allow read, write: if isAuthenticated();
-    }
+    match /products/{document} { allow read, write: if isAuthenticated(); }
+    match /orders/{document} { allow read, write: if isAuthenticated(); }
+    match /sales/{document} { allow read, write: if isAuthenticated(); }
+    match /customers/{document} { allow read, write: if isAuthenticated(); }
+    match /suppliers/{document} { allow read, write: if isAuthenticated(); }
+    match /movimientos/{document} { allow read, write: if isAuthenticated(); }
+    match /libro_diario/{document} { allow read, write: if isAuthenticated(); }
 
-    // ============================================================
-    // REGLA GENERAL DE SEGURIDAD (SIEMPRE AL FINAL)
-    // ============================================================
-    // Deniega el acceso a cualquier otra ruta no especificada
     match /{path=**} {
       allow read, write: if false;
     }
