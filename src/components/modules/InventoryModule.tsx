@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { AppState, Product, Movimiento, KitItem, Supplier } from '@/lib/types';
+import { AppState, Product, Movimiento, KitItem, Supplier, Return } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
   Plus, 
@@ -24,7 +24,8 @@ import {
   Calculator,
   TrendingUp,
   LayoutGrid,
-  Monitor
+  Monitor,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -597,6 +598,7 @@ function ReporteVentas({ state }: { state: AppState }) {
 }
 
 function ReporteDevoluciones({ state }: { state: AppState }) {
+  const [selectedDevolucion, setSelectedDevolucion] = useState<Return | null>(null);
   const devoluciones = state.devoluciones || [];
   const totalUSD = devoluciones.reduce((acc, d) => acc + d.totalUSD, 0);
 
@@ -615,6 +617,7 @@ function ReporteDevoluciones({ state }: { state: AppState }) {
                 <TableHead className="text-[10px] font-black uppercase text-left">Venta Ref.</TableHead>
                 <TableHead className="text-[10px] font-black uppercase text-right">Total Dev.</TableHead>
                 <TableHead className="text-[10px] font-black uppercase text-left">Motivo</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-center">Detalle</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -623,13 +626,77 @@ function ReporteDevoluciones({ state }: { state: AppState }) {
                    <TableCell className="text-xs font-bold text-ink">{Utils.fmtFecha(d.fecha)}</TableCell>
                    <TableCell className="text-xs font-black mono text-ink">{d.ventaId}</TableCell>
                    <TableCell className="text-right font-black text-status-danger">{Utils.fmtUSD(d.totalUSD)}</TableCell>
-                   <TableCell className="text-xs italic uppercase opacity-60 text-ink">{d.motivo}</TableCell>
+                   <TableCell className="text-xs italic uppercase opacity-60 text-ink truncate max-w-[200px]">{d.motivo}</TableCell>
+                   <TableCell className="text-center">
+                      <button onClick={() => setSelectedDevolucion(d)} className="btn-icon h-8 w-8 text-ink hover:text-brand-gold">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                   </TableCell>
                  </TableRow>
                ))}
+               {devoluciones.length === 0 && (
+                 <TableRow><TableCell colSpan={5} className="text-center py-20 text-ink/20 font-black italic uppercase">No se registran devoluciones</TableCell></TableRow>
+               )}
             </TableBody>
           </Table>
         </div>
       </Card>
+
+      {selectedDevolucion && (
+        <div className="modal show"><div className="modal-bg" onClick={() => setSelectedDevolucion(null)}></div>
+          <div className="modal-box bg-white max-w-lg border-2 border-line rounded-xl overflow-hidden shadow-2xl">
+            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center text-white">
+              <h3 className="font-black uppercase italic tracking-tighter text-sm">DETALLE DE DEVOLUCIÓN: {selectedDevolucion.id}</h3>
+              <button onClick={() => setSelectedDevolucion(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="modal-body p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-surface-soft rounded-lg border border-line">
+                  <label className="text-[8px] font-black uppercase text-ink/50 block mb-1">Venta Referencia</label>
+                  <p className="text-xs font-black text-ink">{selectedDevolucion.ventaId}</p>
+                </div>
+                <div className="p-3 bg-surface-soft rounded-lg border border-line">
+                  <label className="text-[8px] font-black uppercase text-ink/50 block mb-1">Método Reembolso</label>
+                  <p className="text-xs font-black text-ink uppercase">{selectedDevolucion.metodoReembolso}</p>
+                </div>
+              </div>
+              <div className="table-wrap border border-line rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-surface-soft">
+                    <tr>
+                      <th className="text-[9px] font-black uppercase p-2 text-left">Producto</th>
+                      <th className="text-[9px] font-black uppercase p-2 text-center">Cant</th>
+                      <th className="text-[9px] font-black uppercase p-2 text-right">Precio</th>
+                      <th className="text-[9px] font-black uppercase p-2 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedDevolucion.items.map((it, idx) => (
+                      <tr key={idx} className="border-b border-line/20">
+                        <td className="text-[10px] font-bold p-2 uppercase">{it.nombre}</td>
+                        <td className="text-[10px] font-black p-2 text-center">{it.cantidad}</td>
+                        <td className="text-[10px] font-bold p-2 text-right">{Utils.fmtUSD(it.precioUnitUSD)}</td>
+                        <td className="text-[10px] font-black p-2 text-right text-status-danger">{Utils.fmtUSD(it.cantidad * it.precioUnitUSD)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-3 bg-brand-gold-soft/20 border border-brand-gold/10 rounded-lg">
+                <label className="text-[8px] font-black uppercase text-brand-gold-deep block mb-1">Motivo de Devolución</label>
+                <p className="text-xs italic text-ink uppercase">{selectedDevolucion.motivo}</p>
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-xs font-black uppercase text-ink/40">Total Reembolsado:</span>
+                <span className="text-xl font-black text-status-danger">{Utils.fmtUSD(selectedDevolucion.totalUSD)}</span>
+              </div>
+            </div>
+            <div className="modal-foot p-4 bg-surface-soft border-t border-line text-right">
+              <button onClick={() => setSelectedDevolucion(null)} className="btn btn-primary px-8 font-black uppercase text-[10px] rounded-lg">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
