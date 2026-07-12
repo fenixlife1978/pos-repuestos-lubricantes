@@ -1113,6 +1113,21 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                 <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-status-success">Venta ($)</Label><Input className="h-12 font-black text-lg text-status-success bg-white" value={datos.precioUSD} onChange={e => recalcularTridireccional('precioUSD', e.target.value)} /></div>
                 <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-ink">Venta (BS)</Label><Input className="h-12 font-black text-lg bg-white" value={datos.precioBS} onChange={e => recalcularTridireccional('precioBS', e.target.value)} /></div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div className="space-y-1">
+                   <Label className="text-[10px] font-black uppercase text-ink/40">Precio al Mayor ($)</Label>
+                   <Input className="h-11 font-black bg-white" value={datos.precioMayorUSD} onChange={e => validarDecimal(e.target.value) && setDatos({...datos, precioMayorUSD: e.target.value})} placeholder="0.00" />
+                 </div>
+                 <div className="space-y-1">
+                   <Label className="text-[10px] font-black uppercase text-ink/40">Precio Promoción ($)</Label>
+                   <Input className="h-11 font-black bg-white" value={datos.precioPromoUSD} onChange={e => validarDecimal(e.target.value) && setDatos({...datos, precioPromoUSD: e.target.value})} placeholder="0.00" />
+                 </div>
+                 <div className="space-y-1">
+                   <Label className="text-[10px] font-black uppercase text-ink/40">Precio Descuento ($)</Label>
+                   <Input className="h-11 font-black bg-white" value={datos.precioOfertaUSD} onChange={e => validarDecimal(e.target.value) && setDatos({...datos, precioOfertaUSD: e.target.value})} placeholder="0.00" />
+                 </div>
+              </div>
             </div>
           )}
 
@@ -1123,6 +1138,19 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   <button onClick={() => setDatos({...datos, isKit: !datos.isKit})} className={`w-12 h-6 rounded-full transition-all relative ${datos.isKit ? 'bg-brand-gold' : 'bg-white/20'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${datos.isKit ? 'right-1' : 'left-1'}`} /></button>
                   <Label className="text-[11px] font-black uppercase tracking-widest cursor-pointer" onClick={() => setDatos({...datos, isKit: !datos.isKit})}>Habilitar KIT / COMBO</Label>
                 </div>
+
+                {datos.isKit && (
+                   <div className="space-y-2 pt-2 border-t border-white/10">
+                      <Label className="text-[9px] font-black uppercase opacity-40">Tipo de Gestión de Stock</Label>
+                      <div className="flex gap-4">
+                         <button onClick={() => setDatos({...datos, kitType: 'stock_propio'})} className={`flex-1 py-2 px-3 rounded-lg border text-[10px] font-black uppercase transition-all ${datos.kitType === 'stock_propio' ? 'bg-brand-gold text-ink border-brand-gold' : 'bg-white/5 border-white/20 text-white/40'}`}>Stock Propio</button>
+                         <button onClick={() => setDatos({...datos, kitType: 'stock_componentes'})} className={`flex-1 py-2 px-3 rounded-lg border text-[10px] font-black uppercase transition-all ${datos.kitType === 'stock_componentes' ? 'bg-brand-gold text-ink border-brand-gold' : 'bg-white/5 border-white/20 text-white/40'}`}>Stock Virtual</button>
+                      </div>
+                      <p className="text-[8px] italic opacity-50 uppercase leading-relaxed">
+                        {datos.kitType === 'stock_propio' ? '* El combo tiene sus propias existencias físicas.' : '* El stock depende de las unidades individuales de sus componentes.'}
+                      </p>
+                   </div>
+                )}
               </div>
               {datos.isKit && (
                 <div className="space-y-4">

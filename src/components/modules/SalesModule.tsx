@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -175,7 +174,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   const getCurrentTerminal = () => {
     if (!auth || !auth.currentUser) return null;
-    const currentUserId = auth.currentUser.email?.toLowerCase().replace(/\W/g, '_');
+    const currentUserId = auth.currentUser.uid;
     return state.terminales.find(t => t.usuarioId === currentUserId);
   };
 
@@ -259,7 +258,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       change: Math.max(0, totalPagadoUSD - subtotalUSD),
       payments: [...pagos],
       terminalId: terminal?.id,
-      cajeroId: auth?.currentUser?.email?.toLowerCase().replace(/\W/g, '_')
+      cajeroId: auth?.currentUser?.uid
     };
 
     updateState({
@@ -347,7 +346,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       received: 0,
       change: 0,
       terminalId: terminal?.id,
-      cajeroId: auth?.currentUser?.email?.toLowerCase().replace(/\W/g, '_')
+      cajeroId: auth?.currentUser?.uid
     };
 
     const nuevaDeuda: Debt = {
@@ -527,7 +526,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       change: 0,
       payments: [...abonoPagos],
       terminalId: terminal?.id,
-      cajeroId: auth?.currentUser?.email?.toLowerCase().replace(/\W/g, '_')
+      cajeroId: auth?.currentUser?.uid
     };
 
     updateState({ 
@@ -620,7 +619,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">IDENTIFICACIÓN CLIENTE</label>
                   <input className="form-input h-8 text-xs bg-surface-soft text-ink border-line font-black uppercase" value={cliente} onChange={e => setCliente(e.target.value)} />
                 </div>
-                <div className="bg-brand-gold-soft/30 border border-brand-gold/30 rounded-lg p-2.5">
+                <div className="bg-brand-gold-soft/30 border border-brand-gold-soft/30 rounded-lg p-2.5">
                   <div className="flex items-center justify-between">
                     <label className="text-ink text-[9px] font-black uppercase tracking-wider">TASA BCV</label>
                     <div className="flex items-center gap-1">
