@@ -22,7 +22,8 @@ import {
   AlertCircle,
   Truck,
   Calculator,
-  TrendingUp
+  TrendingUp,
+  LayoutGrid
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,24 +48,18 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
   const [activeTab, setActiveTab] = useState('productos');
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
-  const [provFilter, setProvFilter] = useState('');
+  const [deptFilter, setDeptFilter] = useState('');
   const [selectedKardexId, setSelectedKardexId] = useState<string | null>(null);
   const [selectedCPPId, setSelectedCPPId] = useState<string | null>(null);
   
   const [showAjuste, setShowAjuste] = useState<string | null>(null);
   const [showProducto, setShowProducto] = useState<string | null | 'nuevo'>(null);
-  
-  const safeProveedores = useMemo(() => {
-    return (state.proveedores || []).map(p => 
-      typeof p === 'string' ? { id: p, nombre: p } : p
-    );
-  }, [state.proveedores]);
 
   const prods = (state.productos || []).filter(p => 
     p.activo && 
     (p.nombre.toLowerCase().includes(search.toLowerCase()) || p.codigo.toLowerCase().includes(search.toLowerCase())) &&
     (catFilter ? p.categoria === catFilter : true) &&
-    (provFilter ? p.proveedor === provFilter : true)
+    (deptFilter ? p.departamento === deptFilter : true)
   );
 
   const lowStockCount = prods.filter(p => p.stock <= (p.stockMinimo || 0)).length;
@@ -118,6 +113,14 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
                 >
                   <option value="">Todas las categorías</option>
                   {(state.categorias || []).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select 
+                  className="form-select h-11 bg-white border-line text-xs font-black uppercase"
+                  value={deptFilter} 
+                  onChange={e => setDeptFilter(e.target.value)}
+                >
+                  <option value="">Todos los deptos.</option>
+                  {(state.departamentos || []).map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
             </div>
@@ -338,16 +341,10 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
 }
 
 function ReporteGeneral({ state, onAction }: { state: AppState, onAction: (type: string, id: string) => void }) {
-  const [provFilter, setProvFilter] = useState('');
-
-  const safeProveedores = useMemo(() => {
-    return (state.proveedores || []).map(p => 
-      typeof p === 'string' ? { id: p, nombre: p } : p
-    );
-  }, [state.proveedores]);
+  const [deptFilter, setDeptFilter] = useState('');
 
   const filteredProducts = state.productos.filter(p => 
-    p.activo && (provFilter ? p.proveedor === provFilter : true)
+    p.activo && (deptFilter ? p.departamento === deptFilter : true)
   );
 
   const totalCosto = Utils.round(filteredProducts.reduce((acc, p) => acc + (p.costoUSD * p.stock), 0));
@@ -357,17 +354,17 @@ function ReporteGeneral({ state, onAction }: { state: AppState, onAction: (type:
     <div className="space-y-6">
       <div className="flex flex-wrap gap-4 items-end bg-white p-5 rounded-xl border border-line shadow-sm no-print">
         <div className="form-group mb-0">
-          <label className="text-ink text-[10px] font-black uppercase block mb-1.5 opacity-70">Filtrar por Proveedor</label>
+          <label className="text-ink text-[10px] font-black uppercase block mb-1.5 opacity-70">Filtrar por Departamento</label>
           <div className="relative">
-            <Truck className="absolute left-3 top-2.5 w-4 h-4 text-brand-gold opacity-50" />
+            <LayoutGrid className="absolute left-3 top-2.5 w-4 h-4 text-brand-gold opacity-50" />
             <select 
               className="form-select pl-10 h-10 bg-surface-soft border-line text-ink font-bold text-sm rounded-lg"
-              value={provFilter}
-              onChange={e => setProvFilter(e.target.value)}
+              value={deptFilter}
+              onChange={e => setDeptFilter(e.target.value)}
             >
-              <option value="">TODOS LOS PROVEEDORES</option>
-              {safeProveedores.map(p => (
-                <option key={p.id} value={p.nombre}>{p.nombre?.toUpperCase() || 'S/N'}</option>
+              <option value="">TODOS LOS DEPARTAMENTOS</option>
+              {(state.departamentos || []).map(d => (
+                <option key={d} value={d}>{d?.toUpperCase()}</option>
               ))}
             </select>
           </div>
@@ -409,7 +406,7 @@ function ReporteGeneral({ state, onAction }: { state: AppState, onAction: (type:
             </TableHeader>
             <TableBody>
               {filteredProducts.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-20 text-ink/20 font-black italic uppercase">No se encontraron productos para el proveedor seleccionado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-20 text-ink/20 font-black italic uppercase">No se encontraron productos para el departamento seleccionado</TableCell></TableRow>
               ) : (
                 filteredProducts.map(p => (
                   <TableRow key={p.id} className="border-b border-line/30">
@@ -924,6 +921,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     codigo: producto?.codigo || '',
     nombre: producto?.nombre || '',
     categoria: producto?.categoria || state.categorias[0] || '',
+    departamento: producto?.departamento || state.departamentos[0] || '',
     marca: producto?.marca || state.marcas[0] || '',
     costoUSD: producto?.costoUSD?.toString() ?? '0',
     margen: producto?.margen?.toString() ?? '0',
@@ -988,19 +986,22 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     });
   };
 
-  const handleAddListItem = (listName: 'categorias' | 'marcas') => {
+  const handleAddListItem = (listName: 'categorias' | 'marcas' | 'departamentos') => {
     const newVal = prompt(`Ingrese nueva opción para ${listName.toUpperCase()}:`);
     if (newVal) {
       onUpdateLists({ [listName]: [...(state[listName] || []), newVal] });
-      setDatos((prev: any) => ({ ...prev, [listName === 'categorias' ? 'categoria' : 'marca']: newVal }));
+      if (listName === 'categorias') setDatos((prev: any) => ({ ...prev, categoria: newVal }));
+      if (listName === 'marcas') setDatos((prev: any) => ({ ...prev, marca: newVal }));
+      if (listName === 'departamentos') setDatos((prev: any) => ({ ...prev, departamento: newVal }));
     }
   };
 
-  const handleRemoveListItem = (listName: 'categorias' | 'marcas', current: string) => {
+  const handleRemoveListItem = (listName: 'categorias' | 'marcas' | 'departamentos', current: string) => {
     if (confirm(`¿Eliminar "${current}" de la lista?`)) {
       const newList = (state[listName] || []).filter(i => i !== current);
       onUpdateLists({ [listName]: newList });
-      setDatos((prev: any) => ({ ...prev, [listName === 'categorias' ? 'categoria' : 'marca']: newList[0] || '' }));
+      const targetField = listName === 'categorias' ? 'categoria' : listName === 'marcas' ? 'marca' : 'departamento';
+      setDatos((prev: any) => ({ ...prev, [targetField]: newList[0] || '' }));
     }
   };
 
@@ -1051,17 +1052,33 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   <Label className="text-[10px] font-black uppercase text-ink/50 block">Nombre del Producto</Label>
                   <Input className="h-10 font-black text-ink uppercase bg-white" value={datos.nombre} onChange={e => setDatos({...datos, nombre: e.target.value})} />
                 </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <Label className="text-[10px] font-black uppercase text-ink/50">Categoría</Label>
-                    <div className="flex gap-1">
-                      <button onClick={() => handleAddListItem('categorias')} className="text-brand-gold"><PlusCircle className="w-3.5 h-3.5"/></button>
-                      <button onClick={() => handleRemoveListItem('categorias', datos.categoria)} className="text-status-danger"><MinusCircle className="w-3.5 h-3.5"/></button>
-                    </div>
-                  </div>
-                  <select className="form-select h-10 text-xs font-bold bg-white" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
-                    {(state.categorias || []).map((cat: string) => <option key={cat} value={cat}>{cat}</option>)}
-                  </select>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <div className="space-y-1">
+                     <div className="flex justify-between items-center mb-1">
+                       <Label className="text-[10px] font-black uppercase text-ink/50">Departamento</Label>
+                       <div className="flex gap-1">
+                         <button onClick={() => handleAddListItem('departamentos')} className="text-brand-gold"><PlusCircle className="w-3.5 h-3.5"/></button>
+                         <button onClick={() => handleRemoveListItem('departamentos', datos.departamento)} className="text-status-danger"><MinusCircle className="w-3.5 h-3.5"/></button>
+                       </div>
+                     </div>
+                     <select className="form-select h-10 text-xs font-bold bg-white" value={datos.departamento} onChange={e => setDatos({...datos, departamento: e.target.value})}>
+                       {(state.departamentos || []).map((d: string) => <option key={d} value={d}>{d}</option>)}
+                     </select>
+                   </div>
+
+                   <div className="space-y-1">
+                     <div className="flex justify-between items-center mb-1">
+                       <Label className="text-[10px] font-black uppercase text-ink/50">Categoría</Label>
+                       <div className="flex gap-1">
+                         <button onClick={() => handleAddListItem('categorias')} className="text-brand-gold"><PlusCircle className="w-3.5 h-3.5"/></button>
+                         <button onClick={() => handleRemoveListItem('categorias', datos.categoria)} className="text-status-danger"><MinusCircle className="w-3.5 h-3.5"/></button>
+                       </div>
+                     </div>
+                     <select className="form-select h-10 text-xs font-bold bg-white" value={datos.categoria} onChange={e => setDatos({...datos, categoria: e.target.value})}>
+                       {(state.categorias || []).map((cat: string) => <option key={cat} value={cat}>{cat}</option>)}
+                     </select>
+                   </div>
                 </div>
               </div>
               <div className="space-y-4">
@@ -1112,7 +1129,7 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   <div className="relative"><Search className="absolute left-3 top-3 w-4 h-4 text-ink/30" /><Input className="h-12 pl-10 text-xs font-black uppercase bg-white" placeholder="Buscar productos componentes..." value={kitSearch} onChange={e => setKitSearch(e.target.value)} />{filteredProdsForKit.length > 0 && (<div className="absolute top-full left-0 right-0 bg-white border border-line rounded-lg shadow-2xl z-50 mt-1 overflow-hidden">{filteredProdsForKit.map(pk => (<div key={pk.id} onClick={() => { setDatos({...datos, kitItems: [...datos.kitItems, { productoId: pk.id, nombre: pk.nombre, cantidad: 1 }]}); setKitSearch(''); }} className="p-3 border-b border-line hover:bg-brand-gold-soft cursor-pointer flex justify-between items-center"><span className="text-xs font-black uppercase text-ink">{pk.nombre}</span><Plus className="w-4 h-4 text-brand-gold"/></div>))}</div>)}</div>
                   <Card className="border-line shadow-sm overflow-hidden bg-white"><div className="table-wrap"><table><thead className="bg-surface-soft"><tr><th className="text-[10px] font-black uppercase text-ink">Componente</th><th className="text-[10px] font-black uppercase text-center text-ink">Cant</th><th /></tr></thead><tbody>
                     {datos.kitItems.map((ki: KitItem, index: number) => (
-                      <tr key={index} className="border-b border-line/30"><td className="text-[11px] font-black uppercase text-ink">{ki.nombre}</td><td className="text-center"><Input className="w-12 h-8 text-center font-black bg-surface-soft border-line inline-block" type="number" value={ki.cantidad} onChange={e => { const n = [...datos.kitItems]; n[index].cantidad = parseInt(e.target.value) || 1; setDatos({...datos, kitItems: n}); }} /></td><td className="text-center"><button onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_:any, i:number) => i !== index)})} className="text-status-danger"><Trash2 className="w-4 h-4"/></button></td></tr>
+                      <tr key={index} className="border-b border-line/30"><td className="text-11px] font-black uppercase text-ink">{ki.nombre}</td><td className="text-center"><Input className="w-12 h-8 text-center font-black bg-surface-soft border-line inline-block" type="number" value={ki.cantidad} onChange={e => { const n = [...datos.kitItems]; n[index].cantidad = parseInt(e.target.value) || 1; setDatos({...datos, kitItems: n}); }} /></td><td className="text-center"><button onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_:any, i:number) => i !== index)})} className="text-status-danger"><Trash2 className="w-4 h-4"/></button></td></tr>
                     ))}
                   </tbody></table></div></Card>
                 </div>
