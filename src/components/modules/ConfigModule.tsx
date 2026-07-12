@@ -37,16 +37,22 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
   };
 
   const formatearSistema = () => {
-    if(confirm('¿ESTÁ TOTALMENTE SEGURO? Esta acción borrará PRODUCTOS, VENTAS, CRÉDITOS Y CONFIGURACIÓN de la nube. Los usuarios NO se borrarán. Esta acción no se puede deshacer.')) {
-      // 1. Sobrescribir la base de datos en la nube (RTDB) con el estado inicial
-      // Conservamos solo la estructura base. Los usuarios están en Firestore y no se tocan.
+    if(confirm('¿ESTÁ TOTALMENTE SEGURO? Esta acción borrará PRODUCTOS, VENTAS, CRÉDITOS Y CONFIGURACIÓN de la nube. Los usuarios NO se borrarán. Esta acción no se puede deshacer y el sistema volverá a pedir una configuración de Administrador Raíz.')) {
+      // 1. Sobrescribir la base de datos en la nube (Firestore) con el estado inicial
+      // initialState tiene isInitialized: false, lo que activará el enlace de registro raíz en el próximo login.
       Store.set(initialState);
       
-      // 2. Limpiar cache local
-      localStorage.clear();
+      // 2. Limpiar cache de sesión
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.clear();
+      }
+      
+      toast({ title: "Sistema Formateado", description: "Reiniciando entorno de trabajo..." });
       
       // 3. Reiniciar la aplicación para cargar el estado limpio
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     }
   };
 

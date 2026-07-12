@@ -5,10 +5,8 @@ import { useRouter } from 'next/navigation';
 import { 
   Mail, 
   Lock, 
-  User, 
   Eye, 
   EyeOff,
-  ChevronDown,
   UserPlus,
   LogIn
 } from 'lucide-react';
@@ -45,10 +43,12 @@ export default function LoginPage() {
           const data = stateDoc.data();
           setSystemEmpty(!data.isInitialized);
         } else {
+          // Si el documento no existe, consideramos que el sistema está vacío
           setSystemEmpty(true);
         }
       } catch (e) {
-        // Si falla por permisos, asumimos que no es nuevo (seguridad)
+        // En caso de error de permisos o red, por seguridad no mostramos el enlace de registro
+        console.warn("No se pudo verificar el estado de inicialización:", e);
         setSystemEmpty(false);
       }
     };
@@ -72,7 +72,6 @@ export default function LoginPage() {
             }
             router.push('/');
           } else {
-            // Si el usuario existe en Auth pero no en Firestore (ej. registro interrumpido)
             setAuthChecked(true);
           }
         } catch (e) {
@@ -124,13 +123,7 @@ export default function LoginPage() {
         // Si es el registro inicial, marcar el sistema como inicializado
         if (isRegistering) {
           const stateRef = doc(db, 'pos_system_data', 'state');
-          const stateSnap = await getDoc(stateRef);
-          if (stateSnap.exists()) {
-            await updateDoc(stateRef, { isInitialized: true });
-          } else {
-            // Si el documento ni siquiera existe, lo creamos con el flag
-            await setDoc(stateRef, { isInitialized: true, tasa: 36.5, proximoRecibo: 1 }, { merge: true });
-          }
+          await setDoc(stateRef, { isInitialized: true }, { merge: true });
         }
       } else {
         const userData = userDoc.data();
@@ -158,7 +151,10 @@ export default function LoginPage() {
   if (!authChecked) {
     return (
       <div className="min-h-screen bg-surface-warm flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-brand-gold border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-brand-gold border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink/40">Verificando Seguridad...</p>
+        </div>
       </div>
     );
   }
