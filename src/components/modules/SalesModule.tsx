@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, Movimiento, PagoRealizado, Customer, Return, ReturnItem, Product, Debt } from '@/lib/types';
+import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, PagoRealizado, Customer, Return, ReturnItem, Product, Debt, Movimiento } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
   Search, 
@@ -110,7 +110,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           compPossible = 0;
         }
       });
-      if (compPossible !== Infinity) avail += compPossible;
+      if (compPossible !== Infinity) avail = compPossible;
     }
     return avail;
   };
@@ -222,6 +222,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             prodsActualizados[cpIdx] = cp;
           }
         });
+        // Venta del KIT (No descuenta stock propio)
         nuevosMovimientos.push({
           id: Store.uid(),
           productoId: p.id,
@@ -246,8 +247,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           fecha: ahoraStr,
           referencia: `VENTA ${reciboId} - TERM: ${terminal?.nombre || 'Gral'}`
         });
+        prodsActualizados[pIdx] = p;
       }
-      prodsActualizados[pIdx] = p;
     });
 
     const nuevaVenta: Sale = {
@@ -297,20 +298,56 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     state.carrito.forEach(item => {
       const pIdx = prodsActualizados.findIndex(x => x.id === item.productoId);
       if (pIdx === -1) return;
+      
       const p = { ...prodsActualizados[pIdx] };
-      const stockAntes = p.stock;
-      p.stock -= item.cantidad;
-      nuevosMovimientos.push({
-        id: Store.uid(),
-        productoId: item.productoId,
-        tipo: 'venta',
-        cantidad: -Math.abs(item.cantidad),
-        stockAntes,
-        stockDespues: p.stock,
-        fecha: ahoraStr,
-        referencia: `VENTA CRÉDITO ${reciboId} - CLIENTE: ${selectedClient.name}`
-      });
-      prodsActualizados[pIdx] = p;
+      
+      if (p.isKit && p.kitType === 'stock_componentes' && p.kitItems) {
+        p.kitItems.forEach(ki => {
+          const cpIdx = prodsActualizados.findIndex(cp => cp.id === ki.productoId);
+          if (cpIdx !== -1) {
+            const cp = { ...prodsActualizados[cpIdx] };
+            const cantidadADescontar = item.cantidad * ki.cantidad;
+            const stockAntes = cp.stock;
+            cp.stock -= cantidadADescontar;
+            
+            nuevosMovimientos.push({
+              id: Store.uid(),
+              productoId: cp.id,
+              tipo: 'venta',
+              cantidad: -Math.abs(cantidadADescontar),
+              stockAntes,
+              stockDespues: cp.stock,
+              fecha: ahoraStr,
+              referencia: `COMPONENTE DE KIT: ${p.nombre} - VENTA CRÉDITO ${reciboId}`
+            });
+            prodsActualizados[cpIdx] = cp;
+          }
+        });
+        nuevosMovimientos.push({
+          id: Store.uid(),
+          productoId: p.id,
+          tipo: 'venta',
+          cantidad: -Math.abs(item.cantidad),
+          stockAntes: p.stock,
+          stockDespues: p.stock,
+          fecha: ahoraStr,
+          referencia: `VENTA CRÉDITO KIT VIRTUAL ${reciboId}`
+        });
+      } else {
+        const stockAntes = p.stock;
+        p.stock -= item.cantidad;
+        nuevosMovimientos.push({
+          id: Store.uid(),
+          productoId: item.productoId,
+          tipo: 'venta',
+          cantidad: -Math.abs(item.cantidad),
+          stockAntes,
+          stockDespues: p.stock,
+          fecha: ahoraStr,
+          referencia: `VENTA CRÉDITO ${reciboId} - CLIENTE: ${selectedClient.name}`
+        });
+        prodsActualizados[pIdx] = p;
+      }
     });
 
     const nuevaVenta: Sale = {
@@ -800,7 +837,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       {showDetailsModal && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowDetailsModal(null)}></div>
           <div className="modal-box max-w-[600px] bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl">
-            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center"><h3 className="text-white font-black text-xs uppercase italic tracking-tighter">HISTORIAL DETALLADO: {showDetailsModal.id}</h3><button onClick={() => setShowDetailsModal(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button></div>
+            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center"><h3 className="text-white font-black uppercase italic tracking-tighter">HISTORIAL DETALLADO: {showDetailsModal.id}</h3><button onClick={() => setShowDetailsModal(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button></div>
             <div className="modal-body p-6 space-y-6 max-h-[75vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
                  <div className="p-3 bg-surface-soft rounded-lg border border-line">

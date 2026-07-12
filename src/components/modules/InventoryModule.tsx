@@ -269,25 +269,65 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
           producto={state.productos.find(p => p.id === showAjuste)!} 
           onClose={() => setShowAjuste(null)}
           onSave={(mov, nuevoCosto) => {
-            const nuevosProds = state.productos.map(p => {
-              if (p.id === mov.productoId) {
-                let finalCosto = p.costoUSD;
-                if (mov.tipo === 'ajuste_entrada' || mov.tipo === 'compra') {
-                  const stockActual = p.stock;
-                  const cantidadNueva = Math.abs(mov.cantidad);
-                  const costoNuevo = nuevoCosto || p.costoUSD;
-                  const stockTotal = stockActual + cantidadNueva;
-                  if (stockTotal > 0) {
-                    finalCosto = Utils.round(((stockActual * p.costoUSD) + (cantidadNueva * costoNuevo)) / stockTotal);
-                  }
+            const productoOriginal = state.productos.find(p => p.id === mov.productoId);
+            if (!productoOriginal) return;
+
+            let prodsActualizados = [...state.productos];
+            let nuevosMovimientos = [...state.movimientos];
+
+            // LOGICA DE KITS VIRTUALES (Descuento en cascada a componentes)
+            if (productoOriginal.isKit && productoOriginal.kitType === 'stock_componentes' && productoOriginal.kitItems) {
+              productoOriginal.kitItems.forEach(ki => {
+                const cpIdx = prodsActualizados.findIndex(cp => cp.id === ki.productoId);
+                if (cpIdx !== -1) {
+                  const cp = { ...prodsActualizados[cpIdx] };
+                  const cantidadImpacto = mov.cantidad * ki.cantidad; // mov.cantidad es el multiplicador del kit
+                  const stockAntes = cp.stock;
+                  cp.stock += cantidadImpacto; 
+                  
+                  nuevosMovimientos.push({
+                    id: Store.uid(),
+                    productoId: cp.id,
+                    tipo: mov.tipo,
+                    cantidad: cantidadImpacto,
+                    stockAntes,
+                    stockDespues: cp.stock,
+                    fecha: mov.fecha,
+                    referencia: `${mov.tipo.replace('_', ' ').toUpperCase()} KIT: ${productoOriginal.nombre} - REF: ${mov.referencia}`
+                  });
+                  prodsActualizados[cpIdx] = cp;
                 }
-                return { ...p, stock: mov.stockDespues, costoUSD: finalCosto };
-              }
-              return p;
-            });
+              });
+              
+              // El kit en sí no cambia su stock real porque es virtual (se registra el movimiento para auditoría)
+              nuevosMovimientos.push({
+                ...mov,
+                stockDespues: productoOriginal.stock // Se mantiene el stock antes del ajuste
+              }); 
+            } else {
+              // LOGICA NORMAL
+              prodsActualizados = prodsActualizados.map(p => {
+                if (p.id === mov.productoId) {
+                  let finalCosto = p.costoUSD;
+                  if (mov.tipo === 'ajuste_entrada' || mov.tipo === 'compra') {
+                    const stockActual = p.stock;
+                    const cantidadNueva = Math.abs(mov.cantidad);
+                    const costoNuevo = nuevoCosto || p.costoUSD;
+                    const stockTotal = stockActual + cantidadNueva;
+                    if (stockTotal > 0) {
+                      finalCosto = Utils.round(((stockActual * p.costoUSD) + (cantidadNueva * costoNuevo)) / stockTotal);
+                    }
+                  }
+                  return { ...p, stock: mov.stockDespues, costoUSD: finalCosto };
+                }
+                return p;
+              });
+              nuevosMovimientos.push(mov);
+            }
+
             updateState({ 
-              productos: nuevosProds, 
-              movimientos: [...state.movimientos, mov] 
+              productos: prodsActualizados, 
+              movimientos: nuevosMovimientos 
             });
             setShowAjuste(null);
           }}
@@ -969,4 +1009,3 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
     </div>
   );
 }
-
