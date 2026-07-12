@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -5,6 +6,9 @@ import { AppState } from '@/lib/types';
 import { Save, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Store, initialState } from '@/lib/db-store';
+import { db, auth } from '@/lib/firebase';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 
 export default function ConfigModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [tasa, setTasa] = useState<string | number>(state.tasa);
@@ -36,23 +40,50 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
     toast({ title: "Seguridad Actualizada", description: "PIN de autorización establecido correctamente." });
   };
 
-  const formatearSistema = () => {
-    if(confirm('¿ESTÁ TOTALMENTE SEGURO? Esta acción borrará PRODUCTOS, VENTAS, CRÉDITOS Y CONFIGURACIÓN de la nube. Los usuarios NO se borrarán. Esta acción no se puede deshacer y el sistema volverá a pedir una configuración de Administrador Raíz.')) {
-      // 1. Sobrescribir la base de datos en la nube (Firestore) con el estado inicial
-      // initialState tiene isInitialized: false, lo que activará el enlace de registro raíz en el próximo login.
-      Store.set(initialState);
-      
-      // 2. Limpiar cache de sesión
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.clear();
+  const formatearSistema = async () => {
+    if(confirm('¿ESTÁ TOTALMENTE SEGURO? Esta acción borrará PRODUCTOS, VENTAS, CRÉDITOS, CONFIGURACIÓN Y TODOS LOS USUARIOS de la nube. Esta acción no se puede deshacer y el sistema volverá a pedir una configuración de Administrador Raíz.')) {
+      try {
+        // 1. Limpiar todos los documentos de la colección 'users' en Firestore
+        const querySnapshot = await getDocs(collection(db, 'users'));
+        const deletePromises = querySnapshot.docs.map(userDoc => deleteDoc(doc(db, 'users', userDoc.id)));
+        await Promise.all(deletePromises);
+
+        // 2. Sobrescribir la base de datos en la nube (Firestore) con el estado inicial
+        // El initialState tiene isInitialized: false, lo que activará el registro raíz en el login.
+        Store.set({
+          ...initialState,
+          isInitialized: false
+        });
+        
+        // 3. Limpiar cache de sesión local
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.clear();
+        }
+        
+        toast({ title: "Sistema Formateado", description: "Todos los datos y usuarios han sido eliminados correctamente." });
+
+        // 4. Intentar eliminar la cuenta de Auth actual para permitir re-registro inmediato
+        // Nota: Solo se puede eliminar al usuario actual desde el cliente. 
+        // El resto de cuentas de Auth deben borrarse desde la consola de Firebase si se desea liberar los correos.
+        if (auth.currentUser) {
+          try {
+            await auth.currentUser.delete();
+          } catch (e) {
+            // Si falla por sesión antigua, simplemente cerramos sesión
+            await signOut(auth);
+          }
+        } else {
+          await signOut(auth);
+        }
+        
+        // 5. Redirigir a la pantalla de login para configurar el nuevo Admin Raíz
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+      } catch (error) {
+        console.error("Error durante el formateo total:", error);
+        alert("Ocurrió un error crítico durante la limpieza. Verifique su conexión y permisos.");
       }
-      
-      toast({ title: "Sistema Formateado", description: "Reiniciando entorno de trabajo..." });
-      
-      // 3. Reiniciar la aplicación para cargar el estado limpio
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
     }
   };
 
@@ -157,7 +188,7 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
         </div>
         <div className="card-body p-6">
           <p className="text-xs text-ink font-bold mb-5 uppercase leading-relaxed tracking-tight">
-            Esta acción borrará permanentemente la base de datos en la nube (excepto usuarios) y reiniciará el sistema.
+            Esta acción borrará permanentemente la base de datos en la nube (INCLUYENDO TODOS LOS USUARIOS) y reiniciará el sistema.
           </p>
           <button 
             className="btn btn-danger h-12 px-8 font-black uppercase text-xs shadow-xl" 
