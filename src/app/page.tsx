@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -57,7 +56,6 @@ export default function LicoreriaPOS() {
   const [showApertura, setShowApertura] = useState(false);
   const [aperturaData, setAperturaData] = useState({ bs: '0', usd: '0' });
   
-  // Ref para evitar que el cambio de modulo dispare el efecto principal
   const moduleInitialized = useRef(false);
 
   useEffect(() => {
@@ -74,7 +72,6 @@ export default function LicoreriaPOS() {
         router.push('/login');
       } else {
         try {
-          // Normalizar email para el ID del documento
           const userDocId = currentUser.email!.toLowerCase().replace(/\W/g, '_');
           
           if (!db) {
@@ -92,13 +89,11 @@ export default function LicoreriaPOS() {
                 return;
               }
 
-              // Lógica de módulo inicial
               if (!moduleInitialized.current) {
                 const savedModule = sessionStorage.getItem('posven_active_module');
                 const aperturaConfirmada = sessionStorage.getItem('posven_apertura_done');
 
                 if (data.rol === 'cajero') {
-                   // Para cajeros, verificamos terminal por fuera del listener sincrónico para no bloquear
                    getDoc(doc(db, 'pos_system_data', 'state')).then(configSnap => {
                       const terminals = (configSnap.data()?.terminales || []) as Terminal[];
                       const hasTerminal = terminals.some((t: Terminal) => t.usuarioId === userDocId);
@@ -128,17 +123,13 @@ export default function LicoreriaPOS() {
               setUser(currentUser);
               setLoading(false);
             } else {
-              // Si no existe el perfil después de logueado, es un error de integridad
-              console.warn("Perfil de usuario no encontrado en Firestore.");
               setLoading(false);
             }
           }, (err) => {
-            console.error("Error en suscripción de perfil:", err);
             setLoading(false);
           });
 
         } catch (error) {
-          console.error("Error fetching role:", error);
           setLoading(false);
         }
       }
@@ -167,7 +158,7 @@ export default function LicoreriaPOS() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [router]); // ELIMINADO activeModule de las dependencias para evitar bucle
+  }, [router]);
 
   useEffect(() => {
     if (mounted) {
@@ -201,9 +192,7 @@ export default function LicoreriaPOS() {
         try {
           const userDocId = user.email.toLowerCase().replace(/\W/g, '_');
           await updateDoc(doc(db, 'users', userDocId), { accesoBloqueado: true });
-        } catch (e) {
-          console.error("Error al activar bloqueo de seguridad:", e);
-        }
+        } catch (e) {}
       }
       sessionStorage.clear();
       if (auth) await signOut(auth);
@@ -287,6 +276,70 @@ export default function LicoreriaPOS() {
     );
   }
 
+  const isCajero = userRole === 'cajero';
+
+  // Pantalla de apertura exclusiva para cajeros al iniciar sesión
+  if (showApertura && isCajero) {
+    const timeStr = mounted ? currentTime.toLocaleTimeString('es-VE', { 
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/Caracas' 
+    }) : '--:--:--';
+    const dateStr = mounted ? currentTime.toLocaleDateString('es-VE', { 
+      weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Caracas'
+    }) : '...';
+
+    return (
+      <div className="min-h-screen bg-surface-warm flex items-center justify-center p-6 font-sans no-print">
+         <div className="w-full max-w-[440px] bg-white rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-10 space-y-6 animate-in fade-in zoom-in duration-500 border border-line">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-brand-gold rounded-xl flex items-center justify-center text-black font-black text-xl shadow-lg">P</div>
+                <div className="font-display font-black text-xl text-ink tracking-tighter uppercase">Pos<span className="text-brand-gold">VEN</span> Pro</div>
+              </div>
+              <div className="h-0.5 w-10 bg-brand-gold rounded-full mx-auto mb-2"></div>
+              <h1 className="text-base font-extrabold text-ink tracking-tight uppercase italic">Apertura de Jornada</h1>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-surface-soft rounded-xl border border-line">
+                  <label className="text-[8px] font-black uppercase text-ink/50 block mb-1">Responsable</label>
+                  <p className="text-[10px] font-black text-ink uppercase truncate">{userProfile?.nombre || 'Operador'}</p>
+                </div>
+                <div className="p-3 bg-surface-soft rounded-xl border border-line">
+                  <label className="text-[8px] font-black uppercase text-ink/50 block mb-1">Recibo Inicio</label>
+                  <p className="text-[10px] font-black text-brand-gold-deep"># {String(state.proximoRecibo).padStart(9, '0')}</p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-ink text-white rounded-xl flex justify-between items-center">
+                <div className="space-y-0.5">
+                  <label className="text-[8px] font-bold uppercase opacity-50 block tracking-widest">Fecha</label>
+                  <p className="text-[9px] font-black uppercase">{dateStr}</p>
+                </div>
+                <div className="text-right space-y-0.5">
+                  <label className="text-[8px] font-bold uppercase opacity-50 block tracking-widest">Hora</label>
+                  <p className="text-[9px] font-black uppercase">{timeStr}</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                 <div className="form-group">
+                    <label className="text-ink text-[9px] font-black uppercase block mb-1.5 opacity-70">Fondo Efectivo Bs.</label>
+                    <input type="text" className="form-input h-11 text-lg font-black text-center text-ink bg-surface-soft/40 border-line" value={aperturaData.bs} onChange={e => setAperturaData({...aperturaData, bs: e.target.value.replace(/[^0-9.]/g, '')})} />
+                 </div>
+                 <div className="form-group">
+                    <label className="text-ink text-[9px] font-black uppercase block mb-1.5 opacity-70">Fondo Efectivo USD</label>
+                    <input type="text" className="form-input h-11 text-lg font-black text-center text-brand-gold-deep bg-surface-soft/40 border-line" value={aperturaData.usd} onChange={e => setAperturaData({...aperturaData, usd: e.target.value.replace(/[^0-9.]/g, '')})} />
+                 </div>
+              </div>
+
+              <button disabled={aperturaData.bs === '' || aperturaData.usd === ''} onClick={() => { sessionStorage.setItem('posven_apertura_done', 'true'); setShowApertura(false); }} className="w-full h-14 bg-brand-gold text-ink font-black text-sm rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-widest">Confirmar Apertura</button>
+            </div>
+         </div>
+      </div>
+    );
+  }
+
   const timeStr = mounted ? currentTime.toLocaleTimeString('es-VE', { 
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'America/Caracas' 
   }) : '--:--:--';
@@ -295,62 +348,8 @@ export default function LicoreriaPOS() {
     weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Caracas'
   }) : '...';
 
-  const isCajero = userRole === 'cajero';
-
   return (
     <div className="flex min-h-screen bg-surface-warm text-ink">
-      {showApertura && isCajero && (
-        <div className="fixed inset-0 z-[100] bg-surface-warm flex items-center justify-center p-4 no-print">
-           <div className="w-full max-sm bg-white rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.1)] p-5 space-y-3 animate-in fade-in zoom-in duration-500 border border-line">
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2.5 mb-1">
-                  <div className="w-8 h-8 bg-brand-gold rounded-lg flex items-center justify-center text-black font-black text-lg shadow-lg">P</div>
-                  <div className="font-display font-black text-lg text-ink tracking-tighter uppercase">Pos<span className="text-brand-gold">VEN</span> Pro</div>
-                </div>
-                <div className="h-0.5 w-8 bg-brand-gold rounded-full mx-auto mb-1"></div>
-                <h1 className="text-sm font-extrabold text-ink tracking-tight uppercase italic">Apertura de Jornada</h1>
-              </div>
-
-              <div className="space-y-2.5">
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="p-2 bg-surface-soft rounded-xl border border-line">
-                    <label className="text-[7px] font-black uppercase text-ink/50 block mb-0.5">Responsable</label>
-                    <p className="text-[9px] font-black text-ink uppercase truncate">{userProfile?.nombre || 'Operador'}</p>
-                  </div>
-                  <div className="p-2 bg-surface-soft rounded-xl border border-line">
-                    <label className="text-[7px] font-black uppercase text-ink/50 block mb-0.5">Recibo Inicio</label>
-                    <p className="text-[9px] font-black text-brand-gold-deep"># {String(state.proximoRecibo).padStart(9, '0')}</p>
-                  </div>
-                </div>
-
-                <div className="p-2 bg-ink text-white rounded-xl flex justify-between items-center">
-                  <div className="space-y-0">
-                    <label className="text-[7px] font-bold uppercase opacity-50 block tracking-widest">Fecha</label>
-                    <p className="text-[8px] font-black uppercase">{dateStr}</p>
-                  </div>
-                  <div className="text-right space-y-0">
-                    <label className="text-[7px] font-bold uppercase opacity-50 block tracking-widest">Hora</label>
-                    <p className="text-[8px] font-black uppercase">{timeStr}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2.5">
-                   <div className="form-group">
-                      <label className="text-ink text-[8px] font-black uppercase block mb-1 opacity-70">Fondo Efectivo Bs.</label>
-                      <input type="text" className="form-input h-9 text-base font-black text-center text-ink bg-surface-soft/40 border-line" value={aperturaData.bs} onChange={e => setAperturaData({...aperturaData, bs: e.target.value.replace(/[^0-9.]/g, '')})} />
-                   </div>
-                   <div className="form-group">
-                      <label className="text-ink text-[8px] font-black uppercase block mb-1 opacity-70">Fondo Efectivo USD</label>
-                      <input type="text" className="form-input h-9 text-base font-black text-center text-brand-gold-deep bg-surface-soft/40 border-line" value={aperturaData.usd} onChange={e => setAperturaData({...aperturaData, usd: e.target.value.replace(/[^0-9.]/g, '')})} />
-                   </div>
-                </div>
-
-                <button disabled={aperturaData.bs === '' || aperturaData.usd === ''} onClick={() => { sessionStorage.setItem('posven_apertura_done', 'true'); setShowApertura(false); }} className="w-full h-10 bg-brand-gold text-ink font-black text-xs rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-widest">Confirmar Apertura</button>
-              </div>
-           </div>
-        </div>
-      )}
-
       {!isCajero && (
         <aside className={`fixed lg:sticky top-0 left-0 w-[260px] h-screen bg-white border-line flex flex-col z-50 transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} border-r`}>
           <div className="p-6 border-b border-line flex flex-col gap-1">
@@ -391,14 +390,10 @@ export default function LicoreriaPOS() {
           
           <div className="p-4 border-t border-line bg-surface-warm/50 flex flex-col gap-2">
             <div className="bg-brand-gold-soft border border-[#EFD9A4] rounded-lg p-3 flex items-center gap-3 shadow-sm">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-b from-[#FFD700] via-[#003893] to-[#CF142B] border border-white/20 shadow-inner flex items-center justify-center overflow-hidden">
-                <div className="w-full h-full bg-white/10" />
-              </div>
               <div className="flex-1">
                 <div className="text-[0.62rem] font-bold text-brand-gold-deep uppercase tracking-widest leading-none mb-1">Tasa BCV</div>
                 <div className="font-display font-[800] text-sm text-ink">{state.tasa.toFixed(2)} <span className="text-[0.7rem] font-black opacity-60">Bs/USD</span></div>
               </div>
-              <button className="text-brand-gold-deep hover:rotate-180 transition-transform duration-500"><RefreshCw className="w-3.5 h-3.5" /></button>
             </div>
             
             <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] text-[0.8rem] font-black text-status-danger hover:bg-status-danger-soft transition-all uppercase tracking-widest">
@@ -460,9 +455,7 @@ export default function LicoreriaPOS() {
               <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-brand-gold to-[#E7B857] flex items-center justify-center text-white font-black text-xs border border-white/20 shadow-sm uppercase">{userProfile?.nombre?.charAt(0) || 'U'}</div>
             </div>
             
-            {isCajero && (
-               <button onClick={handleLogout} className="w-10 h-10 bg-status-danger-soft text-status-danger rounded-xl flex items-center justify-center hover:bg-status-danger hover:text-white transition-all shadow-sm" title="Cerrar Sistema"><LogOut className="w-5 h-5" /></button>
-            )}
+            <button onClick={handleLogout} className="w-10 h-10 bg-status-danger-soft text-status-danger rounded-xl flex items-center justify-center hover:bg-status-danger hover:text-white transition-all shadow-sm" title="Cerrar Sistema"><LogOut className="w-5 h-5" /></button>
           </div>
         </header>
         

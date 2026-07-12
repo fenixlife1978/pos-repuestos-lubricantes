@@ -22,8 +22,7 @@ import {
   AlertCircle,
   Truck,
   Calculator,
-  TrendingUp,
-  TrendingDown
+  TrendingUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -119,19 +118,6 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
                 >
                   <option value="">Todas las categorías</option>
                   {(state.categorias || []).map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Truck className="w-4 h-4 text-ink/30" />
-                <select 
-                  className="form-select h-11 bg-white border-line text-xs font-black uppercase"
-                  value={provFilter} 
-                  onChange={e => setProvFilter(e.target.value)}
-                >
-                  <option value="">Todos los proveedores</option>
-                  {safeProveedores.map(p => (
-                    <option key={p.id} value={p.nombre}>{p.nombre?.toUpperCase()}</option>
-                  ))}
                 </select>
               </div>
             </div>
@@ -512,20 +498,6 @@ function ModalCPP({ producto, movimientos, onClose }: { producto: Product, movim
                            </span>
                         </div>
                       )}
-
-                      {idx === 0 && (
-                        <div className="flex items-center justify-between mt-1 pt-1 border-t border-dashed border-gray-100">
-                           <div className="flex items-center gap-1.5">
-                             <div className="w-3 h-3 flex items-center justify-center bg-gray-100 rounded">
-                               <TrendingUp className="w-2 h-2 text-gray-500" />
-                             </div>
-                             <span className="text-[9px] font-black text-blue-600 uppercase tracking-tighter">Variación:</span>
-                           </div>
-                           <span className={`text-[10px] font-black ${diff >= 0 ? 'text-status-danger' : 'text-[#16A34A]'}`}>
-                             {diff >= 0 ? '+' : ''}{diff.toFixed(2)}%
-                           </span>
-                        </div>
-                      )}
                     </div>
                   );
                 })
@@ -661,12 +633,10 @@ function ReporteDevoluciones({ state }: { state: AppState }) {
 }
 
 function HistorialAjustes({ state }: { state: AppState }) {
-  // Ahora incluimos consumo y colaboracion para centralizar el efecto neto
   const ajustes = state.movimientos.filter(m => 
     ['ajuste_entrada', 'ajuste_salida', 'consumo', 'colaboracion'].includes(m.tipo)
   ).sort((a,b) => b.fecha.localeCompare(a.fecha));
 
-  // Calculamos el valor monetario de la variación
   const totalVariacionUSD = ajustes.reduce((acc, m) => {
     const p = state.productos.find(prod => prod.id === m.productoId);
     const costo = p?.costoUSD || 0;
@@ -803,7 +773,7 @@ function ReporteConsumo({ state }: { state: AppState }) {
                     <TableCell className="text-right mono text-xs text-ink/50">{Utils.fmtUSD(costo)}</TableCell>
                     <TableCell className={`text-center font-black text-status-danger`}>{Math.abs(m.cantidad)}</TableCell>
                     <TableCell className="text-right mono font-black text-status-danger">{Utils.fmtUSD(subtotal)}</TableCell>
-                    <TableCell className="text-[10px] uppercase font-bold opacity-40 text-ink max-w-[200px] truncate">{m.referencia}</TableCell>
+                    <TableCell className="text-[10px] uppercase font-bold opacity-40 text-ink max-w-[250px] truncate">{m.referencia}</TableCell>
                   </TableRow>
                 );
               })}
@@ -1093,17 +1063,6 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                     {(state.categorias || []).map((cat: string) => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
                 </div>
-                <div className="space-y-1">
-                   <Label className="text-[10px] font-black uppercase text-ink/50 block">Proveedor</Label>
-                   <select className="form-select h-10 text-xs font-bold bg-white" value={datos.proveedor} onChange={e => setDatos({...datos, proveedor: e.target.value})}>
-                     <option value="">SIN ASIGNAR</option>
-                     {state.proveedores.map((p: any) => {
-                       const name = typeof p === 'string' ? p : p.nombre;
-                       const id = typeof p === 'string' ? p : p.id;
-                       return <option key={id} value={name}>{name?.toUpperCase() || 'S/N'}</option>;
-                     })}
-                   </select>
-                 </div>
               </div>
               <div className="space-y-4">
                  <div className="grid grid-cols-2 gap-4">
@@ -1137,11 +1096,6 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                 <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-status-success">Venta ($)</Label><Input className="h-12 font-black text-lg text-status-success bg-white" value={datos.precioUSD} onChange={e => recalcularTridireccional('precioUSD', e.target.value)} /></div>
                 <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-ink">Venta (BS)</Label><Input className="h-12 font-black text-lg bg-white" value={datos.precioBS} onChange={e => recalcularTridireccional('precioBS', e.target.value)} /></div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                 <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-ink/40">P. Mayor ($)</Label><Input className="h-10 font-bold bg-white" value={datos.precioMayorUSD} onChange={e => setDatos({...datos, precioMayorUSD: e.target.value})} /></div>
-                 <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-ink/40">P. Descuento ($)</Label><Input className="h-10 font-bold bg-white" value={datos.precioOfertaUSD} onChange={e => setDatos({...datos, precioOfertaUSD: e.target.value})} /></div>
-                 <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-ink/40">P. Promo ($)</Label><Input className="h-10 font-bold bg-white" value={datos.precioPromoUSD} onChange={e => setDatos({...datos, precioPromoUSD: e.target.value})} /></div>
-              </div>
             </div>
           )}
 
@@ -1152,12 +1106,6 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                   <button onClick={() => setDatos({...datos, isKit: !datos.isKit})} className={`w-12 h-6 rounded-full transition-all relative ${datos.isKit ? 'bg-brand-gold' : 'bg-white/20'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${datos.isKit ? 'right-1' : 'left-1'}`} /></button>
                   <Label className="text-[11px] font-black uppercase tracking-widest cursor-pointer" onClick={() => setDatos({...datos, isKit: !datos.isKit})}>Habilitar KIT / COMBO</Label>
                 </div>
-                {datos.isKit && (
-                  <div className="flex gap-6 border-t border-white/10 pt-4">
-                    <div className="flex items-center gap-2"><input type="radio" id="kit_sp" checked={datos.kitType === 'stock_propio'} onChange={() => setDatos({...datos, kitType: 'stock_propio'})} className="accent-brand-gold" /><label htmlFor="kit_sp" className="text-[9px] font-black uppercase cursor-pointer">Stock Propio (Pre-armado)</label></div>
-                    <div className="flex items-center gap-2"><input type="radio" id="kit_sc" checked={datos.kitType === 'stock_componentes'} onChange={() => setDatos({...datos, kitType: 'stock_componentes'})} className="accent-brand-gold" /><label htmlFor="kit_sc" className="text-[9px] font-black uppercase cursor-pointer">Depende de Componentes</label></div>
-                  </div>
-                )}
               </div>
               {datos.isKit && (
                 <div className="space-y-4">
@@ -1166,7 +1114,6 @@ function ModalProducto({ producto, state, onClose, onSave, onUpdateLists }: { pr
                     {datos.kitItems.map((ki: KitItem, index: number) => (
                       <tr key={index} className="border-b border-line/30"><td className="text-[11px] font-black uppercase text-ink">{ki.nombre}</td><td className="text-center"><Input className="w-12 h-8 text-center font-black bg-surface-soft border-line inline-block" type="number" value={ki.cantidad} onChange={e => { const n = [...datos.kitItems]; n[index].cantidad = parseInt(e.target.value) || 1; setDatos({...datos, kitItems: n}); }} /></td><td className="text-center"><button onClick={() => setDatos({...datos, kitItems: datos.kitItems.filter((_:any, i:number) => i !== index)})} className="text-status-danger"><Trash2 className="w-4 h-4"/></button></td></tr>
                     ))}
-                    {datos.kitItems.length === 0 && (<tr><td colSpan={3} className="py-10 text-center text-ink/20 font-black uppercase italic text-[10px]">Añada productos componentes</td></tr>)}
                   </tbody></table></div></Card>
                 </div>
               )}
