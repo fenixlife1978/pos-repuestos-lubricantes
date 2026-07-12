@@ -264,7 +264,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       cajeroId: auth?.currentUser?.uid
     };
 
-    // GENERAR ASIENTOS CONTABLES
+    // GENERAR ASIENTOS CONTABLES EN EL LIBRO DIARIO
     const nuevasEntradasDiario: LibroDiarioEntry[] = pagos.map(p => ({
       id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
       fecha: ahoraStr,
@@ -401,6 +401,19 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       ventaId: reciboId
     };
 
+    // ASIENTO CONTABLE PARA REGISTRO DE CUENTA POR COBRAR (Sin afectar flujo de caja real aún)
+    const asientoCredito: LibroDiarioEntry = {
+      id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
+      fecha: ahoraStr,
+      tipo: 'ingreso',
+      categoria: 'VENTA_CREDITO',
+      concepto: `VENTA A CRÉDITO #${reciboId} - CLIENTE: ${targetClient.name.toUpperCase()}`,
+      montoUSD: subtotalUSD,
+      montoBS: totalBS,
+      metodo: 'credito',
+      referencia: reciboId
+    };
+
     let nuevosClientes;
     if (showNewClientForm) {
       targetClient.debt = subtotalUSD;
@@ -417,6 +430,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       movimientos: [...state.movimientos, ...nuevosMovimientos],
       cxc: [...state.cxc, nuevaDeuda],
       clientes: nuevosClientes,
+      libroDiario: [asientoCredito, ...(state.libroDiario || [])],
       carrito: [],
       proximoRecibo: state.proximoRecibo + 1
     });
@@ -628,7 +642,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       cajeroId: auth?.currentUser?.uid
     };
 
-    // GENERAR ASIENTOS CONTABLES POR COBRO DE CRÉDITO
+    // GENERAR ASIENTOS CONTABLES POR COBRO DE CRÉDITO (Abono realizado)
     const nuevasEntradasDiario: LibroDiarioEntry[] = abonoPagos.map(p => ({
       id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
       fecha: ahoraStr,
@@ -700,7 +714,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       }
     });
 
-    // GENERAR ASIENTO DE EGRESO POR DEVOLUCIÓN
+    // GENERAR ASIENTO DE EGRESO POR DEVOLUCIÓN EN EL LIBRO DIARIO
     const entradaDevolucion: LibroDiarioEntry = {
       id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
       fecha: ahoraStr,

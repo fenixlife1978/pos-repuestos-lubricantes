@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AppState, LibroDiarioEntry, PaymentMethod } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
@@ -17,11 +18,13 @@ import {
   Briefcase,
   Lightbulb,
   Scale,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 import { exportarPDFLibroDiario } from '@/lib/pdf-generator';
 
 export default function AccountingModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
+  // Ajustamos el rango inicial a hoy para asegurar visibilidad inmediata
   const [desde, setDesde] = useState(Utils.hoy());
   const [hasta, setHasta] = useState(Utils.hoy());
   const [search, setSearch] = useState('');
@@ -34,13 +37,17 @@ export default function AccountingModule({ state, updateState }: { state: AppSta
     metodo: 'efectivo_usd' as PaymentMethod
   });
 
-  const diario = (state.libroDiario || []).filter(e => {
-    const d = e.fecha.slice(0, 10);
-    const matchesDate = d >= desde && d <= hasta;
-    const matchesSearch = e.concepto.toLowerCase().includes(search.toLowerCase()) || 
-                         e.categoria.toLowerCase().includes(search.toLowerCase());
-    return matchesDate && matchesSearch;
-  }).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const diario = useMemo(() => {
+    return (state.libroDiario || []).filter(e => {
+      if (!e.fecha) return false;
+      const d = e.fecha.slice(0, 10);
+      const matchesDate = d >= desde && d <= hasta;
+      const matchesSearch = !search.trim() || 
+                           e.concepto?.toLowerCase().includes(search.toLowerCase()) || 
+                           e.categoria?.toLowerCase().includes(search.toLowerCase());
+      return matchesDate && matchesSearch;
+    }).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }, [state.libroDiario, desde, hasta, search]);
 
   const totalIngresos = diario.filter(e => e.tipo === 'ingreso').reduce((s, e) => s + e.montoUSD, 0);
   const totalEgresos = diario.filter(e => e.tipo === 'egreso').reduce((s, e) => s + e.montoUSD, 0);
@@ -68,8 +75,8 @@ export default function AccountingModule({ state, updateState }: { state: AppSta
   };
 
   const eliminarAsiento = (id: string) => {
-    if (!confirm('¿Seguro que desea eliminar este asiento manual? Los automáticos de ventas/compras deben ser auditados desde sus módulos.')) return;
-    updateState({ libroDiario: state.libroDiario.filter(e => e.id !== id) });
+    if (!confirm('¿Seguro que desea eliminar este asiento manual?')) return;
+    updateState({ libroDiario: (state.libroDiario || []).filter(e => e.id !== id) });
   };
 
   const handleExport = () => {
@@ -151,12 +158,12 @@ export default function AccountingModule({ state, updateState }: { state: AppSta
             </thead>
             <tbody>
               {diario.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-24 text-ink/20 font-black italic uppercase">No existen movimientos contables en este periodo</td></tr>
+                <tr><td colSpan={6} className="text-center py-24 text-ink/20 font-black italic uppercase">No existen movimientos contables en este periodo seleccionado</td></tr>
               ) : (
                 diario.map(e => (
                   <tr key={e.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
                     <td className="py-4 px-6 text-xs font-bold text-ink">
-                      {Utils.fmtFecha(e.fecha)} <span className="text-ink/40 ml-1">{e.fecha.split('T')[1].slice(0, 5)}</span>
+                      {Utils.fmtFecha(e.fecha)} <span className="text-ink/40 ml-1">{e.fecha.includes('T') ? e.fecha.split('T')[1].slice(0, 5) : ''}</span>
                     </td>
                     <td className="py-4">
                        <div className="text-ink font-black text-xs uppercase">{e.concepto}</div>
