@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -65,7 +66,6 @@ export default function UsersModule() {
         toast({ title: "Éxito", description: "Perfil actualizado correctamente." });
       } else {
         // 1. Crear usuario en Firebase Auth usando una APP SECUNDARIA
-        // Esto evita que el administrador actual sea deslogueado
         secondaryApp = initializeApp(firebaseConfig, "SecondaryAuthApp");
         const secondaryAuth = getAuth(secondaryApp);
         
@@ -75,14 +75,15 @@ export default function UsersModule() {
           formData.password
         );
 
-        // 2. Crear perfil en Firestore
-        const newId = formData.email.replace(/\W/g, '_');
+        // 2. Crear perfil en Firestore (Normalizar email a minúsculas para el ID)
+        const newId = formData.email.toLowerCase().replace(/\W/g, '_');
         await setDoc(doc(db, 'users', newId), {
           uid: userCredential.user.uid,
           nombre: formData.nombre,
           email: formData.email,
           rol: formData.rol,
-          fechaCreacion: new Date().toISOString()
+          fechaCreacion: new Date().toISOString(),
+          accesoBloqueado: false
         });
 
         toast({ 
@@ -120,7 +121,7 @@ export default function UsersModule() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Está seguro de eliminar este acceso? El perfil será borrado de Firestore (El acceso Auth deberá borrarse manualmente en la consola por seguridad).")) return;
+    if (!confirm("¿Está seguro de eliminar este acceso? El perfil será borrado de Firestore.")) return;
     try {
       await deleteDoc(doc(db, 'users', id));
       await cargarUsuarios();
@@ -167,14 +168,8 @@ export default function UsersModule() {
                   <tr key={u.id} className="border-b border-line/40 hover:bg-surface-warm/20 transition-colors">
                     <td className="text-ink font-black text-xs uppercase">{u.nombre}</td>
                     <td className="text-ink font-bold text-xs">{u.email}</td>
-                    <td>
-                      <span className={`badge ${u.rol === 'administrador' ? 'badge-info' : 'badge-neutral'} font-black text-[9px] uppercase px-3`}>
-                        {u.rol}
-                      </span>
-                    </td>
-                    <td className="text-ink font-bold text-xs opacity-60">
-                      {u.fechaCreacion ? u.fechaCreacion.slice(0, 10) : '-'}
-                    </td>
+                    <td><span className={`badge ${u.rol === 'administrador' ? 'badge-info' : 'badge-neutral'} font-black text-[9px] uppercase px-3`}>{u.rol}</span></td>
+                    <td className="text-ink font-bold text-xs opacity-60">{u.fechaCreacion ? u.fechaCreacion.slice(0, 10) : '-'}</td>
                     <td className="text-center">
                        <div className="flex justify-center gap-2">
                           <button onClick={() => handleEdit(u)} className="btn-icon h-8 w-8 text-ink hover:text-brand-gold" title="Modificar Datos"><Edit2 className="w-4 h-4"/></button>
@@ -194,9 +189,7 @@ export default function UsersModule() {
           <div className="modal-bg" onClick={() => setShowModal(false)}></div>
           <div className="modal-box bg-white max-w-md border-2 border-line">
             <div className="modal-head py-4 px-6 border-b border-line bg-surface-soft">
-              <h3 className="text-ink font-black uppercase text-sm flex items-center gap-2">
-                <Shield className="w-5 h-5 text-brand-gold" /> {editingId ? 'Editar Perfil de Usuario' : 'Crear Acceso Nuevo'}
-              </h3>
+              <h3 className="text-ink font-black uppercase text-sm flex items-center gap-2"><Shield className="w-5 h-5 text-brand-gold" /> {editingId ? 'Editar Perfil de Usuario' : 'Crear Acceso Nuevo'}</h3>
               <button onClick={() => setShowModal(false)} className="text-ink hover:text-brand-gold"><X /></button>
             </div>
             <div className="modal-body p-6 space-y-5">
@@ -232,12 +225,6 @@ export default function UsersModule() {
                   <option value="cajero">Cajero (Operativo)</option>
                   <option value="administrador">Administrador (Total)</option>
                 </select>
-              </div>
-
-              <div className="p-3 bg-brand-gold-soft/20 rounded border border-brand-gold/10">
-                <p className="text-[9px] text-brand-gold-deep font-bold italic text-center leading-tight">
-                  {editingId ? 'Solo se permite modificar el nombre y el rol por seguridad.' : 'El sistema creará automáticamente el acceso en Firebase Auth y el perfil en Firestore.'}
-                </p>
               </div>
 
               <button onClick={handleSave} disabled={loading} className="btn btn-primary w-full h-14 font-black uppercase text-sm mt-4 shadow-xl">

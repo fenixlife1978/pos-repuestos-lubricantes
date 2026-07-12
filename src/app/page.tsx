@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -70,7 +71,8 @@ export default function LicoreriaPOS() {
         router.push('/login');
       } else {
         try {
-          const userDocId = currentUser.email!.replace(/\W/g, '_');
+          // Normalizar email para el ID del documento
+          const userDocId = currentUser.email!.toLowerCase().replace(/\W/g, '_');
           
           if (!db) {
             setUser(currentUser);
@@ -118,9 +120,9 @@ export default function LicoreriaPOS() {
               setUser(currentUser);
               setLoading(false);
             } else {
-              setUserRole('administrador');
-              if (!activeModule) setActiveTab('dashboard');
-              setLoading(false);
+              // Si no existe el perfil, por seguridad cerramos sesión
+              await signOut(auth);
+              router.push('/login');
             }
           }, (err) => {
             console.warn("Perfil cargando en modo offline...");
@@ -191,7 +193,8 @@ export default function LicoreriaPOS() {
       
       if (userRole === 'cajero' && user && db) {
         try {
-          const userDocId = user.email.replace(/\W/g, '_');
+          // Normalizar email al bloquear tras logout
+          const userDocId = user.email.toLowerCase().replace(/\W/g, '_');
           await updateDoc(doc(db, 'users', userDocId), { accesoBloqueado: true });
         } catch (e) {
           console.error("Error al activar bloqueo de seguridad:", e);
@@ -296,9 +299,7 @@ export default function LicoreriaPOS() {
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2.5 mb-1">
                   <div className="w-8 h-8 bg-brand-gold rounded-lg flex items-center justify-center text-black font-black text-lg shadow-lg">P</div>
-                  <div className="font-display font-black text-lg text-ink tracking-tighter uppercase">
-                    Pos<span className="text-brand-gold">VEN</span> Pro
-                  </div>
+                  <div className="font-display font-black text-lg text-ink tracking-tighter uppercase">Pos<span className="text-brand-gold">VEN</span> Pro</div>
                 </div>
                 <div className="h-0.5 w-8 bg-brand-gold rounded-full mx-auto mb-1"></div>
                 <h1 className="text-sm font-extrabold text-ink tracking-tight uppercase italic">Apertura de Jornada</h1>
@@ -330,34 +331,15 @@ export default function LicoreriaPOS() {
                 <div className="space-y-2.5">
                    <div className="form-group">
                       <label className="text-ink text-[8px] font-black uppercase block mb-1 opacity-70">Fondo Efectivo Bs.</label>
-                      <input 
-                        type="text" 
-                        className="form-input h-9 text-base font-black text-center text-ink bg-surface-soft/40 border-line" 
-                        value={aperturaData.bs} 
-                        onChange={e => setAperturaData({...aperturaData, bs: e.target.value.replace(/[^0-9.]/g, '')})}
-                      />
+                      <input type="text" className="form-input h-9 text-base font-black text-center text-ink bg-surface-soft/40 border-line" value={aperturaData.bs} onChange={e => setAperturaData({...aperturaData, bs: e.target.value.replace(/[^0-9.]/g, '')})} />
                    </div>
                    <div className="form-group">
                       <label className="text-ink text-[8px] font-black uppercase block mb-1 opacity-70">Fondo Efectivo USD</label>
-                      <input 
-                        type="text" 
-                        className="form-input h-9 text-base font-black text-center text-brand-gold-deep bg-surface-soft/40 border-line" 
-                        value={aperturaData.usd} 
-                        onChange={e => setAperturaData({...aperturaData, usd: e.target.value.replace(/[^0-9.]/g, '')})}
-                      />
+                      <input type="text" className="form-input h-9 text-base font-black text-center text-brand-gold-deep bg-surface-soft/40 border-line" value={aperturaData.usd} onChange={e => setAperturaData({...aperturaData, usd: e.target.value.replace(/[^0-9.]/g, '')})} />
                    </div>
                 </div>
 
-                <button 
-                  disabled={aperturaData.bs === '' || aperturaData.usd === ''}
-                  onClick={() => {
-                    sessionStorage.setItem('posven_apertura_done', 'true');
-                    setShowApertura(false);
-                  }}
-                  className="w-full h-10 bg-brand-gold text-ink font-black text-xs rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-widest"
-                >
-                  Confirmar Apertura
-                </button>
+                <button disabled={aperturaData.bs === '' || aperturaData.usd === ''} onClick={() => { sessionStorage.setItem('posven_apertura_done', 'true'); setShowApertura(false); }} className="w-full h-10 bg-brand-gold text-ink font-black text-xs rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-widest">Confirmar Apertura</button>
               </div>
            </div>
         </div>
@@ -367,16 +349,10 @@ export default function LicoreriaPOS() {
         <aside className={`fixed lg:sticky top-0 left-0 w-[260px] h-screen bg-white border-line flex flex-col z-50 transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} border-r`}>
           <div className="p-6 border-b border-line flex flex-col gap-1">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-ink border border-brand-gold rounded-[10px] flex items-center justify-center font-black text-brand-gold text-lg shadow-sm">
-                P
-              </div>
+              <div className="w-9 h-9 bg-ink border border-brand-gold rounded-[10px] flex items-center justify-center font-black text-brand-gold text-lg shadow-sm">P</div>
               <div>
-                <div className="font-display font-[800] text-lg leading-none text-ink">
-                  Pos<span className="text-brand-gold">VEN</span> Pro
-                </div>
-                <div className="text-[0.68rem] font-bold text-ink uppercase tracking-widest mt-1">
-                  Soluciones Venezuela
-                </div>
+                <div className="font-display font-[800] text-lg leading-none text-ink">Pos<span className="text-brand-gold">VEN</span> Pro</div>
+                <div className="text-[0.68rem] font-bold text-ink uppercase tracking-widest mt-1">Soluciones Venezuela</div>
               </div>
             </div>
           </div>
@@ -384,28 +360,20 @@ export default function LicoreriaPOS() {
           <nav className="flex-1 overflow-y-auto p-4 space-y-6">
             {menuGroups.map((group) => (
               <div key={group.id} className="space-y-1">
-                <div className="px-2.5 mb-2 text-[0.66rem] font-bold text-ink uppercase tracking-[0.18em]">
-                  {group.label}
-                </div>
+                <div className="px-2.5 mb-2 text-[0.66rem] font-bold text-ink uppercase tracking-[0.18em]">{group.label}</div>
                 <div className="space-y-1">
                   {group.items.map((item) => {
                     const Icon = item.icon;
                     const active = activeModule === item.id;
                     return (
-                      <button
-                        key={item.id}
-                        onClick={() => handleModuleChange(item.id)}
-                        className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-[10px] text-[0.9rem] font-bold transition-all group relative ${active ? 'bg-brand-gold-soft text-brand-gold-deep' : 'text-ink hover:bg-surface-soft hover:text-ink'}`}
-                      >
+                      <button key={item.id} onClick={() => handleModuleChange(item.id)} className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-[10px] text-[0.9rem] font-bold transition-all group relative ${active ? 'bg-brand-gold-soft text-brand-gold-deep' : 'text-ink hover:bg-surface-soft hover:text-ink'}`}>
                         {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-brand-gold rounded-r-full" />}
                         <div className="flex items-center gap-2.5">
                           <Icon className={`w-4 h-4 ${active ? 'text-brand-gold-deep' : 'text-ink group-hover:text-ink'}`} />
                           {item.label}
                         </div>
                         {item.count !== undefined && (
-                          <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black ${active ? 'bg-brand-gold text-white' : 'bg-surface-soft text-ink'}`}>
-                            {item.count}
-                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black ${active ? 'bg-brand-gold text-white' : 'bg-surface-soft text-ink'}`}>{item.count}</span>
                         )}
                       </button>
                     );
@@ -424,17 +392,11 @@ export default function LicoreriaPOS() {
                 <div className="text-[0.62rem] font-bold text-brand-gold-deep uppercase tracking-widest leading-none mb-1">Tasa BCV</div>
                 <div className="font-display font-[800] text-sm text-ink">{state.tasa.toFixed(2)} <span className="text-[0.7rem] font-black opacity-60">Bs/USD</span></div>
               </div>
-              <button className="text-brand-gold-deep hover:rotate-180 transition-transform duration-500">
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
+              <button className="text-brand-gold-deep hover:rotate-180 transition-transform duration-500"><RefreshCw className="w-3.5 h-3.5" /></button>
             </div>
             
-            <button 
-              onClick={handleLogout}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] text-[0.8rem] font-black text-status-danger hover:bg-status-danger-soft transition-all uppercase tracking-widest"
-            >
-              <LogOut className="w-4 h-4" />
-              Cerrar Sistema
+            <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] text-[0.8rem] font-black text-status-danger hover:bg-status-danger-soft transition-all uppercase tracking-widest">
+              <LogOut className="w-4 h-4" /> Cerrar Sistema
             </button>
           </div>
         </aside>
@@ -449,19 +411,13 @@ export default function LicoreriaPOS() {
           )}
           
           <div className="shrink-0">
-            <h2 className="font-display text-lg font-[800] text-ink leading-tight">
-              Pos<span className="text-brand-gold">VEN</span> pro
-            </h2>
-            <p className="text-[0.7rem] text-ink uppercase font-bold tracking-widest">
-              {isCajero ? 'Terminal de Punto de Venta' : 'Soluciones Venezuela'}
-            </p>
+            <h2 className="font-display text-lg font-[800] text-ink leading-tight">Pos<span className="text-brand-gold">VEN</span> pro</h2>
+            <p className="text-[0.7rem] text-ink uppercase font-bold tracking-widest">{isCajero ? 'Terminal de Punto de Venta' : 'Soluciones Venezuela'}</p>
           </div>
 
           <div className="hidden md:flex items-center gap-4 mx-auto">
             <div className="flex items-center gap-2.5 px-4 py-2 bg-white/70 rounded-xl border border-line shadow-sm min-w-[160px]">
-              <div className="w-8 h-8 bg-brand-gold-soft rounded-lg flex items-center justify-center">
-                <ClockIcon className="w-4 h-4 text-brand-gold-deep" />
-              </div>
+              <div className="w-8 h-8 bg-brand-gold-soft rounded-lg flex items-center justify-center"><ClockIcon className="w-4 h-4 text-brand-gold-deep" /></div>
               <div className="flex flex-col">
                 <span className="text-[0.65rem] font-black uppercase text-ink opacity-50 leading-none mb-0.5">{dateStr}</span>
                 <span className="text-[0.88rem] font-black text-ink leading-none tabular-nums">{timeStr}</span>
@@ -476,9 +432,7 @@ export default function LicoreriaPOS() {
                 <span className="text-[0.65rem] font-black uppercase text-ink opacity-50 leading-none mb-0.5">Cloud Sync</span>
                 <div className="flex items-center gap-1.5 leading-none">
                   <div className={`w-1.5 h-1.5 rounded-full ${mounted ? (isOnline ? 'bg-status-success animate-pulse' : 'bg-status-danger') : 'bg-ink/20'}`} />
-                  <span className={`text-[0.74rem] font-black uppercase ${mounted ? (isOnline ? 'text-status-success' : 'text-status-danger') : 'text-ink/20'}`}>
-                    {mounted ? (isOnline ? 'En Línea' : 'Modo Offline') : 'Iniciando...'}
-                  </span>
+                  <span className={`text-[0.74rem] font-black uppercase ${mounted ? (isOnline ? 'text-status-success' : 'text-status-danger') : 'text-ink/20'}`}>{mounted ? (isOnline ? 'En Línea' : 'Modo Offline') : 'Iniciando...'}</span>
                 </div>
               </div>
             </div>
@@ -497,33 +451,22 @@ export default function LicoreriaPOS() {
                 <div className="text-sm font-bold text-ink leading-none">{userProfile?.nombre || 'Usuario'}</div>
                 <div className="text-[0.66rem] font-bold text-ink opacity-60 uppercase mt-1 tracking-wider">{userRole === 'administrador' ? 'Panel Control' : 'Modo Operativo'}</div>
               </div>
-              <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-brand-gold to-[#E7B857] flex items-center justify-center text-white font-black text-xs border border-white/20 shadow-sm uppercase">
-                {userProfile?.nombre?.charAt(0) || 'U'}
-              </div>
+              <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-brand-gold to-[#E7B857] flex items-center justify-center text-white font-black text-xs border border-white/20 shadow-sm uppercase">{userProfile?.nombre?.charAt(0) || 'U'}</div>
             </div>
             
             {isCajero && (
-               <button 
-                onClick={handleLogout}
-                className="w-10 h-10 bg-status-danger-soft text-status-danger rounded-xl flex items-center justify-center hover:bg-status-danger hover:text-white transition-all shadow-sm"
-                title="Cerrar Sistema"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
+               <button onClick={handleLogout} className="w-10 h-10 bg-status-danger-soft text-status-danger rounded-xl flex items-center justify-center hover:bg-status-danger hover:text-white transition-all shadow-sm" title="Cerrar Sistema"><LogOut className="w-5 h-5" /></button>
             )}
           </div>
         </header>
         
-        <div className="p-7 flex-1 overflow-y-auto">
-          {renderModule()}
-        </div>
+        <div className="p-7 flex-1 overflow-y-auto">{renderModule()}</div>
 
         <footer className="px-8 py-6 border-t border-line text-[0.76rem] font-black text-ink flex flex-col sm:flex-row justify-between gap-4 no-print bg-surface-warm/30">
           <div>© 2026 PosVEN Pro · Persistencia Offline Activa</div>
           <div className="flex gap-4 items-center">
             <span className="flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-status-success animate-pulse' : 'bg-status-warn'}`} /> 
-              {isOnline ? 'Nube Sincronizada' : 'Sincronización Pendiente'}
+              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-status-success animate-pulse' : 'bg-status-warn'}`} /> {isOnline ? 'Nube Sincronizada' : 'Sincronización Pendiente'}
             </span>
             <span className="px-2 py-0.5 bg-white border border-line rounded text-[0.65rem] font-black">v2.5.0-resilient</span>
           </div>
