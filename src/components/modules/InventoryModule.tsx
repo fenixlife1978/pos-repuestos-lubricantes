@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -662,40 +661,92 @@ function ReporteDevoluciones({ state }: { state: AppState }) {
 }
 
 function HistorialAjustes({ state }: { state: AppState }) {
+  // Ahora incluimos consumo y colaboracion para centralizar el efecto neto
   const ajustes = state.movimientos.filter(m => 
-    ['ajuste_entrada', 'ajuste_salida'].includes(m.tipo)
+    ['ajuste_entrada', 'ajuste_salida', 'consumo', 'colaboracion'].includes(m.tipo)
   ).sort((a,b) => b.fecha.localeCompare(a.fecha));
 
+  // Calculamos el valor monetario de la variación
+  const totalVariacionUSD = ajustes.reduce((acc, m) => {
+    const p = state.productos.find(prod => prod.id === m.productoId);
+    const costo = p?.costoUSD || 0;
+    return acc + (m.cantidad * costo);
+  }, 0);
+
   return (
-    <Card className="shadow-lg border-line rounded-xl overflow-hidden bg-white">
-      <div className="table-wrap">
-        <Table>
-          <TableHeader className="bg-surface-soft">
-            <TableRow>
-              <TableHead className="font-black text-ink uppercase text-[10px]">Fecha</TableHead>
-              <TableHead className="font-black text-ink uppercase text-[10px]">Producto</TableHead>
-              <TableHead className="font-black text-ink uppercase text-[10px]">Operación</TableHead>
-              <TableHead className="font-black text-ink uppercase text-[10px] text-center">Cant</TableHead>
-              <TableHead className="font-black text-ink uppercase text-[10px]">Motivo / Ref</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {ajustes.map(m => (
-              <TableRow key={m.id} className="border-b border-line/30">
-                <TableCell className="text-xs font-bold text-ink">{m.fecha.slice(0,16).replace('T', ' ')}</TableCell>
-                <TableCell className="font-black uppercase text-xs text-ink">{state.productos.find(p => p.id === m.productoId)?.nombre || 'ELIMINADO'}</TableCell>
-                <TableCell><span className="badge badge-neutral text-[9px] font-black uppercase">{m.tipo.replace('_', ' ')}</span></TableCell>
-                <TableCell className={`text-center font-black ${m.cantidad > 0 ? 'text-status-success' : 'text-status-danger'}`}>{m.cantidad}</TableCell>
-                <TableCell className="text-[10px] opacity-40 italic uppercase text-ink">{m.referencia}</TableCell>
-              </TableRow>
-            ))}
-            {ajustes.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="py-24 text-center text-ink/20 font-black italic uppercase">No existen ajustes manuales registrados</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`kpi p-6 rounded-2xl shadow-sm border-l-[6px] flex items-center gap-4 ${totalVariacionUSD < 0 ? 'bg-status-danger-soft border-l-status-danger' : 'bg-status-success-soft border-l-status-success'}`}>
+          <div className={`p-3 rounded-xl ${totalVariacionUSD < 0 ? 'bg-status-danger text-white' : 'bg-status-success text-white'}`}>
+            <Calculator className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase text-ink/40">Efecto Neto en Inventario (USD)</p>
+            <p className={`text-2xl font-black ${totalVariacionUSD < 0 ? 'text-status-danger' : 'text-status-success'}`}>
+              {totalVariacionUSD < 0 ? '-' : '+'}{Utils.fmtUSD(Math.abs(totalVariacionUSD))}
+            </p>
+          </div>
+        </div>
       </div>
-    </Card>
+
+      <Card className="shadow-lg border-line rounded-xl overflow-hidden bg-white">
+        <div className="card-head bg-ink border-b border-white/10 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-white font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
+            <History className="w-5 h-5 text-brand-gold" /> BITÁCORA GENERAL DE AJUSTES Y VARIACIONES
+          </h3>
+        </div>
+        <div className="table-wrap">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-surface-soft">
+                <TableHead className="font-black text-ink uppercase text-[10px]">Fecha</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px]">Producto</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px]">Operación</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-center">Cant</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px] text-right">Costo Unit.</TableHead>
+                <TableHead className="font-black text-ink uppercase text-[10px]">Motivo / Referencia</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {ajustes.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="py-24 text-center text-ink/20 font-black italic uppercase">No existen ajustes o consumos registrados</TableCell></TableRow>
+              ) : (
+                ajustes.map(m => {
+                  const p = state.productos.find(prod => prod.id === m.productoId);
+                  return (
+                    <TableRow key={m.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
+                      <TableCell className="text-xs font-bold text-ink">
+                        {m.fecha.slice(0,16).replace('T', ' ')}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-black uppercase text-xs text-ink">{p?.nombre || 'ELIMINADO'}</div>
+                        <div className="text-[9px] opacity-40 mono">{p?.codigo || '-'}</div>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`badge ${['consumo', 'colaboracion'].includes(m.tipo) ? 'bg-amber-100 text-amber-700' : 'badge-neutral'} text-[9px] font-black uppercase`}>
+                          {m.tipo.replace('_', ' ')}
+                        </span>
+                      </TableCell>
+                      <TableCell className={`text-center font-black ${m.cantidad > 0 ? 'text-status-success' : 'text-status-danger'}`}>
+                        {m.cantidad > 0 ? '+' : ''}{m.cantidad}
+                      </TableCell>
+                      <TableCell className="text-right mono text-xs font-bold text-ink/40">
+                        {Utils.fmtUSD(p?.costoUSD || 0)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-[10px] opacity-60 italic uppercase text-ink max-w-[250px] truncate" title={m.referencia}>
+                          {m.referencia}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+    </div>
   );
 }
 
