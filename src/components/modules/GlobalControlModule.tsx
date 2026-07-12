@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppState, Terminal } from '@/lib/types';
-import { Store, Utils } from '@/lib/db-store';
+import { Store } from '@/lib/db-store';
 import { 
   ShieldCheck, 
   Monitor, 
@@ -28,7 +28,6 @@ export default function GlobalControlModule({ state, updateState }: { state: App
   const [newTerminalName, setNewTerminalName] = useState('');
   const [showAddTerminal, setShowAddTerminal] = useState(false);
 
-  // Sincronización en TIEMPO REAL de los perfiles de usuario
   useEffect(() => {
     if (!db) return;
     
@@ -50,19 +49,24 @@ export default function GlobalControlModule({ state, updateState }: { state: App
 
   const toggleAccess = async (userId: string, currentStatus: boolean) => {
     try {
+      const newStatus = !currentStatus;
       const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, { accesoBloqueado: !currentStatus });
+      
+      // Actualización directa y forzada en Firestore
+      await updateDoc(userRef, { 
+        accesoBloqueado: newStatus 
+      });
       
       toast({ 
-        title: !currentStatus ? "Acceso Concedido" : "Acceso Bloqueado",
-        description: `El estado del operador [${userId.slice(0,6)}] ha sido actualizado.`
+        title: newStatus ? "Acceso Bloqueado" : "Acceso Concedido",
+        description: `El estado del operador ha sido sincronizado en la nube.`
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error al actualizar acceso:", e);
       toast({ 
         variant: "destructive", 
         title: "Error de Seguridad", 
-        description: "No se pudo comunicar con el servidor para autorizar al usuario." 
+        description: "No tiene permisos suficientes para realizar esta acción." 
       });
     }
   };
@@ -79,15 +83,11 @@ export default function GlobalControlModule({ state, updateState }: { state: App
         const data = userDoc.data();
         const docId = userDoc.id;
         
-        // Si el ID del documento es un email (contiene @) y tenemos el UID dentro de la data
         if (docId.includes('@') && data.uid) {
-           // 1. Crear el nuevo documento con el UID como ID
            await setDoc(doc(db, 'users', data.uid), {
              ...data,
-             email: data.email?.toLowerCase() // Aseguramos minúsculas
+             email: data.email?.toLowerCase()
            });
-           
-           // 2. Borrar el documento viejo (identificado por email)
            await deleteDoc(doc(db, 'users', docId));
            migratedCount++;
         }
@@ -99,7 +99,7 @@ export default function GlobalControlModule({ state, updateState }: { state: App
       });
     } catch (e) {
       console.error("Error en migración:", e);
-      toast({ variant: "destructive", title: "Fallo de Migración", description: "No se pudo completar el proceso de actualización de IDs." });
+      toast({ variant: "destructive", title: "Fallo de Migración", description: "Fallo al procesar los IDs de usuario." });
     } finally {
       setIsMigrating(false);
     }
@@ -142,7 +142,6 @@ export default function GlobalControlModule({ state, updateState }: { state: App
           <p className="text-[10px] text-ink font-bold uppercase tracking-widest opacity-60">Seguridad Centralizada y Gestión de Terminales</p>
         </div>
         
-        {/* BOTÓN DE MIGRACIÓN */}
         <button 
           onClick={migrateUserIds}
           disabled={isMigrating}
@@ -154,8 +153,6 @@ export default function GlobalControlModule({ state, updateState }: { state: App
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-8">
-        
-        {/* SECCIÓN 1: ACCESO DE CAJEROS */}
         <div className="space-y-6">
           <div className="card shadow-xl border-line rounded-xl overflow-hidden bg-white">
             <div className="card-head bg-ink border-b border-white/10 px-6 py-4 flex justify-between items-center">
@@ -173,42 +170,45 @@ export default function GlobalControlModule({ state, updateState }: { state: App
                   <tr className="bg-surface-soft">
                     <th className="text-ink font-black text-[10px] uppercase">Operador / Identificador</th>
                     <th className="text-ink font-black text-[10px] uppercase">UID</th>
-                    <th className="text-ink font-black text-[10px] uppercase">Estado de Seguridad</th>
+                    <th className="text-ink font-black text-[10px] uppercase text-center">Estado de Seguridad</th>
                     <th className="text-ink font-black text-[10px] uppercase text-right">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white">
                   {loadingUsers ? (
                     <tr><td colSpan={4} className="text-center py-10 animate-pulse text-ink/20 font-black uppercase">Sincronizando perfiles...</td></tr>
-                  ) : users.filter(u => u.rol === 'cajero').map(u => (
-                    <tr key={u.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
-                      <td className="py-4 px-6">
-                        <div className="text-ink font-black text-xs uppercase">{u.nombre}</div>
-                        <div className="flex items-center gap-1.5 text-[9px] font-bold text-ink/40 lowercase">
-                          <Mail className="w-3 h-3" /> {u.email}
-                        </div>
-                      </td>
-                      <td>
-                        <span className="mono text-[9px] font-black text-ink/40 uppercase">ID: {u.id.slice(0, 10)}...</span>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${u.accesoBloqueado ? 'bg-status-danger' : 'bg-status-success'}`} />
-                          <span className={`font-black text-[10px] uppercase ${u.accesoBloqueado ? 'text-status-danger' : 'text-status-success'}`}>
-                            {u.accesoBloqueado ? 'Bloqueado' : 'Autorizado'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="text-right px-6">
-                        <button 
-                          onClick={() => toggleAccess(u.id, !!u.accesoBloqueado)}
-                          className={`btn h-8 px-4 font-black text-[9px] uppercase shadow-sm ${u.accesoBloqueado ? 'btn-primary' : 'bg-status-danger text-white hover:bg-status-danger/80'}`}
-                        >
-                          {u.accesoBloqueado ? <><Unlock className="w-3 h-3" /> Conceder</> : <><Lock className="w-3 h-3" /> Bloquear</>}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  ) : users.filter(u => u.rol === 'cajero').map(u => {
+                    const isBlocked = u.accesoBloqueado === true;
+                    return (
+                      <tr key={u.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
+                        <td className="py-4 px-6">
+                          <div className="text-ink font-black text-xs uppercase">{u.nombre}</div>
+                          <div className="flex items-center gap-1.5 text-[9px] font-bold text-ink/40 lowercase">
+                            <Mail className="w-3 h-3" /> {u.email}
+                          </div>
+                        </td>
+                        <td>
+                          <span className="mono text-[9px] font-black text-ink/40 uppercase">ID: {u.id.slice(0, 10)}...</span>
+                        </td>
+                        <td className="text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${isBlocked ? 'bg-status-danger animate-pulse' : 'bg-status-success'}`} />
+                            <span className={`font-black text-[10px] uppercase ${isBlocked ? 'text-status-danger' : 'text-status-success'}`}>
+                              {isBlocked ? 'Bloqueado' : 'Autorizado'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="text-right px-6">
+                          <button 
+                            onClick={() => toggleAccess(u.id, isBlocked)}
+                            className={`btn h-10 px-6 font-black text-[10px] uppercase shadow-md flex items-center gap-2 ml-auto ${isBlocked ? 'btn-primary' : 'bg-status-danger text-white hover:bg-status-danger/90'}`}
+                          >
+                            {isBlocked ? <><Unlock className="w-4 h-4" /> Conceder</> : <><Lock className="w-4 h-4" /> Bloquear</>}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {!loadingUsers && users.filter(u => u.rol === 'cajero').length === 0 && (
                     <tr><td colSpan={4} className="text-center py-20 text-ink/20 font-black italic">No hay cajeros registrados en el sistema</td></tr>
                   )}
@@ -222,13 +222,12 @@ export default function GlobalControlModule({ state, updateState }: { state: App
              <div>
                 <h4 className="text-brand-gold-deep font-black uppercase text-xs mb-1">Mantenimiento de Identidades</h4>
                 <p className="text-[10px] text-brand-gold-deep/70 font-bold leading-relaxed uppercase">
-                  Si un cajero no puede entrar aunque su estado sea "Autorizado", verifique que su ID coincida con su UID de Auth. Use el botón superior de "Migrar IDs" para corregir registros antiguos automáticamente.
+                  Si un cajero no puede entrar aunque su estado sea "Autorizado", verifique que su ID coincida con su UID de Auth. Use el botón superior para corregir registros antiguos.
                 </p>
              </div>
           </div>
         </div>
 
-        {/* SECCIÓN 2: GESTIÓN DE TERMINALES */}
         <div className="space-y-6">
           <div className="card shadow-xl border-line rounded-xl overflow-hidden bg-white">
             <div className="card-head bg-ink border-b border-white/10 px-6 py-4 flex justify-between items-center">
@@ -276,7 +275,6 @@ export default function GlobalControlModule({ state, updateState }: { state: App
         </div>
       </div>
 
-      {/* MODAL CREAR TERMINAL */}
       {showAddTerminal && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowAddTerminal(false)}></div>
           <div className="modal-box bg-white max-w-sm border-2 border-line rounded-2xl overflow-hidden shadow-2xl">

@@ -1,17 +1,8 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff,
-  UserPlus,
-  LogIn,
-  CheckCircle2
-} from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, UserPlus, LogIn } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -35,7 +26,6 @@ export default function LoginPage() {
   const [systemEmpty, setSystemEmpty] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Verificar si el sistema requiere configuración inicial
   useEffect(() => {
     const checkSystemStatus = async () => {
       if (!db) return;
@@ -43,7 +33,6 @@ export default function LoginPage() {
         const stateDoc = await getDoc(doc(db, 'pos_system_data', 'state'));
         if (stateDoc.exists()) {
           const data = stateDoc.data();
-          // Solo mostramos el enlace si isInitialized es explícitamente false
           setSystemEmpty(data.isInitialized === false);
         } else {
           setSystemEmpty(true);
@@ -119,11 +108,9 @@ export default function LoginPage() {
         await setDoc(userDocRef, newUserData);
 
         if (isRegistering) {
-          // 1. Marcar sistema como inicializado en Firestore
           const stateRef = doc(db, 'pos_system_data', 'state');
           await setDoc(stateRef, { isInitialized: true }, { merge: true });
           
-          // 2. Mostrar diálogo de éxito
           toast({ 
             title: "¡Configuración Exitosa!", 
             description: "Administrador raíz creado. El sistema se ha inicializado.",
@@ -187,18 +174,16 @@ export default function LoginPage() {
         <form onSubmit={handleAuth} className="space-y-5">
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase text-black/40 tracking-widest block ml-1">Perfil de Usuario</label>
-            <div className="relative">
-              <select 
-                className="form-select h-[52px] bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl pl-4 pr-10 text-black font-semibold appearance-none focus:border-[#C8952E] focus:bg-white outline-none transition-all cursor-pointer" 
-                value={role} 
-                onChange={e => setRole(e.target.value)} 
-                required
-              >
-                <option value="" disabled>Seleccione Rol</option>
-                <option value="administrador">Administrador</option>
-                <option value="cajero">Cajero / Operador</option>
-              </select>
-            </div>
+            <select 
+              className="form-select h-[52px] bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl pl-4 pr-10 text-black font-semibold focus:border-[#C8952E] outline-none transition-all cursor-pointer w-full" 
+              value={role} 
+              onChange={e => setRole(e.target.value)} 
+              required
+            >
+              <option value="" disabled>Seleccione Rol</option>
+              <option value="administrador">Administrador</option>
+              <option value="cajero">Cajero / Operador</option>
+            </select>
           </div>
 
           <div className="space-y-2">

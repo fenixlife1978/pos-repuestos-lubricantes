@@ -2,15 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // ============================================================
-    // FUNCIONES AUXILIARES
-    // ============================================================
-    
+    // FUNCIONES DE VALIDACIÓN
     function isAuthenticated() {
       return request.auth != null;
     }
     
-    // Simplificamos isAdmin para evitar recursión innecesaria durante el login
+    // Verifica si el usuario es administrador buscando su UID en la colección users
     function isAdmin() {
       return isAuthenticated() && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'administrador';
@@ -20,45 +17,28 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // ============================================================
-    // REGLAS PARA USUARIOS
-    // ============================================================
-    match /users/{userId} {
-      // Un usuario autenticado puede leer perfiles (necesario para validación de roles)
-      allow read: if isAuthenticated();
-      // Un usuario puede crear su propio perfil o el admin puede editar cualquiera
-      allow write: if isOwner(userId) || isAdmin();
-    }
-
-    // ============================================================
-    // REGLAS PARA POS_SYSTEM_DATA (CONFIGURACIÓN)
-    // ============================================================
-    match /pos_system_data/{document} {
-      // Lectura pública del estado para permitir el flujo de "Primer Uso" y Tasa BCV
+    // EL ESTADO DEL SISTEMA ES PÚBLICO PARA LECTURA (Para detectar si el sistema es nuevo)
+    match /pos_system_data/state {
       allow read: if true;
-      
-      // Permitimos escritura si el usuario está autenticado. 
-      // El primer admin se autentica vía Auth antes de escribir este doc.
-      allow write: if isAuthenticated();
-      
-      match /{subcollection}/{subdocument} {
-        allow read, write: if isAuthenticated();
-      }
+      allow write: if isAdmin() || (request.resource.data.isInitialized == true);
     }
 
-    // ============================================================
-    // REGLAS PARA OTRAS COLECCIONES
-    // ============================================================
-    match /products/{document} { allow read, write: if isAuthenticated(); }
-    match /orders/{document} { allow read, write: if isAuthenticated(); }
-    match /sales/{document} { allow read, write: if isAuthenticated(); }
-    match /customers/{document} { allow read, write: if isAuthenticated(); }
-    match /suppliers/{document} { allow read, write: if isAuthenticated(); }
-    match /movimientos/{document} { allow read, write: if isAuthenticated(); }
-    match /libro_diario/{document} { allow read, write: if isAuthenticated(); }
+    // ADMINISTRADORES: Acceso total a todo el sistema
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
 
-    match /{path=**} {
-      allow read, write: if false;
+    // REGLAS ESPECÍFICAS PARA USUARIOS NO-ADMIN
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      // Solo el dueño o el admin escriben, pero solo el admin cambia el rol o el bloqueo
+      allow write: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    }
+
+    // Colecciones operativas (Lectura/Escritura para cualquier autenticado no bloqueado)
+    match /{collectionName}/{docId} {
+      allow read, write: if isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accesoBloqueado == false;
     }
   }
 }
