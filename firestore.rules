@@ -1,19 +1,96 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Reglas para perfiles de usuario
+    
+    // ============================================================
+    // FUNCIONES AUXILIARES
+    // ============================================================
+    
+    // Verifica si el usuario está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Verifica si el usuario es administrador
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'administrador';
+    }
+    
+    // Verifica si el usuario es el propietario de su perfil
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ============================================================
+    // REGLAS PARA USUARIOS
+    // ============================================================
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      // Cualquier usuario autenticado puede leer
+      allow read: if isAuthenticated();
+      
+      // Solo el propietario o administrador pueden escribir
+      allow write: if isOwner(userId) || isAdmin();
     }
-    
-    // Reglas para el estado global del POS
+
+    // ============================================================
+    // REGLAS PARA POS_SYSTEM_DATA Y TODAS SUS SUBCOLECCIONES
+    // ============================================================
     match /pos_system_data/{document} {
-      allow read, write: if request.auth != null;
+      // Cualquier usuario autenticado puede leer y escribir en pos_system_data
+      allow read, write: if isAuthenticated();
+      
+      // REGLA PARA SUBCOLECCIONES (state, productos, cxc, cxp, etc.)
+      match /{subcollection}/{subdocument} {
+        // Cualquier usuario autenticado puede leer y escribir en todas las subcolecciones
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // ============================================================
+    // REGLAS PARA OTRAS COLECCIONES RAÍZ
+    // ============================================================
+    
+    // Productos
+    match /products/{document} {
+      allow read, write: if isAuthenticated();
     }
     
-    // Regla general de seguridad
+    // Órdenes
+    match /orders/{document} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Ventas
+    match /sales/{document} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Clientes
+    match /customers/{document} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Proveedores
+    match /suppliers/{document} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Movimientos
+    match /movimientos/{document} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Libro Diario
+    match /libro_diario/{document} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ============================================================
+    // REGLA GENERAL DE SEGURIDAD (SIEMPRE AL FINAL)
+    // ============================================================
+    // Deniega el acceso a cualquier otra ruta no especificada
     match /{path=**} {
       allow read, write: if false;
     }

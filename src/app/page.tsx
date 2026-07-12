@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -72,9 +73,8 @@ export default function LicoreriaPOS() {
         router.push('/login');
       } else {
         try {
-          const userDocId = currentUser.email!.toLowerCase().replace(/\W/g, '_');
-          
-          unsubscribeProfile = onSnapshot(doc(db, 'users', userDocId), (docSnap) => {
+          // ✅ USAR UID DE AUTH DIRECTAMENTE PARA EL PERFIL
+          unsubscribeProfile = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap) => {
             if (!auth.currentUser) return;
 
             if (docSnap.exists()) {
@@ -95,11 +95,12 @@ export default function LicoreriaPOS() {
                 if (data.rol === 'cajero') {
                    getDoc(doc(db, 'pos_system_data', 'state')).then(configSnap => {
                       const terminals = (configSnap.data()?.terminales || []) as Terminal[];
-                      const hasTerminal = terminals.some((t: Terminal) => t.usuarioId === userDocId);
+                      // Verificamos por el ID del documento (UID)
+                      const hasTerminal = terminals.some((t: Terminal) => t.usuarioId === currentUser.uid);
                       
                       if (!hasTerminal) {
                          signOut(auth).then(() => {
-                           alert("ACCESO RESTRINGIDO: Su usuario no tiene un terminal de venta asignado.");
+                           alert("ACCESO RESTRINGIDO: Su usuario no tiene un terminal asignado. Contacte al Administrador.");
                            router.push('/login');
                          });
                          return;
@@ -123,11 +124,12 @@ export default function LicoreriaPOS() {
               setUserProfile(data);
               setUser(currentUser);
             } else {
-              setLoading(false);
+              // Si no tiene perfil, forzar salida
+              signOut(auth).then(() => router.push('/login'));
             }
           }, (err) => {
             if (err.code === 'permission-denied') return;
-            console.error("Profile sync error:", err);
+            console.error("Sync error:", err);
             setLoading(false);
           });
 
@@ -144,22 +146,27 @@ export default function LicoreriaPOS() {
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    
     if (typeof window !== 'undefined') {
       setIsOnline(navigator.onLine);
-      window.addEventListener('online', handleOnline);
-      window.addEventListener('offline', handleOffline);
+      const hOnline = () => setIsOnline(true);
+      const hOffline = () => setIsOnline(false);
+      window.addEventListener('online', hOnline);
+      window.addEventListener('offline', hOffline);
+      return () => {
+        unsubscribeAuth();
+        if (unsubscribeProfile) unsubscribeProfile();
+        unsubscribeStore();
+        clearInterval(timer);
+        window.removeEventListener('online', hOnline);
+        window.removeEventListener('offline', hOffline);
+      };
     }
-
+    
     return () => {
       unsubscribeAuth();
       if (unsubscribeProfile) unsubscribeProfile();
       unsubscribeStore();
       clearInterval(timer);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
     };
   }, [router]);
 
@@ -196,7 +203,6 @@ export default function LicoreriaPOS() {
         if (typeof sessionStorage !== 'undefined') {
           sessionStorage.clear();
         }
-        
         if (auth) await signOut(auth);
         router.push('/login');
       } catch (e) {
