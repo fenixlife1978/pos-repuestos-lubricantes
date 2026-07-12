@@ -22,7 +22,7 @@ import {
   browserSessionPersistence, 
   signOut 
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, limit, getDocs } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
@@ -33,6 +33,22 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [systemEmpty, setSystemEmpty] = useState(false);
+
+  // Verificar si existen usuarios en el sistema para permitir el registro inicial
+  useEffect(() => {
+    const checkSystemStatus = async () => {
+      if (!db) return;
+      try {
+        const q = query(collection(db, 'users'), limit(1));
+        const snap = await getDocs(q);
+        setSystemEmpty(snap.empty);
+      } catch (e) {
+        console.error("Error checking system status:", e);
+      }
+    };
+    checkSystemStatus();
+  }, []);
 
   useEffect(() => {
     if (!auth) return;
@@ -131,10 +147,10 @@ export default function LoginPage() {
 
         <div className="mb-8 text-center sm:text-left">
           <h1 className="text-[28px] font-extrabold text-black leading-tight mb-2 tracking-tight">
-            {isRegistering ? 'Crear Cuenta Nueva' : '¡Bienvenido de nuevo!'}
+            {isRegistering ? 'Crear Cuenta Inicial' : '¡Bienvenido de nuevo!'}
           </h1>
           <p className="text-[#9CA3AF] text-[14px] font-medium">
-            {isRegistering ? 'Regístrate para configurar tu acceso inicial.' : 'Ingresa tus credenciales para acceder al panel.'}
+            {isRegistering ? 'Configure el acceso de super-administrador del sistema.' : 'Ingresa tus credenciales para acceder al panel.'}
           </p>
         </div>
 
@@ -210,19 +226,21 @@ export default function LoginPage() {
             {loading ? (
               <div className="w-6 h-6 border-3 border-black/20 border-t-black rounded-full animate-spin" />
             ) : (
-              isRegistering ? "Crear Mi Cuenta" : "Iniciar Sesión"
+              isRegistering ? "Crear Cuenta Inicial" : "Iniciar Sesión"
             )}
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <button 
-            onClick={() => setIsRegistering(!isRegistering)} 
-            className="text-[12px] font-bold text-[#C8952E] hover:underline flex items-center justify-center gap-2 mx-auto uppercase tracking-tighter"
-          >
-            {isRegistering ? <><LogIn className="w-4 h-4" /> Ya tengo cuenta, ingresar</> : <><UserPlus className="w-4 h-4" /> No tengo cuenta, registrarme</>}
-          </button>
-        </div>
+        {(systemEmpty || isRegistering) && (
+          <div className="mt-6 text-center">
+            <button 
+              onClick={() => setIsRegistering(!isRegistering)} 
+              className="text-[12px] font-bold text-[#C8952E] hover:underline flex items-center justify-center gap-2 mx-auto uppercase tracking-tighter"
+            >
+              {isRegistering ? <><LogIn className="w-4 h-4" /> Volver al ingreso</> : <><UserPlus className="w-4 h-4" /> Registrar administrador inicial</>}
+            </button>
+          </div>
+        )}
 
         <div className="mt-8 pt-6 border-t border-[#F3F4F6] text-center">
           <p className="text-[10px] text-[#9CA3AF] font-bold uppercase tracking-widest">© 2026 PosVEN Pro · Cloud Sync Active</p>
