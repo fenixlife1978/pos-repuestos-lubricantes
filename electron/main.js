@@ -19,20 +19,26 @@ function createWindow() {
     },
   });
 
-  // En producción cargamos la URL local o el build
-  const startUrl = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:9002' 
-    : `file://${path.join(__dirname, '../out/index.html')}`;
-
-  // Para PosVEN Pro usando Next.js, en Electron suele usarse modo servidor local o exportación estática
-  // Si usas Next App Router con SSR, se recomienda servirlo desde la web o un proceso adjunto
-  mainWindow.loadURL('http://localhost:9002'); // Ajustar según estrategia de despliegue
+  // Lógica de carga: En desarrollo usamos el servidor de Next.js, en producción los archivos estáticos
+  const isDev = process.env.NODE_ENV === 'development';
+  
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:9002');
+  } else {
+    // Si usas exportación estática de Next.js (output: 'export')
+    mainWindow.loadFile(path.join(__dirname, '../out/index.html')).catch(() => {
+      // Si falla la carga del archivo, intentamos con la URL de respaldo (ajustar según estrategia)
+      mainWindow.loadURL('http://localhost:9002'); 
+    });
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 
-  autoUpdater.checkForUpdatesAndNotify();
+  if (!isDev) {
+    autoUpdater.checkForUpdatesAndNotify();
+  }
 }
 
 app.on('ready', createWindow);
