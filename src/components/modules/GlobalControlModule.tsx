@@ -13,15 +13,18 @@ import {
   Trash2, 
   AlertTriangle,
   X,
-  Mail
+  Mail,
+  RefreshCw,
+  Database
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, updateDoc, onSnapshot, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 
 export default function GlobalControlModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [users, setUsers] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
+  const [isMigrating, setIsMigrating] = useState(false);
   const [newTerminalName, setNewTerminalName] = useState('');
   const [showAddTerminal, setShowAddTerminal] = useState(false);
 
@@ -48,12 +51,11 @@ export default function GlobalControlModule({ state, updateState }: { state: App
   const toggleAccess = async (userId: string, currentStatus: boolean) => {
     try {
       const userRef = doc(db, 'users', userId);
-      // Invertimos el estado de accesoBloqueado
       await updateDoc(userRef, { accesoBloqueado: !currentStatus });
       
       toast({ 
         title: !currentStatus ? "Acceso Concedido" : "Acceso Bloqueado",
-        description: `El estado del operador [${userId}] ha sido actualizado.`
+        description: `El estado del operador [${userId.slice(0,6)}] ha sido actualizado.`
       });
     } catch (e) {
       console.error("Error al actualizar acceso:", e);
@@ -62,6 +64,44 @@ export default function GlobalControlModule({ state, updateState }: { state: App
         title: "Error de Seguridad", 
         description: "No se pudo comunicar con el servidor para autorizar al usuario." 
       });
+    }
+  };
+
+  const migrateUserIds = async () => {
+    if (!confirm('Esta acción migrará los usuarios que usan el correo como ID hacia el UID de Auth. ¿Desea continuar?')) return;
+    
+    setIsMigrating(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, 'users'));
+      let migratedCount = 0;
+      
+      for (const userDoc of querySnapshot.docs) {
+        const data = userDoc.data();
+        const docId = userDoc.id;
+        
+        // Si el ID del documento es un email (contiene @) y tenemos el UID dentro de la data
+        if (docId.includes('@') && data.uid) {
+           // 1. Crear el nuevo documento con el UID como ID
+           await setDoc(doc(db, 'users', data.uid), {
+             ...data,
+             email: data.email?.toLowerCase() // Aseguramos minúsculas
+           });
+           
+           // 2. Borrar el documento viejo (identificado por email)
+           await deleteDoc(doc(db, 'users', docId));
+           migratedCount++;
+        }
+      }
+      
+      toast({ 
+        title: "Migración Exitosa", 
+        description: `Se han actualizado ${migratedCount} registros de usuario.` 
+      });
+    } catch (e) {
+      console.error("Error en migración:", e);
+      toast({ variant: "destructive", title: "Fallo de Migración", description: "No se pudo completar el proceso de actualización de IDs." });
+    } finally {
+      setIsMigrating(false);
     }
   };
 
@@ -94,13 +134,23 @@ export default function GlobalControlModule({ state, updateState }: { state: App
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h2 className="text-ink font-black uppercase italic tracking-tighter text-2xl flex items-center gap-2">
             <ShieldCheck className="text-brand-gold w-7 h-7" /> GLOBAL CONTROL SYSTEM
           </h2>
           <p className="text-[10px] text-ink font-bold uppercase tracking-widest opacity-60">Seguridad Centralizada y Gestión de Terminales</p>
         </div>
+        
+        {/* BOTÓN DE MIGRACIÓN */}
+        <button 
+          onClick={migrateUserIds}
+          disabled={isMigrating}
+          className="btn btn-secondary h-10 px-6 border-line text-ink font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-surface-soft shadow-sm"
+        >
+          {isMigrating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4 text-brand-gold" />}
+          Migrar IDs de Usuario
+        </button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-8">
@@ -122,7 +172,7 @@ export default function GlobalControlModule({ state, updateState }: { state: App
                 <thead>
                   <tr className="bg-surface-soft">
                     <th className="text-ink font-black text-[10px] uppercase">Operador / Identificador</th>
-                    <th className="text-ink font-black text-[10px] uppercase">Rol</th>
+                    <th className="text-ink font-black text-[10px] uppercase">UID</th>
                     <th className="text-ink font-black text-[10px] uppercase">Estado de Seguridad</th>
                     <th className="text-ink font-black text-[10px] uppercase text-right">Acción</th>
                   </tr>
@@ -138,12 +188,14 @@ export default function GlobalControlModule({ state, updateState }: { state: App
                           <Mail className="w-3 h-3" /> {u.email}
                         </div>
                       </td>
-                      <td><span className="badge badge-neutral font-black text-[8px] uppercase">{u.rol}</span></td>
+                      <td>
+                        <span className="mono text-[9px] font-black text-ink/40 uppercase">ID: {u.id.slice(0, 10)}...</span>
+                      </td>
                       <td>
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full ${u.accesoBloqueado ? 'bg-status-danger' : 'bg-status-success'}`} />
                           <span className={`font-black text-[10px] uppercase ${u.accesoBloqueado ? 'text-status-danger' : 'text-status-success'}`}>
-                            {u.accesoBloqueado ? 'Bloqueado (Post-Salida)' : 'Autorizado / Activo'}
+                            {u.accesoBloqueado ? 'Bloqueado' : 'Autorizado'}
                           </span>
                         </div>
                       </td>
@@ -152,7 +204,7 @@ export default function GlobalControlModule({ state, updateState }: { state: App
                           onClick={() => toggleAccess(u.id, !!u.accesoBloqueado)}
                           className={`btn h-8 px-4 font-black text-[9px] uppercase shadow-sm ${u.accesoBloqueado ? 'btn-primary' : 'bg-status-danger text-white hover:bg-status-danger/80'}`}
                         >
-                          {u.accesoBloqueado ? <><Unlock className="w-3 h-3" /> Conceder Acceso</> : <><Lock className="w-3 h-3" /> Bloquear</>}
+                          {u.accesoBloqueado ? <><Unlock className="w-3 h-3" /> Conceder</> : <><Lock className="w-3 h-3" /> Bloquear</>}
                         </button>
                       </td>
                     </tr>
@@ -165,13 +217,12 @@ export default function GlobalControlModule({ state, updateState }: { state: App
             </div>
           </div>
 
-          {/* INDICACIÓN DE SEGURIDAD */}
           <div className="p-5 bg-brand-gold-soft/20 border border-brand-gold/20 rounded-2xl flex items-start gap-4">
              <AlertTriangle className="text-brand-gold-deep w-6 h-6 shrink-0 mt-1" />
              <div>
-                <h4 className="text-brand-gold-deep font-black uppercase text-xs mb-1">Protocolo de Cierre de Sesión</h4>
+                <h4 className="text-brand-gold-deep font-black uppercase text-xs mb-1">Mantenimiento de Identidades</h4>
                 <p className="text-[10px] text-brand-gold-deep/70 font-bold leading-relaxed uppercase">
-                  Por seguridad, todos los cajeros son bloqueados automáticamente al cerrar su sesión. Usted debe autorizarlos manualmente desde este panel antes de que puedan iniciar una nueva jornada de trabajo.
+                  Si un cajero no puede entrar aunque su estado sea "Autorizado", verifique que su ID coincida con su UID de Auth. Use el botón superior de "Migrar IDs" para corregir registros antiguos automáticamente.
                 </p>
              </div>
           </div>
@@ -214,7 +265,7 @@ export default function GlobalControlModule({ state, updateState }: { state: App
                     >
                       <option value="none">LIBRE / SIN ASIGNAR</option>
                       {users.filter(u => u.rol === 'cajero').map(u => (
-                        <option key={u.id} value={u.id}>{u.nombre.toUpperCase()}</option>
+                        <option key={u.id} value={u.id}>{u.nombre.toUpperCase()} [{u.id.slice(0,4)}]</option>
                       ))}
                     </select>
                   </div>
