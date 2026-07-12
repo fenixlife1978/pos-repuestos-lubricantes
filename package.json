@@ -90,8 +90,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "USER_OWNER",
-        "repo": "REPO_NAME"
+        "owner": "fenixlife1978",
+        "repo": "posven-pro"
       }
     ]
   }
