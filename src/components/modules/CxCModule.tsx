@@ -102,7 +102,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
           <h2 className="text-ink font-black uppercase italic tracking-tighter text-2xl flex items-center gap-2">
             <HandCoins className="text-brand-gold w-7 h-7" /> COBRANZAS (GESTIÓN GLOBAL)
           </h2>
-          <p className="text-[10px] text-ink font-bold uppercase tracking-widest">Seguimiento de Cartera de Clientes y Morosidad</p>
+          <p className="text-[10px] text-ink font-black uppercase tracking-widest">Seguimiento de Cartera de Clientes y Morosidad</p>
         </div>
         <div className="flex gap-2">
           <button onClick={handleExportPDF} className="btn btn-secondary h-11 px-6 font-black uppercase text-xs flex items-center gap-2 shadow-md">
@@ -125,7 +125,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
         <div className="kpi bg-white border-line shadow-md p-6 rounded-2xl border-l-[6px] border-l-status-danger">
           <div className="text-ink text-[10px] font-black uppercase mb-1">Total Por Cobrar (Cartera Activa)</div>
           <div className="text-4xl font-black text-status-danger">{Utils.fmtUSD(totalPendiente)}</div>
-          <div className="text-ink text-sm font-bold mt-1 italic">{Utils.fmtBS(totalPendiente * state.tasa)}</div>
+          <div className="text-ink text-sm font-black mt-1 italic">{Utils.fmtBS(totalPendiente * state.tasa)}</div>
         </div>
       </div>
 
@@ -161,16 +161,16 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                       </td>
                       <td className="py-4">
                          <div className="text-ink font-black text-sm uppercase">{clientName}</div>
-                         <div className="text-[10px] text-ink font-bold uppercase tracking-widest">Saldo Pendiente</div>
+                         <div className="text-[10px] text-ink font-black uppercase tracking-widest">Saldo Pendiente</div>
                       </td>
                       <td className="text-right py-4 font-black text-ink">{group.debts.length} Facturas</td>
                       <td className="text-right py-4 font-black text-status-info text-base">{Utils.fmtUSD(group.totalUSD)}</td>
-                      <td className="text-right py-4 font-bold text-ink">{Utils.fmtBS(group.totalUSD * state.tasa)}</td>
+                      <td className="text-right py-4 font-black text-ink">{Utils.fmtBS(group.totalUSD * state.tasa)}</td>
                       <td className="text-center py-4">
                          <div className="flex items-center justify-center gap-2">
                            <button 
                               onClick={() => setShowClientHistory(clientName)} 
-                              className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-status-success border-2 border-status-success/20 hover:bg-status-success hover:text-white transition-all shadow-sm"
+                              className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-status-success border-2 border-status-success/20 hover:bg-status-success hover:text-white transition-all shadow-md"
                               title="Consultar Historial Maestro"
                            >
                               <Eye className="w-5 h-5" />
@@ -195,8 +195,8 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                                   <tbody>
                                      {group.debts.map(d => (
                                         <tr key={d.id} className="border-b border-line/20 hover:bg-brand-gold-soft/10">
-                                           <td className="text-[10px] font-bold p-2 text-ink">{Utils.fmtFecha(d.fecha)}</td>
-                                           <td className={`text-[10px] font-bold p-2 ${d.fechaVencimiento < Utils.hoy() ? 'text-status-danger' : 'text-ink'}`}>
+                                           <td className="text-[10px] font-black p-2 text-ink">{Utils.fmtFecha(d.fecha)}</td>
+                                           <td className={`text-[10px] font-black p-2 ${d.fechaVencimiento < Utils.hoy() ? 'text-status-danger' : 'text-ink'}`}>
                                               {d.fechaVencimiento === '2099-12-31' ? 'ABIERTA' : Utils.fmtFecha(d.fechaVencimiento)}
                                            </td>
                                            <td className="text-[10px] font-black p-2 mono text-ink">{d.id}</td>
@@ -231,9 +231,9 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
               <h3 className="font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-brand-gold" /> HISTORIAL DETALLADO: {showDetails.id}
               </h3>
-              <button onClick={() => setShowDetails(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
+              <button onClick={() => setShowDetails(null)} className="text-white hover:text-brand-gold"><X className="w-5 h-5"/></button>
             </div>
-            <div className="modal-body p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+            <div className="modal-body p-6 space-y-6 max-h-[75vh] overflow-y-auto bg-white">
               <div className="grid grid-cols-2 gap-4">
                  <div className="p-3 bg-surface-soft rounded-lg border border-line">
                     <label className="text-[8px] font-black uppercase text-ink block mb-1">Monto Original</label>
@@ -268,9 +268,9 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                           <tbody>
                             {sale.items.map((it: any, idx: number) => (
                               <tr key={idx} className="border-b border-line/20">
-                                 <td className="text-[9px] font-bold p-2 text-ink">{it.cantidad}</td>
+                                 <td className="text-[9px] font-black p-2 text-ink">{it.cantidad}</td>
                                  <td className="text-[9px] font-black uppercase p-2 text-ink truncate max-w-[180px]">{it.nombre}</td>
-                                 <td className="text-[9px] font-bold p-2 text-right text-ink">{Utils.fmtUSD(it.precioUnitUSD)}</td>
+                                 <td className="text-[9px] font-black p-2 text-right text-ink">{Utils.fmtUSD(it.precioUnitUSD)}</td>
                                  <td className="text-[9px] font-black p-2 text-right text-brand-gold-deep">{Utils.fmtUSD(it.subtotalUSD)}</td>
                               </tr>
                             ))}
@@ -291,7 +291,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                         <div key={idx} className="flex justify-between items-center p-3 bg-surface-soft border border-line rounded-lg">
                            <div className="space-y-0.5">
                               <p className="text-[10px] font-black text-ink uppercase">{Utils.fmtFecha(p.fecha)} - {p.fecha.split('T')[1]?.slice(0,5)}</p>
-                              <p className="text-[8px] font-bold text-ink mono">REF RECIBO: {p.reciboId}</p>
+                              <p className="text-[8px] font-black text-ink mono">REF RECIBO: {p.reciboId}</p>
                            </div>
                            <div className="text-right">
                               <p className="text-xs font-black text-status-success">+{Utils.fmtUSD(p.montoUSD)}</p>
@@ -304,7 +304,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
               </div>
             </div>
             <div className="modal-foot p-4 bg-surface-soft border-t border-line text-right">
-               <button onClick={() => setShowDetails(null)} className="btn btn-primary px-8 font-black uppercase text-[10px] rounded-lg">Cerrar Ficha</button>
+               <button onClick={() => setShowDetails(null)} className="btn btn-primary px-8 font-black uppercase text-[10px] rounded-lg shadow-md">Cerrar Ficha</button>
             </div>
           </div>
         </div>
@@ -318,9 +318,9 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
               <h3 className="font-black uppercase italic tracking-tighter text-xs flex items-center gap-2">
                 <Contact className="w-5 h-5 text-brand-gold" /> ESTADO DE CUENTA MAESTRO: {showClientHistory}
               </h3>
-              <button onClick={() => setShowClientHistory(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
+              <button onClick={() => setShowClientHistory(null)} className="text-white hover:text-brand-gold"><X className="w-5 h-5"/></button>
             </div>
-            <div className="modal-body p-0 max-h-[70vh] overflow-y-auto">
+            <div className="modal-body p-0 max-h-[70vh] overflow-y-auto bg-white">
                <div className="table-wrap">
                   <table className="w-full">
                     <thead className="bg-surface-soft sticky top-0 z-10">
@@ -337,7 +337,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                     <tbody>
                       {state.cxc.filter(d => d.cliente === showClientHistory).sort((a,b) => b.fecha.localeCompare(a.fecha)).map(d => (
                         <tr key={d.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
-                          <td className="p-4 text-xs font-bold text-ink">{Utils.fmtFecha(d.fecha)}</td>
+                          <td className="p-4 text-xs font-black text-ink">{Utils.fmtFecha(d.fecha)}</td>
                           <td className="p-4 text-xs font-black mono text-ink">{d.id}</td>
                           <td className="p-4 text-right text-xs font-black text-ink">{Utils.fmtUSD(d.montoUSD)}</td>
                           <td className="p-4 text-right text-xs font-black text-status-success">{Utils.fmtUSD(d.abonadoUSD)}</td>
@@ -348,7 +348,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                             </span>
                           </td>
                           <td className="p-4 text-center">
-                             <button onClick={() => setShowDetails(d)} className="text-ink hover:text-brand-gold p-1 transition-colors"><Eye className="w-4 h-4"/></button>
+                             <button onClick={() => setShowDetails(d)} className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-status-success border-2 border-status-success/20 hover:bg-status-success hover:text-white transition-all shadow-md"><Eye className="w-5 h-5"/></button>
                           </td>
                         </tr>
                       ))}
@@ -376,7 +376,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
             <div className="modal-body p-6 space-y-4">
               <div className="form-group">
                 <label className="text-ink text-[10px] font-black uppercase block mb-1">Nombre del Cliente</label>
-                <input className="form-input" value={nuevaDeuda.cliente} onChange={e => setNuevaDeuda({...nuevaDeuda, cliente: e.target.value})} placeholder="Escribe el nombre..." />
+                <input className="form-input text-ink font-black uppercase" value={nuevaDeuda.cliente} onChange={e => setNuevaDeuda({...nuevaDeuda, cliente: e.target.value})} placeholder="Escribe el nombre..." />
               </div>
               <div className="form-group">
                 <label className="text-ink text-[10px] font-black uppercase block mb-1">Monto (USD)</label>
@@ -393,11 +393,11 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-group">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">Origen</label>
-                  <input type="date" className="form-input text-xs font-bold" value={nuevaDeuda.fecha} onChange={e => setNuevaDeuda({...nuevaDeuda, fecha: e.target.value})} />
+                  <input type="date" className="form-input text-xs font-black" value={nuevaDeuda.fecha} onChange={e => setNuevaDeuda({...nuevaDeuda, fecha: e.target.value})} />
                 </div>
                 <div className={`form-group ${nuevaDeuda.sinVencimiento ? 'opacity-20 pointer-events-none' : ''}`}>
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">Vencimiento</label>
-                  <input type="date" className="form-input text-xs font-bold" value={nuevaDeuda.vencimiento} onChange={e => setNuevaDeuda({...nuevaDeuda, vencimiento: e.target.value})} />
+                  <input type="date" className="form-input text-xs font-black" value={nuevaDeuda.vencimiento} onChange={e => setNuevaDeuda({...nuevaDeuda, vencimiento: e.target.value})} />
                 </div>
               </div>
               <button onClick={guardarDeudaDirecta} className="btn btn-primary w-full h-14 font-black uppercase text-xs mt-4 shadow-xl tracking-widest">

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -32,8 +31,6 @@ export default function CxPModule({ state, updateState }: CxPModuleProps) {
 
   const pendientes = (state.cxp || []).filter(x => x.estado !== 'pagada');
   const totalPendiente = pendientes.reduce((s, x) => s + x.saldoUSD, 0);
-
-  const fmt4 = (v: number) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
   const handleOpenPayment = (debt: any) => {
     setShowPaymentModal(debt);
@@ -117,7 +114,7 @@ export default function CxPModule({ state, updateState }: CxPModuleProps) {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-black text-primary">Cuentas por Pagar</h2>
-          <p className="text-[10px] text-ink font-bold uppercase tracking-widest opacity-60">Control de Obligaciones con Proveedores</p>
+          <p className="text-[10px] text-ink font-black uppercase tracking-widest">Control de Obligaciones con Proveedores</p>
         </div>
       </div>
 
@@ -125,12 +122,12 @@ export default function CxPModule({ state, updateState }: CxPModuleProps) {
         <div className="kpi bg-white border-line p-7 rounded-2xl shadow-sm border-l-[6px] border-l-ink">
           <div className="text-ink text-[10px] font-black uppercase mb-2 tracking-wider">Facturas Pendientes</div>
           <div className="text-4xl font-black text-ink">{pendientes.length}</div>
-          <div className="text-ink/60 text-[10px] font-black mt-1.5 uppercase tracking-widest">Compromisos por Liquidar</div>
+          <div className="text-ink text-[10px] font-black mt-1.5 uppercase tracking-widest">Compromisos por Liquidar</div>
         </div>
         <div className="kpi bg-white border-line p-7 rounded-2xl shadow-sm border-l-[6px] border-l-status-danger">
           <div className="text-ink text-[10px] font-black uppercase mb-2 tracking-wider">Total a Pagar (USD)</div>
-          <div className="text-4xl font-black text-status-danger">{fmt4(totalPendiente)}</div>
-          <div className="text-ink font-bold text-sm mt-1.5 opacity-80">{Utils.fmtBS(totalPendiente * state.tasa)}</div>
+          <div className="text-4xl font-black text-status-danger">{Utils.fmtUSD(totalPendiente)}</div>
+          <div className="text-ink font-black text-sm mt-1.5">{Utils.fmtBS(totalPendiente * state.tasa)}</div>
         </div>
       </div>
 
@@ -150,30 +147,36 @@ export default function CxPModule({ state, updateState }: CxPModuleProps) {
                 <th className="text-ink font-black text-[10px] uppercase py-4 border-b border-line">Factura</th>
                 <th className="text-ink font-black text-[10px] uppercase py-4 text-right border-b border-line">Monto USD</th>
                 <th className="text-ink font-black text-[10px] uppercase py-4 text-right border-b border-line">Saldo</th>
-                <th className="text-ink font-black text-[10px] uppercase py-4 px-6 text-center border-b border-line">Acciones</th>
+                <th className="text-ink font-black text-[10px] uppercase px-6 text-center border-b border-line">Acciones</th>
               </tr>
             </thead>
             <tbody className="bg-white">
               {state.cxp.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-24 text-ink/20 font-black uppercase italic tracking-widest opacity-30">
+                  <td colSpan={7} className="text-center py-24 text-ink font-black uppercase italic tracking-widest">
                     No se registran cuentas por pagar actualmente
                   </td>
                 </tr>
               ) : (
                 state.cxp.map(x => (
                   <tr key={x.id} className="border-b border-line/40 hover:bg-surface-warm/20 transition-colors">
-                    <td className="text-ink font-bold text-xs py-4 px-6">{Utils.fmtFecha(x.fecha)}</td>
-                    <td className={`text-xs font-bold py-4 ${x.fechaVencimiento < Utils.hoy() && x.estado !== 'pagada' ? 'text-status-danger' : 'text-ink'}`}>
+                    <td className="text-ink font-black text-xs py-4 px-6">{Utils.fmtFecha(x.fecha)}</td>
+                    <td className={`text-xs font-black py-4 ${x.fechaVencimiento < Utils.hoy() && x.estado !== 'pagada' ? 'text-status-danger' : 'text-ink'}`}>
                       {Utils.fmtFecha(x.fechaVencimiento)}
                     </td>
                     <td className="text-ink font-black text-xs uppercase py-4">{x.proveedor}</td>
                     <td className="text-ink font-black text-xs py-4 mono">{x.numeroFactura || '-'}</td>
-                    <td className="text-ink font-bold text-xs text-right py-4 mono">{fmt4(x.montoUSD)}</td>
-                    <td className="text-brand-gold-deep font-black text-sm text-right py-4 mono">{fmt4(x.saldoUSD)}</td>
+                    <td className="text-ink font-black text-xs text-right py-4 mono">{Utils.fmtUSD(x.montoUSD)}</td>
+                    <td className="text-brand-gold-deep font-black text-sm text-right py-4 mono">{Utils.fmtUSD(x.saldoUSD)}</td>
                     <td className="py-4 px-6 text-center">
-                       <div className="flex justify-center gap-1">
-                          <button onClick={() => setShowDetails(x)} className="btn-icon h-8 w-8 text-ink hover:text-brand-gold" title="Ver Historial Detallado"><Eye className="w-4 h-4"/></button>
+                       <div className="flex justify-center items-center gap-3">
+                          <button 
+                            onClick={() => setShowDetails(x)} 
+                            className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-status-success border-2 border-status-success/20 hover:bg-status-success hover:text-white transition-all shadow-md"
+                            title="Ver Historial Detallado"
+                          >
+                            <Eye className="w-5 h-5"/>
+                          </button>
                           {x.estado !== 'pagada' && (
                              <button onClick={() => handleOpenPayment(x)} className="btn btn-primary h-8 px-4 font-black text-[9px] uppercase shadow-sm">Pagar</button>
                           )}
@@ -193,47 +196,46 @@ export default function CxPModule({ state, updateState }: CxPModuleProps) {
           <div className="modal-box max-w-[600px] bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl">
             <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center text-white">
               <h3 className="font-black text-xs uppercase italic tracking-tighter">HISTORIAL DETALLADO: {showDetails.id}</h3>
-              <button onClick={() => setShowDetails(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
+              <button onClick={() => setShowDetails(null)} className="text-white hover:text-brand-gold transition-colors"><X className="w-5 h-5"/></button>
             </div>
             <div className="modal-body p-6 space-y-6 max-h-[75vh] overflow-y-auto bg-white">
               <div className="grid grid-cols-2 gap-4">
                  <div className="p-3 bg-surface-soft rounded-lg border border-line">
-                    <label className="text-[8px] font-black uppercase text-ink/50 block mb-1">Monto Original</label>
-                    <p className="text-lg font-black text-ink">{fmt4(showDetails.montoUSD)}</p>
+                    <label className="text-[8px] font-black uppercase text-ink block mb-1">Monto Original</label>
+                    <p className="text-lg font-black text-ink">{Utils.fmtUSD(showDetails.montoUSD)}</p>
                  </div>
                  <div className="p-3 bg-brand-gold-soft border border-brand-gold/20 rounded-lg">
                     <label className="text-[8px] font-black uppercase text-brand-gold-deep block mb-1">Saldo Actual</label>
-                    <p className="text-lg font-black text-brand-gold-deep">{fmt4(showDetails.saldoUSD)}</p>
+                    <p className="text-lg font-black text-brand-gold-deep">{Utils.fmtUSD(showDetails.saldoUSD)}</p>
                  </div>
               </div>
 
-              {/* DETALLE DE COMPRA (ÍTEMS) */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center border-b border-line pb-2">
-                   <h4 className="text-[10px] font-black uppercase text-ink/40 tracking-[0.2em]">DETALLE DE MERCANCÍA RECIBIDA</h4>
-                   <span className="text-[9px] font-black text-ink/60 uppercase">{Utils.fmtFecha(showDetails.fecha)}</span>
+                   <h4 className="text-[10px] font-black uppercase text-ink tracking-[0.2em]">DETALLE DE MERCANCÍA RECIBIDA</h4>
+                   <span className="text-[9px] font-black text-ink uppercase">{Utils.fmtFecha(showDetails.fecha)}</span>
                 </div>
                 <div className="bg-surface-soft/50 rounded-lg overflow-hidden border border-line/30">
                    <table className="w-full">
                       <thead>
                         <tr className="bg-ink/5">
-                           <th className="text-[8px] font-black uppercase p-2 text-left">Cant</th>
-                           <th className="text-[8px] font-black uppercase p-2 text-left">Descripción</th>
-                           <th className="text-[8px] font-black uppercase p-2 text-right">Costo Unit.</th>
-                           <th className="text-[8px] font-black uppercase p-2 text-right">Total</th>
+                           <th className="text-[8px] font-black uppercase p-2 text-left text-ink">Cant</th>
+                           <th className="text-[8px] font-black uppercase p-2 text-left text-ink">Descripción</th>
+                           <th className="text-[8px] font-black uppercase p-2 text-right text-ink">Costo Unit.</th>
+                           <th className="text-[8px] font-black uppercase p-2 text-right text-ink">Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {(showDetails.items || []).map((it: any, idx: number) => (
                           <tr key={idx} className="border-b border-line/20">
-                             <td className="text-[9px] font-bold p-2 text-ink">{it.cantidad}</td>
+                             <td className="text-[9px] font-black p-2 text-ink">{it.cantidad}</td>
                              <td className="text-[9px] font-black uppercase p-2 text-ink truncate max-w-[180px]">{it.nombre || it.name}</td>
-                             <td className="text-[9px] font-bold p-2 text-right text-ink">{fmt4(it.costoUnitarioUSD || it.price)}</td>
-                             <td className="text-[9px] font-black p-2 text-right text-brand-gold-deep">{fmt4(it.subtotalUSD || (it.price * it.qty))}</td>
+                             <td className="text-[9px] font-black p-2 text-right text-ink">{Utils.fmtUSD(it.costoUnitarioUSD || it.price)}</td>
+                             <td className="text-[9px] font-black p-2 text-right text-brand-gold-deep">{Utils.fmtUSD(it.subtotalUSD || (it.price * it.qty))}</td>
                           </tr>
                         ))}
                         {(showDetails.items || []).length === 0 && (
-                          <tr><td colSpan={4} className="py-8 text-center text-ink/20 font-black uppercase italic text-[9px]">Sin detalles de ítems registrados</td></tr>
+                          <tr><td colSpan={4} className="py-8 text-center text-ink font-black uppercase italic text-[9px]">Sin detalles de ítems registrados</td></tr>
                         )}
                       </tbody>
                    </table>
@@ -241,20 +243,20 @@ export default function CxPModule({ state, updateState }: CxPModuleProps) {
               </div>
 
               <div className="space-y-3">
-                 <h4 className="text-[10px] font-black uppercase text-ink/40 tracking-[0.2em] border-b border-line pb-2">CRONOLOGÍA DE ABONOS A PROVEEDOR</h4>
+                 <h4 className="text-[10px] font-black uppercase text-ink tracking-[0.2em] border-b border-line pb-2">CRONOLOGÍA DE ABONOS A PROVEEDOR</h4>
                  <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
                     {(!showDetails.historialPagos || showDetails.historialPagos.length === 0) ? (
-                      <div className="py-10 text-center text-ink/20 font-black uppercase italic text-[10px]">No se han realizado pagos a esta factura aún</div>
+                      <div className="py-10 text-center text-ink font-black uppercase italic text-[10px]">No se han realizado pagos a esta factura aún</div>
                     ) : (
                       showDetails.historialPagos.map((p: any, idx: number) => (
                         <div key={idx} className="flex justify-between items-center p-3 bg-surface-soft border border-line rounded-lg">
                            <div className="space-y-0.5">
                               <p className="text-[10px] font-black text-ink uppercase">{Utils.fmtFecha(p.fecha)} - {p.fecha.split('T')[1]?.slice(0,5)}</p>
-                              <p className="text-[8px] font-bold text-ink/40 mono">ID PAGO: {p.reciboId}</p>
+                              <p className="text-[8px] font-black text-ink mono">ID PAGO: {p.reciboId}</p>
                            </div>
                            <div className="text-right">
-                              <p className="text-xs font-black text-status-success">-{fmt4(p.montoUSD)}</p>
-                              <p className="text-[8px] font-black text-ink/40 uppercase">{Utils.metodoLabel(p.metodo || 'otros')}</p>
+                              <p className="text-xs font-black text-status-success">-{Utils.fmtUSD(p.montoUSD)}</p>
+                              <p className="text-[8px] font-black text-ink uppercase">{Utils.metodoLabel(p.metodo || 'otros')}</p>
                            </div>
                         </div>
                       ))
@@ -274,19 +276,19 @@ export default function CxPModule({ state, updateState }: CxPModuleProps) {
           <div className="modal-box bg-white max-w-sm border-2 border-line rounded-2xl overflow-hidden shadow-2xl">
             <div className="modal-head py-4 px-6 bg-ink border-b border-white/10 flex justify-between items-center text-white">
               <h3 className="text-white font-black uppercase text-xs">REGISTRAR PAGO DE DEUDA</h3>
-              <button onClick={() => setShowPaymentModal(null)}><X className="w-5 h-5 text-white/40 hover:text-white" /></button>
+              <button onClick={() => setShowPaymentModal(null)}><X className="w-5 h-5 text-white hover:text-brand-gold" /></button>
             </div>
             <div className="modal-body p-8 space-y-6 bg-white">
                <div className="bg-surface-soft p-8 rounded-[20px] text-center border border-line shadow-inner">
-                  <p className="text-ink/40 text-[9px] font-black uppercase tracking-[0.2em] mb-2">SALDO PENDIENTE</p>
-                  <p className="text-3xl font-black text-status-danger">{fmt4(showPaymentModal.saldoUSD)}</p>
-                  <p className="text-sm font-bold text-ink/60 mt-1 uppercase tracking-tight italic">Equiv. {Utils.fmtBS(showPaymentModal.saldoUSD * state.tasa)}</p>
+                  <p className="text-ink text-[9px] font-black uppercase tracking-[0.2em] mb-2">SALDO PENDIENTE</p>
+                  <p className="text-3xl font-black text-status-danger">{Utils.fmtUSD(showPaymentModal.saldoUSD)}</p>
+                  <p className="text-sm font-black text-ink mt-1 uppercase tracking-tight italic">Equiv. {Utils.fmtBS(showPaymentModal.saldoUSD * state.tasa)}</p>
                </div>
                
                <div className="form-group">
                  <label className="text-ink text-[10px] font-black uppercase block mb-1">METODO DE PAGO</label>
                  <select 
-                    className="form-select h-12 text-sm font-black uppercase border-line bg-surface-soft/50"
+                    className="form-select h-12 text-sm font-black uppercase border-line bg-surface-soft/50 text-ink"
                     value={paymentMethod} 
                     onChange={e => setPaymentMethod(e.target.value as any)}
                   >
