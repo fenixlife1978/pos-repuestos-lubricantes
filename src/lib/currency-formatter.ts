@@ -4,9 +4,7 @@
  */
 
 export const formatBs = (val: number) => 
-  new Intl.NumberFormat('es-VE', { 
-    style: 'currency', 
-    currency: 'VES',
+  'Bs. ' + new Intl.NumberFormat('es-VE', { 
     minimumFractionDigits: 2,
     maximumFractionDigits: 2 
   }).format(val);
