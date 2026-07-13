@@ -12,7 +12,9 @@ import {
   Banknote,
   Search,
   Plus,
-  ArrowLeft
+  ArrowLeft,
+  Calendar,
+  ClipboardList
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { exportarPDFCxP } from '@/lib/pdf-generator';
@@ -171,7 +173,7 @@ export default function CxPModule({ state, updateState }: CxPModuleProps) {
                     <td className="text-brand-gold-deep font-black text-sm text-right py-4 mono">{fmt4(x.saldoUSD)}</td>
                     <td className="py-4 px-6 text-center">
                        <div className="flex justify-center gap-1">
-                          <button onClick={() => setShowDetails(x)} className="btn-icon h-8 w-8 text-ink hover:text-brand-gold" title="Ver Detalle de Compra"><Eye className="w-4 h-4"/></button>
+                          <button onClick={() => setShowDetails(x)} className="btn-icon h-8 w-8 text-ink hover:text-brand-gold" title="Ver Historial Detallado"><Eye className="w-4 h-4"/></button>
                           {x.estado !== 'pagada' && (
                              <button onClick={() => handleOpenPayment(x)} className="btn btn-primary h-8 px-4 font-black text-[9px] uppercase shadow-sm">Pagar</button>
                           )}
@@ -185,14 +187,96 @@ export default function CxPModule({ state, updateState }: CxPModuleProps) {
         </div>
       </div>
 
+      {/* MODAL DETALLES AVANZADOS (HISTORIAL) */}
+      {showDetails && (
+        <div className="modal show"><div className="modal-bg" onClick={() => setShowDetails(null)}></div>
+          <div className="modal-box max-w-[600px] bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl">
+            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center text-white">
+              <h3 className="font-black text-xs uppercase italic tracking-tighter">HISTORIAL DETALLADO: {showDetails.id}</h3>
+              <button onClick={() => setShowDetails(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="modal-body p-6 space-y-6 max-h-[75vh] overflow-y-auto bg-white">
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="p-3 bg-surface-soft rounded-lg border border-line">
+                    <label className="text-[8px] font-black uppercase text-ink/50 block mb-1">Monto Original</label>
+                    <p className="text-lg font-black text-ink">{fmt4(showDetails.montoUSD)}</p>
+                 </div>
+                 <div className="p-3 bg-brand-gold-soft border border-brand-gold/20 rounded-lg">
+                    <label className="text-[8px] font-black uppercase text-brand-gold-deep block mb-1">Saldo Actual</label>
+                    <p className="text-lg font-black text-brand-gold-deep">{fmt4(showDetails.saldoUSD)}</p>
+                 </div>
+              </div>
+
+              {/* DETALLE DE COMPRA (ÍTEMS) */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center border-b border-line pb-2">
+                   <h4 className="text-[10px] font-black uppercase text-ink/40 tracking-[0.2em]">DETALLE DE MERCANCÍA RECIBIDA</h4>
+                   <span className="text-[9px] font-black text-ink/60 uppercase">{Utils.fmtFecha(showDetails.fecha)}</span>
+                </div>
+                <div className="bg-surface-soft/50 rounded-lg overflow-hidden border border-line/30">
+                   <table className="w-full">
+                      <thead>
+                        <tr className="bg-ink/5">
+                           <th className="text-[8px] font-black uppercase p-2 text-left">Cant</th>
+                           <th className="text-[8px] font-black uppercase p-2 text-left">Descripción</th>
+                           <th className="text-[8px] font-black uppercase p-2 text-right">Costo Unit.</th>
+                           <th className="text-[8px] font-black uppercase p-2 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(showDetails.items || []).map((it: any, idx: number) => (
+                          <tr key={idx} className="border-b border-line/20">
+                             <td className="text-[9px] font-bold p-2 text-ink">{it.cantidad}</td>
+                             <td className="text-[9px] font-black uppercase p-2 text-ink truncate max-w-[180px]">{it.nombre || it.name}</td>
+                             <td className="text-[9px] font-bold p-2 text-right text-ink">{fmt4(it.costoUnitarioUSD || it.price)}</td>
+                             <td className="text-[9px] font-black p-2 text-right text-brand-gold-deep">{fmt4(it.subtotalUSD || (it.price * it.qty))}</td>
+                          </tr>
+                        ))}
+                        {(showDetails.items || []).length === 0 && (
+                          <tr><td colSpan={4} className="py-8 text-center text-ink/20 font-black uppercase italic text-[9px]">Sin detalles de ítems registrados</td></tr>
+                        )}
+                      </tbody>
+                   </table>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                 <h4 className="text-[10px] font-black uppercase text-ink/40 tracking-[0.2em] border-b border-line pb-2">CRONOLOGÍA DE ABONOS A PROVEEDOR</h4>
+                 <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
+                    {(!showDetails.historialPagos || showDetails.historialPagos.length === 0) ? (
+                      <div className="py-10 text-center text-ink/20 font-black uppercase italic text-[10px]">No se han realizado pagos a esta factura aún</div>
+                    ) : (
+                      showDetails.historialPagos.map((p: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center p-3 bg-surface-soft border border-line rounded-lg">
+                           <div className="space-y-0.5">
+                              <p className="text-[10px] font-black text-ink uppercase">{Utils.fmtFecha(p.fecha)} - {p.fecha.split('T')[1]?.slice(0,5)}</p>
+                              <p className="text-[8px] font-bold text-ink/40 mono">ID PAGO: {p.reciboId}</p>
+                           </div>
+                           <div className="text-right">
+                              <p className="text-xs font-black text-status-success">-{fmt4(p.montoUSD)}</p>
+                              <p className="text-[8px] font-black text-ink/40 uppercase">{Utils.metodoLabel(p.metodo || 'otros')}</p>
+                           </div>
+                        </div>
+                      ))
+                    )}
+                 </div>
+              </div>
+            </div>
+            <div className="modal-foot p-4 bg-surface-soft border-t border-line text-right">
+               <button onClick={() => setShowDetails(null)} className="btn btn-primary px-8 font-black uppercase text-[10px] rounded-lg shadow-md">Cerrar Historial</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPaymentModal && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowPaymentModal(null)}></div>
           <div className="modal-box bg-white max-w-sm border-2 border-line rounded-2xl overflow-hidden shadow-2xl">
-            <div className="modal-head py-4 px-6 bg-ink border-b border-white/10 flex justify-between items-center">
+            <div className="modal-head py-4 px-6 bg-ink border-b border-white/10 flex justify-between items-center text-white">
               <h3 className="text-white font-black uppercase text-xs">REGISTRAR PAGO DE DEUDA</h3>
               <button onClick={() => setShowPaymentModal(null)}><X className="w-5 h-5 text-white/40 hover:text-white" /></button>
             </div>
-            <div className="modal-body p-8 space-y-6">
+            <div className="modal-body p-8 space-y-6 bg-white">
                <div className="bg-surface-soft p-8 rounded-[20px] text-center border border-line shadow-inner">
                   <p className="text-ink/40 text-[9px] font-black uppercase tracking-[0.2em] mb-2">SALDO PENDIENTE</p>
                   <p className="text-3xl font-black text-status-danger">{fmt4(showPaymentModal.saldoUSD)}</p>
