@@ -102,7 +102,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
           <h2 className="text-ink font-black uppercase italic tracking-tighter text-2xl flex items-center gap-2">
             <HandCoins className="text-brand-gold w-7 h-7" /> COBRANZAS (GESTIÓN GLOBAL)
           </h2>
-          <p className="text-[10px] text-ink font-bold uppercase tracking-widest opacity-60">Seguimiento de Cartera de Clientes y Morosidad</p>
+          <p className="text-[10px] text-ink font-bold uppercase tracking-widest">Seguimiento de Cartera de Clientes y Morosidad</p>
         </div>
         <div className="flex gap-2">
           <button onClick={handleExportPDF} className="btn btn-secondary h-11 px-6 font-black uppercase text-xs flex items-center gap-2 shadow-md">
@@ -118,12 +118,12 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
         <div className="kpi bg-white border-line shadow-md p-6 rounded-2xl flex items-center gap-4">
            <div className="p-3 bg-ink text-brand-gold rounded-xl"><ClipboardList /></div>
            <div>
-              <div className="text-ink text-[10px] font-black uppercase mb-0.5 opacity-60">Clientes con Deuda</div>
+              <div className="text-ink text-[10px] font-black uppercase mb-0.5">Clientes con Deuda</div>
               <div className="text-3xl font-black text-ink">{Object.entries(groupedCredits).length}</div>
            </div>
         </div>
         <div className="kpi bg-white border-line shadow-md p-6 rounded-2xl border-l-[6px] border-l-status-danger">
-          <div className="text-ink text-[10px] font-black uppercase mb-1 opacity-60">Total Por Cobrar (Cartera Activa)</div>
+          <div className="text-ink text-[10px] font-black uppercase mb-1">Total Por Cobrar (Cartera Activa)</div>
           <div className="text-4xl font-black text-status-danger">{Utils.fmtUSD(totalPendiente)}</div>
           <div className="text-ink text-sm font-bold mt-1 italic">{Utils.fmtBS(totalPendiente * state.tasa)}</div>
         </div>
@@ -149,7 +149,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
             </thead>
             <tbody>
               {Object.entries(groupedCredits).length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-20 text-ink/30 font-black uppercase italic">No hay deudas registradas</td></tr>
+                <tr><td colSpan={6} className="text-center py-20 text-ink font-black uppercase italic">No hay deudas registradas</td></tr>
               ) : (
                 Object.entries(groupedCredits).map(([clientName, group]) => (
                   <React.Fragment key={clientName}>
@@ -161,19 +161,19 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                       </td>
                       <td className="py-4">
                          <div className="text-ink font-black text-sm uppercase">{clientName}</div>
-                         <div className="text-[10px] text-ink/40 font-bold uppercase tracking-widest">Saldo Pendiente</div>
+                         <div className="text-[10px] text-ink font-bold uppercase tracking-widest">Saldo Pendiente</div>
                       </td>
                       <td className="text-right py-4 font-black text-ink">{group.debts.length} Facturas</td>
                       <td className="text-right py-4 font-black text-status-info text-base">{Utils.fmtUSD(group.totalUSD)}</td>
-                      <td className="text-right py-4 font-bold text-ink/60">{Utils.fmtBS(group.totalUSD * state.tasa)}</td>
+                      <td className="text-right py-4 font-bold text-ink">{Utils.fmtBS(group.totalUSD * state.tasa)}</td>
                       <td className="text-center py-4">
                          <div className="flex items-center justify-center gap-2">
                            <button 
                               onClick={() => setShowClientHistory(clientName)} 
-                              className="btn h-9 w-9 p-0 flex items-center justify-center shadow-sm bg-status-info-soft text-status-info border border-status-info/30 hover:bg-status-info hover:text-white transition-all"
+                              className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-status-success border-2 border-status-success/20 hover:bg-status-success hover:text-white transition-all shadow-sm"
                               title="Consultar Historial Maestro"
                            >
-                              <BookOpen className="w-4 h-4" />
+                              <Eye className="w-5 h-5" />
                            </button>
                          </div>
                       </td>
@@ -185,26 +185,26 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                                <table className="w-full">
                                   <thead className="bg-ink/5">
                                      <tr>
-                                        <th className="text-[9px] font-black uppercase p-2 text-left">Emisión</th>
-                                        <th className="text-[9px] font-black uppercase p-2 text-left">Vencimiento</th>
-                                        <th className="text-[9px] font-black uppercase p-2 text-left">ID Factura</th>
-                                        <th className="text-[9px] font-black uppercase p-2 text-right">Saldo USD</th>
-                                        <th className="text-[9px] font-black uppercase p-2 text-center">Auditoría</th>
+                                        <th className="text-[9px] font-black uppercase p-2 text-left text-ink">Emisión</th>
+                                        <th className="text-[9px] font-black uppercase p-2 text-left text-ink">Vencimiento</th>
+                                        <th className="text-[9px] font-black uppercase p-2 text-left text-ink">ID Factura</th>
+                                        <th className="text-[9px] font-black uppercase p-2 text-right text-ink">Saldo USD</th>
+                                        <th className="text-[9px] font-black uppercase p-2 text-center text-ink">Auditoría</th>
                                      </tr>
                                   </thead>
                                   <tbody>
                                      {group.debts.map(d => (
                                         <tr key={d.id} className="border-b border-line/20 hover:bg-brand-gold-soft/10">
-                                           <td className="text-[10px] font-bold p-2">{Utils.fmtFecha(d.fecha)}</td>
-                                           <td className={`text-[10px] font-bold p-2 ${d.fechaVencimiento < Utils.hoy() ? 'text-status-danger' : 'text-ink/60'}`}>
+                                           <td className="text-[10px] font-bold p-2 text-ink">{Utils.fmtFecha(d.fecha)}</td>
+                                           <td className={`text-[10px] font-bold p-2 ${d.fechaVencimiento < Utils.hoy() ? 'text-status-danger' : 'text-ink'}`}>
                                               {d.fechaVencimiento === '2099-12-31' ? 'ABIERTA' : Utils.fmtFecha(d.fechaVencimiento)}
                                            </td>
-                                           <td className="text-[10px] font-black p-2 mono opacity-60">{d.id}</td>
+                                           <td className="text-[10px] font-black p-2 mono text-ink">{d.id}</td>
                                            <td className="text-[10px] font-black p-2 text-right text-brand-gold-deep">{Utils.fmtUSD(d.saldoUSD)}</td>
                                            <td className="p-2 text-center">
                                               <div className="flex justify-center gap-1">
-                                                <button onClick={() => setShowDetails(d)} className="text-ink/30 hover:text-brand-gold p-1 transition-colors"><Eye className="w-3.5 h-3.5"/></button>
-                                                <button onClick={() => eliminarDeuda(d)} className="text-ink/20 hover:text-status-danger p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                                                <button onClick={() => setShowDetails(d)} className="text-ink hover:text-brand-gold p-1 transition-colors"><Eye className="w-3.5 h-3.5"/></button>
+                                                <button onClick={() => eliminarDeuda(d)} className="text-ink hover:text-status-danger p-1"><Trash2 className="w-3.5 h-3.5" /></button>
                                               </div>
                                            </td>
                                         </tr>
@@ -236,7 +236,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
             <div className="modal-body p-6 space-y-6 max-h-[75vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
                  <div className="p-3 bg-surface-soft rounded-lg border border-line">
-                    <label className="text-[8px] font-black uppercase text-ink/50 block mb-1">Monto Original</label>
+                    <label className="text-[8px] font-black uppercase text-ink block mb-1">Monto Original</label>
                     <p className="text-lg font-black text-ink">{Utils.fmtUSD(showDetails.montoUSD)}</p>
                  </div>
                  <div className="p-3 bg-brand-gold-soft border border-brand-gold/20 rounded-lg">
@@ -252,17 +252,17 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                 return (
                   <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
                     <div className="flex justify-between items-center border-b border-line pb-2">
-                       <h4 className="text-[10px] font-black uppercase text-ink/40 tracking-[0.2em]">DETALLE DE COMPRA ORIGINAL</h4>
-                       <span className="text-[9px] font-black text-ink/60 uppercase">{Utils.fmtFecha(sale.fecha)} - {sale.fecha.split('T')[1]?.slice(0,5)}</span>
+                       <h4 className="text-[10px] font-black uppercase text-ink tracking-[0.2em]">DETALLE DE COMPRA ORIGINAL</h4>
+                       <span className="text-[9px] font-black text-ink uppercase">{Utils.fmtFecha(sale.fecha)} - {sale.fecha.split('T')[1]?.slice(0,5)}</span>
                     </div>
                     <div className="bg-surface-soft/50 rounded-lg overflow-hidden border border-line/30">
                        <table className="w-full">
                           <thead>
                             <tr className="bg-ink/5">
-                               <th className="text-[8px] font-black uppercase p-2 text-left">Cant</th>
-                               <th className="text-[8px] font-black uppercase p-2 text-left">Descripción</th>
-                               <th className="text-[8px] font-black uppercase p-2 text-right">P. Unit</th>
-                               <th className="text-[8px] font-black uppercase p-2 text-right">Total</th>
+                               <th className="text-[8px] font-black uppercase p-2 text-left text-ink">Cant</th>
+                               <th className="text-[8px] font-black uppercase p-2 text-left text-ink">Descripción</th>
+                               <th className="text-[8px] font-black uppercase p-2 text-right text-ink">P. Unit</th>
+                               <th className="text-[8px] font-black uppercase p-2 text-right text-ink">Total</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -282,20 +282,20 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
               })()}
 
               <div className="space-y-3">
-                 <h4 className="text-[10px] font-black uppercase text-ink/40 tracking-[0.2em] border-b border-line pb-2">CRONOLOGÍA DE ABONOS</h4>
+                 <h4 className="text-[10px] font-black uppercase text-ink tracking-[0.2em] border-b border-line pb-2">CRONOLOGÍA DE ABONOS</h4>
                  <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
                     {(!showDetails.historialPagos || showDetails.historialPagos.length === 0) ? (
-                      <div className="py-10 text-center text-ink/20 font-black uppercase italic text-[10px]">No se han registrado abonos aún</div>
+                      <div className="py-10 text-center text-ink font-black uppercase italic text-[10px]">No se han registrado abonos aún</div>
                     ) : (
                       showDetails.historialPagos.map((p: any, idx: number) => (
                         <div key={idx} className="flex justify-between items-center p-3 bg-surface-soft border border-line rounded-lg">
                            <div className="space-y-0.5">
                               <p className="text-[10px] font-black text-ink uppercase">{Utils.fmtFecha(p.fecha)} - {p.fecha.split('T')[1]?.slice(0,5)}</p>
-                              <p className="text-[8px] font-bold text-ink/40 mono">REF RECIBO: {p.reciboId}</p>
+                              <p className="text-[8px] font-bold text-ink mono">REF RECIBO: {p.reciboId}</p>
                            </div>
                            <div className="text-right">
                               <p className="text-xs font-black text-status-success">+{Utils.fmtUSD(p.montoUSD)}</p>
-                              <p className="text-[8px] font-black text-ink/40 uppercase">{Utils.metodoLabel(p.metodo || 'otros')}</p>
+                              <p className="text-[8px] font-black text-ink uppercase">{Utils.metodoLabel(p.metodo || 'otros')}</p>
                            </div>
                         </div>
                       ))
@@ -325,20 +325,20 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                   <table className="w-full">
                     <thead className="bg-surface-soft sticky top-0 z-10">
                       <tr>
-                        <th className="text-[9px] font-black uppercase p-4 text-left">Fecha</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-left">ID Documento</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-right">Monto Total</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-right">Abonado</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-right">Saldo Pend.</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-center">Estado</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-center">Auditoría</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-left text-ink">Fecha</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-left text-ink">ID Documento</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-right text-ink">Monto Total</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-right text-ink">Abonado</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-right text-ink">Saldo Pend.</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-center text-ink">Estado</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-center text-ink">Auditoría</th>
                       </tr>
                     </thead>
                     <tbody>
                       {state.cxc.filter(d => d.cliente === showClientHistory).sort((a,b) => b.fecha.localeCompare(a.fecha)).map(d => (
                         <tr key={d.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
                           <td className="p-4 text-xs font-bold text-ink">{Utils.fmtFecha(d.fecha)}</td>
-                          <td className="p-4 text-xs font-black mono text-ink/40">{d.id}</td>
+                          <td className="p-4 text-xs font-black mono text-ink">{d.id}</td>
                           <td className="p-4 text-right text-xs font-black text-ink">{Utils.fmtUSD(d.montoUSD)}</td>
                           <td className="p-4 text-right text-xs font-black text-status-success">{Utils.fmtUSD(d.abonadoUSD)}</td>
                           <td className="p-4 text-right text-sm font-black text-brand-gold-deep">{Utils.fmtUSD(d.saldoUSD)}</td>
@@ -348,7 +348,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                             </span>
                           </td>
                           <td className="p-4 text-center">
-                             <button onClick={() => setShowDetails(d)} className="text-ink/30 hover:text-brand-gold p-1 transition-colors"><Eye className="w-4 h-4"/></button>
+                             <button onClick={() => setShowDetails(d)} className="text-ink hover:text-brand-gold p-1 transition-colors"><Eye className="w-4 h-4"/></button>
                           </td>
                         </tr>
                       ))}
