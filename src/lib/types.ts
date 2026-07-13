@@ -74,6 +74,11 @@ export interface Sale {
   terminalId?: string;
   cajeroId?: string;
   payments?: PagoRealizado[];
+  // Fiscal fields
+  baseImponibleUSD?: number;
+  ivaUSD?: number;
+  exentoUSD?: number;
+  igtfUSD?: number;
 }
 
 export interface Customer {

@@ -62,7 +62,12 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
       
       printData.push({ type: 'text', value: `VENTAS BRUTAS: ${formatBs(data.brUSD * state.tasa)}`, style: { fontSize: "12px", fontWeight: "700" } });
       printData.push({ type: 'text', value: `DEVOLUCIONES:  -${formatBs(data.devUSD * state.tasa)}`, style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: `TOTAL NETO:    ${formatBs(data.netUSD * state.tasa)}`, style: { fontSize: "14px", fontWeight: "800" } });
+      printData.push({ type: 'text', value: `MONTO EXENTO:   ${formatBs((data.exentoUSD || 0) * state.tasa)}`, style: { fontSize: "11px" } });
+      printData.push({ type: 'text', value: `BASE IMPONIBLE: ${formatBs((data.baseImponibleUSD || 0) * state.tasa)}`, style: { fontSize: "11px" } });
+      printData.push({ type: 'text', value: `IVA RECAUDADO:  ${formatBs((data.ivaUSD || 0) * state.tasa)}`, style: { fontSize: "11px" } });
+      printData.push({ type: 'text', value: `TOTAL IGTF 3%:  ${formatBs((data.igtfUSD || 0) * state.tasa)}`, style: { fontSize: "11px", fontWeight: "700" } });
+      printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
+      printData.push({ type: 'text', value: `TOTAL NETO:    ${formatBs(data.netUSD * state.tasa)}`, style: { fontSize: "14px", fontWeight: "800", textAlign: 'right' } });
     } else {
       printData.push({ type: 'text', value: (data.type || 'RECIBO').toUpperCase(), style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
       printData.push({ type: 'text', value: `N° CONTROL: ${data.id}`, style: { fontSize: "11px", fontWeight: "700" } });
@@ -154,9 +159,10 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                   <div className="flex justify-between font-black text-base border-t border-black pt-2"><span>TOTAL NETO:</span><span>{formatBs(data.netUSD * state.tasa)}</span></div>
                   <div className="pt-2 text-[9px] uppercase space-y-1">
                     <p className="font-black border-b border-dotted pb-1">Desglose Fiscal (Periodo)</p>
-                    <div className="flex justify-between"><span>Base Imponible (16%):</span><span>{formatBs(data.baseImponibleUSD * state.tasa)}</span></div>
-                    <div className="flex justify-between"><span>IVA Recaudado:</span><span>{formatBs(data.ivaUSD * state.tasa)}</span></div>
-                    <div className="flex justify-between font-bold"><span>Total IGTF (3%):</span><span>{formatBs(data.igtfUSD * state.tasa)}</span></div>
+                    <div className="flex justify-between"><span>Monto Exento:</span><span>{formatBs((data.exentoUSD || 0) * state.tasa)}</span></div>
+                    <div className="flex justify-between"><span>Base Imponible (16%):</span><span>{formatBs((data.baseImponibleUSD || 0) * state.tasa)}</span></div>
+                    <div className="flex justify-between"><span>IVA Recaudado:</span><span>{formatBs((data.ivaUSD || 0) * state.tasa)}</span></div>
+                    <div className="flex justify-between font-bold"><span>Total IGTF (3%):</span><span>{formatBs((data.igtfUSD || 0) * state.tasa)}</span></div>
                   </div>
                 </div>
               ) : (

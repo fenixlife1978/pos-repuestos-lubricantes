@@ -96,18 +96,18 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const hoy = Utils.hoy();
     const vHoy = (state.ventas || []).filter(v => v.fecha.startsWith(hoy));
     const dHoy = (state.devoluciones || []).filter(d => d.fecha.startsWith(hoy));
+    
+    // Sumatorias precisas basadas en los datos fiscales persistidos en cada venta
     const brUSD = vHoy.reduce((s, v) => s + v.totalUSD, 0);
     const devUSD = dHoy.reduce((s, d) => s + d.totalUSD, 0);
     const descUSD = vHoy.reduce((s, v) => s + (v.descuentoUSD || 0), 0);
+    
+    const baseImponibleUSD = vHoy.reduce((s, v) => s + (v.baseImponibleUSD || 0), 0);
+    const ivaUSD = vHoy.reduce((s, v) => s + (v.ivaUSD || 0), 0);
+    const exentoUSD = vHoy.reduce((s, v) => s + (v.exentoUSD || 0), 0);
+    const igtfUSD = vHoy.reduce((s, v) => s + (v.igtfUSD || 0), 0);
+
     const netUSD = brUSD - devUSD - descUSD;
-
-    const igtfUSD = vHoy.reduce((s, v) => {
-      const divisaPayments = (v.payments || []).filter(p => p.metodo === 'efectivo_usd' || p.metodo === 'zelle');
-      return s + divisaPayments.reduce((acc, p) => acc + (p.montoUSD * 0.03), 0);
-    }, 0);
-
-    const baseImponibleUSD = netUSD / 1.16;
-    const ivaUSD = netUSD - baseImponibleUSD;
 
     const currentTerminal = state.terminales.find(t => t.usuarioId === auth.currentUser?.uid);
     const terminalName = currentTerminal ? currentTerminal.nombre : 'SISTEMA GLOBAL';
@@ -119,7 +119,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       netUSD, 
       igtfUSD, 
       ivaUSD, 
-      baseImponibleUSD, 
+      baseImponibleUSD,
+      exentoUSD,
       ventasHoy: vHoy, 
       fecha: hoy,
       devolucionesHoy: dHoy,
@@ -235,6 +236,11 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const reciboId = String(nextNum).padStart(9, '0');
     const ahoraStr = Utils.ahora();
     
+    // Cálculo Fiscal Quirúrgico por Producto
+    let vExento = 0;
+    let vBase = 0;
+    let vIVA = 0;
+
     let prodsActualizados = [...state.productos];
     let nuevosMovimientos: Movimiento[] = [];
 
@@ -243,6 +249,15 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       if (pIdx === -1) return;
       const p = { ...prodsActualizados[pIdx] };
       
+      // Cálculo Fiscal
+      if (p.aplicaIVA) {
+        const base = item.subtotalUSD / 1.16;
+        vBase += base;
+        vIVA += (item.subtotalUSD - base);
+      } else {
+        vExento += item.subtotalUSD;
+      }
+
       if (p.isKit && p.kitType === 'stock_componentes' && p.kitItems) {
         p.kitItems.forEach(ki => {
           const cpIdx = prodsActualizados.findIndex(cp => cp.id === ki.productoId);
@@ -283,6 +298,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       }
     });
 
+    const vIgtf = listadoPagos.filter(p => p.metodo === 'efectivo_usd' || p.metodo === 'zelle')
+                  .reduce((acc, p) => acc + (p.montoUSD * 0.03), 0);
+
     const nuevaVenta: Sale = { 
       id: reciboId, 
       fecha: ahoraStr, 
@@ -299,7 +317,12 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       change: Math.max(0, totalPagadoRecibido - subtotalUSD), 
       payments: [...listadoPagos], 
       terminalId: terminal?.id, 
-      cajeroId: auth?.currentUser?.uid 
+      cajeroId: auth?.currentUser?.uid,
+      // Persistencia Fiscal Granular
+      baseImponibleUSD: Utils.round(vBase),
+      ivaUSD: Utils.round(vIVA),
+      exentoUSD: Utils.round(vExento),
+      igtfUSD: Utils.round(vIgtf)
     };
 
     const nuevasEntradasDiario: LibroDiarioEntry[] = listadoPagos.map(p => ({ 
@@ -350,12 +373,26 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const reciboId = String(nextNum).padStart(9, '0');
     const ahoraStr = Utils.ahora();
     
+    // Cálculo Fiscal para Crédito
+    let vExento = 0;
+    let vBase = 0;
+    let vIVA = 0;
+    
     let prodsActualizados = [...state.productos];
     let nuevosMovimientos: Movimiento[] = [];
     state.carrito.forEach(item => {
       const pIdx = prodsActualizados.findIndex(x => x.id === item.productoId);
       if (pIdx === -1) return;
       const p = { ...prodsActualizados[pIdx] };
+      
+      if (p.aplicaIVA) {
+        const base = item.subtotalUSD / 1.16;
+        vBase += base;
+        vIVA += (item.subtotalUSD - base);
+      } else {
+        vExento += item.subtotalUSD;
+      }
+
       if (p.isKit && p.kitType === 'stock_componentes' && p.kitItems) {
         p.kitItems.forEach(ki => {
           const cpIdx = prodsActualizados.findIndex(cp => cp.id === ki.productoId);
@@ -395,7 +432,28 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         prodsActualizados[pIdx] = p;
       }
     });
-    const nuevaVenta: Sale = { id: reciboId, fecha: ahoraStr, cliente: targetClient.name, items: [...state.carrito], subtotalUSD, descuentoUSD: 0, totalUSD: subtotalUSD, totalBS, metodoPago: 'credito', estado: 'completada', type: 'VENTA CRÉDITO', received: 0, change: 0, terminalId: terminal?.id, cajeroId: auth?.currentUser?.uid };
+    const nuevaVenta: Sale = { 
+      id: reciboId, 
+      fecha: ahoraStr, 
+      cliente: targetClient.name, 
+      items: [...state.carrito], 
+      subtotalUSD, 
+      descuentoUSD: 0, 
+      totalUSD: subtotalUSD, 
+      totalBS, 
+      metodoPago: 'credito', 
+      estado: 'completada', 
+      type: 'VENTA CRÉDITO', 
+      received: 0, 
+      change: 0, 
+      terminalId: terminal?.id, 
+      cajeroId: auth?.currentUser?.uid,
+      baseImponibleUSD: Utils.round(vBase),
+      ivaUSD: Utils.round(vIVA),
+      exentoUSD: Utils.round(vExento),
+      igtfUSD: 0 
+    };
+
     const nuevaDeuda: Debt = { id: 'CRD-' + reciboId.slice(-6), fecha: ahoraStr.slice(0, 10), fechaVencimiento: '2099-12-31', cliente: targetClient.name, montoUSD: subtotalUSD, abonadoUSD: 0, saldoUSD: subtotalUSD, estado: 'pendiente', historialPagos: [], ventaId: reciboId };
     const asientoCredito: LibroDiarioEntry = { id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5), fecha: ahoraStr, tipo: 'ingreso', categoria: 'VENTA_CREDITO', concepto: `CRÉDITO #${reciboId} - CLIENTE: ${targetClient.name}`, montoUSD: subtotalUSD, montoBS: totalBS, metodo: 'credito', referencia: reciboId };
     let nuevosClientes = showNewClientForm ? [...(state.clientes || []), { ...targetClient, debt: subtotalUSD }] : (state.clientes || []).map(c => c.id === targetClient!.id ? { ...c, debt: (c.debt || 0) + subtotalUSD } : c);
@@ -503,7 +561,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       hastaFactura: hastaFac,
       baseImponibleUSD: summary.baseImponibleUSD,
       ivaUSD: summary.ivaUSD,
-      exentoUSD: 0,
+      exentoUSD: summary.exentoUSD,
       totalBrutoUSD: summary.brUSD,
       acumuladoHistoricoUSD: state.acumuladoHistorico
     };
