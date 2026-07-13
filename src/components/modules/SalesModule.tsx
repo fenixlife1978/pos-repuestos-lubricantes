@@ -124,9 +124,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       ventasHoy: vHoy, 
       fecha: hoy,
       devolucionesHoy: dHoy,
-      terminalName 
+      terminalName,
+      numeroZ: state.ultimoZ + 1
     };
-  }, [state.ventas, state.devoluciones, state.tasa, state.terminales]);
+  }, [state.ventas, state.devoluciones, state.tasa, state.terminales, state.ultimoZ]);
 
   const groupedCredits = useMemo(() => {
     const groups: Record<string, { totalUSD: number; debts: Debt[] }> = {};

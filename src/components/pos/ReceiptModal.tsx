@@ -45,6 +45,12 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
 
   const customerName = (data.cliente || 'CONSUMIDOR FINAL').toUpperCase();
   const terminalIdLabel = data.terminalName || 'SISTEMA GLOBAL';
+  
+  const getReportTitle = () => {
+    if (type === 'REPORT_Z') return `REPORTE FISCAL Z ${String(data.numeroZ || 0).padStart(4, '0')}`;
+    if (type === 'REPORT_X') return `REPORTE X (LECTURA)`;
+    return (data.type || 'RECIBO').toUpperCase();
+  };
 
   const handleNativePrint = async () => {
     if (!window.electronAPI) {
@@ -63,7 +69,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
     ];
 
     if (isReport) {
-      printData.push({ type: 'text', value: `REPORTE ${type === 'REPORT_X' ? 'X' : 'Z'}`, style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
+      printData.push({ type: 'text', value: getReportTitle(), style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
       printData.push({ type: 'text', value: `TERMINAL: ${terminalIdLabel.toUpperCase()}`, style: { textAlign: 'center', fontWeight: "700", fontSize: "12px" } });
       printData.push({ type: 'text', value: `FECHA: ${transactionDate}`, style: { fontSize: "11px", textAlign: 'center' } });
       printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
@@ -77,7 +83,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
       printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
       printData.push({ type: 'text', value: `TOTAL NETO:    ${formatBs(data.netUSD * state.tasa)}`, style: { fontSize: "14px", fontWeight: "800", textAlign: 'right' } });
     } else {
-      printData.push({ type: 'text', value: (data.type || 'RECIBO').toUpperCase(), style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
+      printData.push({ type: 'text', value: getReportTitle(), style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
       printData.push({ type: 'text', value: `N° CONTROL: ${data.id}`, style: { fontSize: "11px", fontWeight: "700" } });
       printData.push({ type: 'text', value: `FECHA: ${transactionDate}`, style: { fontSize: "11px" } });
       printData.push({ type: 'text', value: `CLIENTE: ${customerName}`, style: { fontSize: "11px" } });
@@ -144,7 +150,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
 
               <div className="text-center mb-4 border-t border-dashed border-black pt-3">
                 <div className="bg-black text-white px-4 py-1 text-[11px] font-black uppercase inline-block mb-1">
-                  {isReport ? `REPORTE ${type === 'REPORT_X' ? 'X' : 'Z'}` : (data.type || 'RECIBO')}
+                  {getReportTitle()}
                 </div>
                 {isReport && (
                   <div className="text-[10px] font-black uppercase flex items-center justify-center gap-1 mt-1">
