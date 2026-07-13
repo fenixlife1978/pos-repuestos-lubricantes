@@ -112,7 +112,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
         </DialogHeader>
 
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200">
-          <div className="bg-[#1A2C4E] p-4 flex justify-between items-center">
+          <div className="bg-black p-4 flex justify-between items-center">
             <h3 className="text-white font-black text-xs flex items-center gap-2 tracking-widest uppercase">
               <Printer size={16} className="text-brand-gold" /> Roccia RC-8002 (80mm)
             </h3>
@@ -217,7 +217,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
           <div className="p-4 bg-white border-t border-gray-100 grid grid-cols-2 gap-3">
             <button onClick={onClose} className="py-3 bg-[#E5E7EB] text-[#374151] font-black text-xs rounded-xl hover:bg-gray-300 transition-all uppercase tracking-widest">Cerrar</button>
             <button className="py-3 bg-[#2ECC71] text-white font-black text-xs rounded-xl hover:bg-green-600 flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm"><Share2 size={14} /> Compartir</button>
-            <button onClick={() => window.print()} className="py-3 bg-[#1A2C4E] text-white font-black text-xs rounded-xl hover:bg-black flex items-center justify-center gap-2 uppercase tracking-widest shadow-md"><Printer size={14} /> Estándar</button>
+            <button onClick={() => window.print()} className="py-3 bg-black text-white font-black text-xs rounded-xl hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-widest shadow-md"><Printer size={14} /> Estándar</button>
             <button onClick={handleNativePrint} className="py-3 bg-[#C8952E] text-black font-black text-xs rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg">
               <Zap size={16} className="fill-current" /> Impresión Roccia
             </button>
