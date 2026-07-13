@@ -33,7 +33,9 @@ import {
   HandCoins,
   Calculator,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
@@ -92,9 +94,27 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Agrupación de deudas por cliente
+  const groupedCredits = useMemo(() => {
+    const groups: Record<string, { totalUSD: number; debts: Debt[] }> = {};
+    state.cxc.filter(c => c.estado !== 'pagada').forEach(debt => {
+      const clientName = debt.cliente || 'DESCONOCIDO';
+      if (!groups[clientName]) {
+        groups[clientName] = { totalUSD: 0, debts: [] };
+      }
+      groups[clientName].totalUSD += debt.saldoUSD;
+      groups[clientName].debts.push(debt);
+    });
+    // Ordenar deudas dentro de cada grupo por fecha ascendente (más antigua primero)
+    Object.keys(groups).forEach(name => {
+      groups[clientName].debts.sort((a, b) => a.fecha.localeCompare(b.fecha));
+    });
+    return groups;
+  }, [state.cxc]);
+
   // Cálculos para el Modal de Abono
   const totalDeudaAbonoUSD = showAbonoModal 
-    ? state.cxc.filter(c => c.cliente === showAbonoModal && c.estado !== 'pagada').reduce((s, c) => s + c.saldoUSD, 0)
+    ? (groupedCredits[showAbonoModal]?.totalUSD || 0)
     : 0;
   const totalAbonadoEnModalUSD = abonoPagos.reduce((s, p) => s + p.montoUSD, 0);
   const deudaRestanteAbonoUSD = Math.max(0, totalDeudaAbonoUSD - totalAbonadoEnModalUSD);
@@ -732,7 +752,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       }
     });
 
-    // GENERAR ASIENTO DE EGRESO POR DEVOLUCIÓN EN EL LIBRO DIARIO
+    // GENERAR ASIENTOS DE EGRESO POR DEVOLUCIÓN EN EL LIBRO DIARIO
     const entradaDevolucion: LibroDiarioEntry = {
       id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
       fecha: ahoraStr,
@@ -757,6 +777,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setReturnView('list'); 
     setSelectedSaleForReturn(null);
   };
+
+  const [expandedClient, setExpandedClient] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-2 h-[calc(100vh-100px)] max-w-7xl mx-auto w-full overflow-hidden">
@@ -883,27 +905,86 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       ) : view === 'credits' ? (
         <div className="card flex-1 bg-white flex flex-col overflow-hidden animate-in slide-in-from-bottom-2 duration-300 rounded-xl">
-          <div className="card-head px-6 py-4 bg-ink border-b border-white/10 flex justify-between items-center"><h3 className="text-white font-black uppercase italic tracking-tighter flex items-center gap-2 text-xs"><ClipboardList className="w-5 h-5 text-brand-gold" /> CONSULTA CRÉDITOS Y COBRANZA</h3><button onClick={() => setView('pos')} className="btn btn-sm bg-white text-ink hover:bg-surface-soft flex items-center gap-2 font-black uppercase text-[10px] rounded-lg border-none px-4"><ArrowLeft className="w-3.5 h-3.5"/> Volver al POS</button></div>
+          <div className="card-head px-6 py-4 bg-ink border-b border-white/10 flex justify-between items-center">
+            <h3 className="text-white font-black uppercase italic tracking-tighter flex items-center gap-2 text-xs">
+              <ClipboardList className="w-5 h-5 text-brand-gold" /> CONSULTA CRÉDITOS POR CLIENTE
+            </h3>
+            <button onClick={() => setView('pos')} className="btn btn-sm bg-white text-ink hover:bg-surface-soft flex items-center gap-2 font-black uppercase text-[10px] rounded-lg border-none px-4"><ArrowLeft className="w-3.5 h-3.5"/> Volver al POS</button>
+          </div>
           <div className="table-wrap flex-1 overflow-y-auto">
-            <table>
-              <thead><tr><th>Emisión</th><th>Vencimiento</th><th>Cliente</th><th className="text-right">Monto USD</th><th className="text-right">Saldo USD</th><th className="text-right">Saldo Bs</th><th className="text-center">Acciones</th></tr></thead>
+            <table className="w-full">
+              <thead>
+                <tr className="bg-surface-soft">
+                  <th className="px-6 py-3"></th>
+                  <th className="text-ink font-black text-[10px] uppercase">Cliente / Empresa</th>
+                  <th className="text-ink font-black text-[10px] uppercase text-right">Facturas Pend.</th>
+                  <th className="text-ink font-black text-[10px] uppercase text-right">Deuda Total USD</th>
+                  <th className="text-ink font-black text-[10px] uppercase text-right">Deuda Total BS</th>
+                  <th className="text-ink font-black text-[10px] uppercase text-center">Acciones</th>
+                </tr>
+              </thead>
               <tbody>
-                {state.cxc.filter(c => c.estado !== 'pagada').map(c => (
-                  <tr key={c.id} className="border-b border-line/40 hover:bg-surface-warm/20">
-                    <td className="text-ink font-bold text-xs">{Utils.fmtFecha(c.fecha)}</td>
-                    <td className={`text-xs font-bold ${c.fechaVencimiento < Utils.hoy() && c.estado !== 'pagada' ? 'text-status-danger' : 'text-ink'}`}>{c.fechaVencimiento === '2099-12-31' ? 'ABIERTA' : Utils.fmtFecha(c.fechaVencimiento)}</td>
-                    <td className="text-ink font-black text-xs uppercase">{c.cliente}</td>
-                    <td className="text-ink font-bold text-xs text-right">{Utils.fmtUSD(c.montoUSD)}</td>
-                    <td className="text-status-info font-black text-xs text-right">{Utils.fmtUSD(c.saldoUSD)}</td>
-                    <td className="text-ink font-bold text-xs text-right">{Utils.fmtBS(c.saldoUSD * state.tasa)}</td>
-                    <td className="text-center">
-                      <div className="flex justify-center gap-2">
-                        <button onClick={() => setShowDetailsModal(c)} className="btn-icon h-8 w-8 text-ink hover:text-brand-gold" title="Ver Historial Detallado"><Eye className="w-4 h-4"/></button>
-                        <button onClick={() => { setShowAbonoModal(c.cliente || null); setAbonoPagos([]); }} className="btn btn-sm btn-primary font-black text-[9px] uppercase px-4">Abonar</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {Object.entries(groupedCredits).length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-24 text-ink/20 font-black italic uppercase">No hay cuentas por cobrar pendientes</td></tr>
+                ) : (
+                  Object.entries(groupedCredits).map(([clientName, group]) => (
+                    <React.Fragment key={clientName}>
+                      <tr className="border-b border-line hover:bg-surface-warm/20 transition-colors">
+                        <td className="px-6 py-4">
+                           <button onClick={() => setExpandedClient(expandedClient === clientName ? null : clientName)} className="text-brand-gold hover:scale-110 transition-transform">
+                              {expandedClient === clientName ? <ChevronUp /> : <ChevronDown />}
+                           </button>
+                        </td>
+                        <td className="py-4">
+                           <div className="text-ink font-black text-sm uppercase">{clientName}</div>
+                           <div className="text-[10px] text-ink/40 font-bold uppercase tracking-widest">Cartera de Cliente</div>
+                        </td>
+                        <td className="text-right py-4 font-black text-ink">{group.debts.length} Docs.</td>
+                        <td className="text-right py-4 font-black text-status-info text-base">{Utils.fmtUSD(group.totalUSD)}</td>
+                        <td className="text-right py-4 font-bold text-ink/60">{Utils.fmtBS(group.totalUSD * state.tasa)}</td>
+                        <td className="text-center py-4">
+                           <button onClick={() => { setShowAbonoModal(clientName); setAbonoPagos([]); }} className="btn btn-primary h-9 px-6 font-black uppercase text-[10px] shadow-lg flex items-center gap-2 mx-auto">
+                             <HandCoins className="w-4 h-4" /> Abonar Todo
+                           </button>
+                        </td>
+                      </tr>
+                      {expandedClient === clientName && (
+                        <tr className="bg-surface-soft/40 animate-in slide-in-from-top-1 duration-200">
+                           <td colSpan={6} className="px-12 py-4">
+                              <div className="card border-line bg-white shadow-inner rounded-xl overflow-hidden">
+                                 <table className="w-full">
+                                    <thead className="bg-ink/5">
+                                       <tr>
+                                          <th className="text-[9px] font-black uppercase p-2 text-left">Emisión</th>
+                                          <th className="text-[9px] font-black uppercase p-2 text-left">Vencimiento</th>
+                                          <th className="text-[9px] font-black uppercase p-2 text-left">ID Factura</th>
+                                          <th className="text-[9px] font-black uppercase p-2 text-right">Saldo USD</th>
+                                          <th className="text-[9px] font-black uppercase p-2 text-center">Auditoría</th>
+                                       </tr>
+                                    </thead>
+                                    <tbody>
+                                       {group.debts.map(d => (
+                                          <tr key={d.id} className="border-b border-line/20 hover:bg-brand-gold-soft/10">
+                                             <td className="text-[10px] font-bold p-2">{Utils.fmtFecha(d.fecha)}</td>
+                                             <td className={`text-[10px] font-bold p-2 ${d.fechaVencimiento < Utils.hoy() ? 'text-status-danger' : 'text-ink/60'}`}>
+                                                {d.fechaVencimiento === '2099-12-31' ? 'ABIERTA' : Utils.fmtFecha(d.fechaVencimiento)}
+                                             </td>
+                                             <td className="text-[10px] font-black p-2 mono opacity-60">{d.id}</td>
+                                             <td className="text-[10px] font-black p-2 text-right text-brand-gold-deep">{Utils.fmtUSD(d.saldoUSD)}</td>
+                                             <td className="p-2 text-center">
+                                                <button onClick={() => setShowDetailsModal(d)} className="text-ink/30 hover:text-brand-gold p-1 transition-colors"><Eye className="w-3.5 h-3.5"/></button>
+                                             </td>
+                                          </tr>
+                                       ))}
+                                    </tbody>
+                                 </table>
+                              </div>
+                           </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -1170,7 +1251,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             </div>
             <div className="modal-body p-8 space-y-6">
               <div className="bg-surface-soft p-8 rounded-[20px] text-center border border-line shadow-inner">
-                <p className="text-ink/40 text-[9px] font-black uppercase tracking-[0.2em] mb-2">DEUDA PENDIENTE</p>
+                <p className="text-ink/40 text-[9px] font-black uppercase tracking-[0.2em] mb-2">DEUDA PENDIENTE TOTAL</p>
                 <p className="text-5xl font-black text-status-info tracking-tighter">
                   {Utils.fmtUSD(totalDeudaAbonoUSD - totalAbonadoEnModalUSD)}
                 </p>
@@ -1212,7 +1293,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 onClick={procesarAbonoCascada} 
                 disabled={abonoPagos.length === 0}
               >
-                CONFIRMAR COBRO
+                CONFIRMAR COBRO Y LIQUIDAR EN CASCADA
               </button>
             </div>
           </div>
