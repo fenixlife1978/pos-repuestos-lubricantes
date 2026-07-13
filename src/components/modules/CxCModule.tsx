@@ -21,7 +21,8 @@ import {
   ChevronUp,
   User,
   Contact,
-  Receipt
+  Receipt,
+  BookOpen
 } from 'lucide-react';
 import { exportarPDFCxC } from '@/lib/pdf-generator';
 
@@ -42,7 +43,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
   const pendientes = state.cxc.filter(x => x.estado !== 'pagada');
   const totalPendiente = pendientes.reduce((s, x) => s + x.saldoUSD, 0);
 
-  // Agrupación de deudas por cliente (mismo algoritmo que en POS)
+  // Agrupación de deudas por cliente
   const groupedCredits = useMemo(() => {
     const groups: Record<string, { totalUSD: number; debts: Debt[] }> = {};
     pendientes.forEach(debt => {
@@ -118,7 +119,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
            <div className="p-3 bg-ink text-brand-gold rounded-xl"><ClipboardList /></div>
            <div>
               <div className="text-ink text-[10px] font-black uppercase mb-0.5 opacity-60">Clientes con Deuda</div>
-              <div className="text-3xl font-black text-ink">{Object.keys(groupedCredits).length}</div>
+              <div className="text-3xl font-black text-ink">{Object.entries(groupedCredits).length}</div>
            </div>
         </div>
         <div className="kpi bg-white border-line shadow-md p-6 rounded-2xl border-l-[6px] border-l-status-danger">
@@ -163,16 +164,16 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                          <div className="text-[10px] text-ink/40 font-bold uppercase tracking-widest">Saldo Pendiente</div>
                       </td>
                       <td className="text-right py-4 font-black text-ink">{group.debts.length} Facturas</td>
-                      <td className="text-right py-4 font-black text-status-danger text-base">{Utils.fmtUSD(group.totalUSD)}</td>
+                      <td className="text-right py-4 font-black text-status-info text-base">{Utils.fmtUSD(group.totalUSD)}</td>
                       <td className="text-right py-4 font-bold text-ink/60">{Utils.fmtBS(group.totalUSD * state.tasa)}</td>
                       <td className="text-center py-4">
                          <div className="flex items-center justify-center gap-2">
                            <button 
                               onClick={() => setShowClientHistory(clientName)} 
-                              className="btn h-9 w-9 p-0 flex items-center justify-center shadow-sm bg-brand-gold-soft text-brand-gold-deep border border-brand-gold/30 hover:bg-brand-gold hover:text-white transition-all"
+                              className="btn h-9 w-9 p-0 flex items-center justify-center shadow-sm bg-status-info-soft text-status-info border border-status-info/30 hover:bg-status-info hover:text-white transition-all"
                               title="Consultar Historial Maestro"
                            >
-                              <User className="w-4 h-4" />
+                              <BookOpen className="w-4 h-4" />
                            </button>
                          </div>
                       </td>
@@ -222,7 +223,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
         </div>
       </div>
 
-      {/* MODAL DETALLES AVANZADOS (MISMA LÓGICA QUE POS) */}
+      {/* MODAL DETALLES AVANZADOS */}
       {showDetails && (
         <div className="modal show" style={{ zIndex: 100 }}><div className="modal-bg" onClick={() => setShowDetails(null)}></div>
           <div className="modal-box max-w-[600px] bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl">
@@ -309,7 +310,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
         </div>
       )}
 
-      {/* MODAL HISTORIAL COMPLETO DE CLIENTE (MISMA LÓGICA QUE POS) */}
+      {/* MODAL HISTORIAL COMPLETO DE CLIENTE */}
       {showClientHistory && (
         <div className="modal show"><div className="modal-bg" onClick={() => setShowClientHistory(null)}></div>
           <div className={`modal-box max-w-4xl bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl transition-all duration-500 ease-in-out ${showDetails ? 'scale-[0.85] opacity-40 -translate-y-48 blur-[1px] pointer-events-none' : ''}`}>

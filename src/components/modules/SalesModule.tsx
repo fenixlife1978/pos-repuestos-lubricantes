@@ -36,7 +36,8 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
-  Contact
+  Contact,
+  BookOpen
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
@@ -108,6 +109,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       groups[name].debts.push(debt);
     });
     
+    // Ordenar deudas dentro de cada grupo por fecha ascendente (más antigua primero)
     Object.keys(groups).forEach(name => {
       groups[name].debts.sort((a, b) => a.fecha.localeCompare(b.fecha));
     });
@@ -948,16 +950,16 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                            <div className="flex items-center justify-center gap-2">
                              <button 
                                 onClick={() => setShowClientHistory(clientName)} 
-                                className="btn h-9 w-9 p-0 flex items-center justify-center shadow-sm bg-brand-gold-soft text-brand-gold-deep border border-brand-gold/30 hover:bg-brand-gold hover:text-white transition-all"
+                                className="btn h-9 w-9 p-0 flex items-center justify-center shadow-sm bg-status-info-soft text-status-info border border-status-info/30 hover:bg-status-info hover:text-white transition-all"
                                 title="Consultar Historial Completo"
                              >
-                                <User className="w-4 h-4" />
+                                <BookOpen className="w-4 h-4" />
                              </button>
                              <button 
                                 onClick={() => { setShowAbonoModal(clientName); setAbonoPagos([]); }} 
                                 className="btn btn-primary h-9 px-6 font-black uppercase text-[10px] shadow-lg flex items-center gap-2"
                              >
-                               <HandCoins className="w-4 h-4" /> Abonar Todo
+                               <HandCoins className="w-4 h-4" /> ABONAR TODO
                              </button>
                            </div>
                         </td>
