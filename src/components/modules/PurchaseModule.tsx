@@ -175,7 +175,8 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
         stockAntes: p?.stock || 0,
         stockDespues: (p?.stock || 0) + item.cantidad,
         fecha: ahoraStr,
-        referencia: `COMPRA FACT: ${numeroFactura} - PROV: ${proveedor}`
+        referencia: `COMPRA FACT: ${numeroFactura} - PROV: ${proveedor}`,
+        terminalId: 'ADMIN'
       };
     });
 
@@ -197,6 +198,15 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
 
     const nuevasCxP = [...state.cxp];
     if (saldoPendienteUSD > 0.0001) {
+      // Registrar abono inicial si existe en el historial de la deuda
+      const initialHistory = pMontoPagadoUSD > 0.0001 ? [{
+        fecha: ahoraStr,
+        montoUSD: pMontoPagadoUSD,
+        montoBS: pMontoPagadoUSD * tasaActual,
+        metodo: 'efectivo_usd',
+        reciboId: 'INICIAL-CONTADO'
+      }] : [];
+
       const nuevaDeuda: Debt = {
         id: 'CXP-' + Store.uid().slice(0, 6).toUpperCase(),
         fecha: fecha,
@@ -206,10 +216,10 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
         montoUSD: totalUSD,
         abonadoUSD: pMontoPagadoUSD,
         saldoUSD: saldoPendienteUSD,
-        estado: Math.abs(saldoPendienteUSD - totalUSD) < 0.0001 ? 'pendiente' : 'parcial',
+        estado: pMontoPagadoUSD > 0.0001 ? 'parcial' : 'pendiente',
         items: [...loteTemporal],
         numeroFactura: numeroFactura,
-        historialPagos: []
+        historialPagos: initialHistory
       };
       nuevasCxP.push(nuevaDeuda);
     }
