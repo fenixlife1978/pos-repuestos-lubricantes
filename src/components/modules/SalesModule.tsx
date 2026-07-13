@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -58,7 +57,7 @@ declare global {
 export default function SalesModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'pos' | 'history' | 'credits' | 'returns'>('pos');
-  const [showReport, setShowReport] = useState<'X' | 'Z' | null>(null);
+  const [showReportType, setShowReportType] = useState<'REPORT_X' | 'REPORT_Z' | null>(null);
   const [cliente, setCliente] = useState('Consumidor final');
   
   const [pagos, setPagos] = useState<PagoRealizado[]>([]);
@@ -94,6 +93,26 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [nuevaTasa, setNuevaTasa] = useState(state.tasa.toString());
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const summary = useMemo(() => {
+    const hoy = Utils.hoy();
+    const vHoy = (state.ventas || []).filter(v => v.fecha.startsWith(hoy));
+    const dHoy = (state.devoluciones || []).filter(d => d.fecha.startsWith(hoy));
+    const brUSD = vHoy.reduce((s, v) => s + v.totalUSD, 0);
+    const devUSD = dHoy.reduce((s, d) => s + d.totalUSD, 0);
+    const descUSD = vHoy.reduce((s, v) => s + (v.descuentoUSD || 0), 0);
+    const netUSD = brUSD - devUSD - descUSD;
+
+    const igtfUSD = vHoy.reduce((s, v) => {
+      const divisaPayments = (v.payments || []).filter(p => p.metodo === 'efectivo_usd' || p.metodo === 'zelle');
+      return s + divisaPayments.reduce((acc, p) => acc + (p.montoUSD * 0.03), 0);
+    }, 0);
+
+    const baseImponibleUSD = netUSD / 1.16;
+    const ivaUSD = netUSD - baseImponibleUSD;
+
+    return { brUSD, devUSD, descUSD, netUSD, igtfUSD, ivaUSD, baseImponibleUSD, ventasHoy: vHoy, fecha: hoy };
+  }, [state.ventas, state.devoluciones, state.tasa]);
 
   // Lógica de agrupación de deudas
   const groupedCredits = useMemo(() => {
@@ -183,59 +202,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const getCurrentTerminal = () => {
     if (!auth || !auth.currentUser) return null;
     return state.terminales.find(t => t.usuarioId === auth.currentUser!.uid);
-  };
-
-  const guardarNuevaTasa = () => {
-    const n = parseFloat(nuevaTasa);
-    if (isNaN(n) || n <= 0) return alert('Tasa inválida');
-    updateState({ tasa: n });
-    setEditandoTasa(false);
-  };
-
-  const buscarVentaParaDevolucion = () => {
-    const sale = state.ventas.find(v => v.id === returnSaleSearch || v.id.endsWith(returnSaleSearch));
-    if (!sale) return alert('Venta no encontrada');
-    setSelectedSaleForReturn(sale);
-    setReturnItems([]);
-  };
-
-  const handleAddReturnItem = (productoId: string, nombre: string, precioUnitUSD: number, maxQty: number) => {
-    const qtyStr = prompt(`Cantidad a devolver (Máx: ${maxQty}):`, '1');
-    if (qtyStr === null) return;
-    const qty = parseInt(qtyStr);
-    if (isNaN(qty) || qty <= 0 || qty > maxQty) return alert('Cantidad no válida');
-    setReturnItems([...returnItems, {
-      productoId,
-      nombre,
-      cantidad: qty,
-      precioUnitUSD,
-      estadoProducto: 'REINTEGRADO_STOCK'
-    }]);
-  };
-
-  const procesarDevolucionPOS = () => {
-    if (!selectedSaleForReturn || returnItems.length === 0) return;
-    if (!returnReason.trim()) return alert('Indique motivo');
-    const totalDevuelto = returnItems.reduce((s, i) => s + (i.cantidad * i.precioUnitUSD), 0);
-    const idDev = 'DEV-' + String(state.proximaDevolucion).padStart(6, '0');
-    const ahoraStr = Utils.ahora();
-    const nuevaDevolucion: Return = {
-      id: idDev,
-      ventaId: selectedSaleForReturn.id,
-      fecha: ahoraStr,
-      items: [...returnItems],
-      totalUSD: totalDevuelto,
-      metodoReembolso: refundMethod,
-      motivo: returnReason
-    };
-    updateState({
-      devoluciones: [nuevaDevolucion, ...state.devoluciones],
-      proximaDevolucion: state.proximaDevolucion + 1
-    });
-    alert(`Devolución ${idDev} procesada`);
-    setReturnView('list');
-    setSelectedSaleForReturn(null);
-    setReturnItems([]);
   };
 
   const ejecutarVenta = (pagosFinales?: PagoRealizado[]) => {
@@ -328,7 +294,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       referencia: reciboId 
     }));
 
-    // Actualizar contador del terminal si existe
     const nuevosTerminales = state.terminales.map(t => 
       t.id === terminal?.id ? { ...t, proximoRecibo: t.proximoRecibo + 1 } : t
     );
@@ -436,7 +401,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const nextNum = terminal?.proximoRecibo || state.proximoRecibo;
     const reciboId = 'PAY-' + String(nextNum).padStart(6, '0');
     
-    // 1. Actualizar CxC
     const nuevasDeudas = state.cxc.map(d => {
       if (d.id === showAbonoModal.id) {
         const nuevoSaldo = Math.max(0, d.saldoUSD - totalAbonado);
@@ -457,7 +421,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       return d;
     });
 
-    // 2. Libro Diario
     const nuevosAsientos: LibroDiarioEntry[] = pagosAbono.map(p => ({
       id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
       fecha: ahoraStr,
@@ -470,7 +433,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       referencia: reciboId
     }));
 
-    // 3. Crear Sale virtual para el ticket
     const saleAbono: Sale = {
       id: reciboId,
       fecha: ahoraStr,
@@ -504,39 +466,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setShowAbonoModal(null);
   };
 
-  const summary = useMemo(() => {
-    const hoy = Utils.hoy();
-    const vHoy = (state.ventas || []).filter(v => v.fecha.startsWith(hoy));
-    const dHoy = (state.devoluciones || []).filter(d => d.fecha.startsWith(hoy));
-    const brUSD = vHoy.reduce((s, v) => s + v.totalUSD, 0);
-    const devUSD = dHoy.reduce((s, d) => s + d.totalUSD, 0);
-    const descUSD = vHoy.reduce((s, v) => s + (v.descuentoUSD || 0), 0);
-    const netUSD = brUSD - devUSD - descUSD;
-
-    const igtfUSD = vHoy.reduce((s, v) => {
-      const divisaPayments = (v.payments || []).filter(p => p.metodo === 'efectivo_usd' || p.metodo === 'zelle');
-      return s + divisaPayments.reduce((acc, p) => acc + (p.montoUSD * 0.03), 0);
-    }, 0);
-
-    const baseImponibleUSD = netUSD / 1.16;
-    const ivaUSD = netUSD - baseImponibleUSD;
-
-    const b: Record<string, { usd: number, bs: number }> = {};
-    vHoy.forEach(v => {
-      const ps = v.payments && v.payments.length > 0 ? v.payments : [{ metodo: v.metodoPago as PaymentMethod, montoUSD: v.totalUSD, montoBS: v.totalBS }];
-      ps.forEach(p => {
-        if (!b[p.metodo]) b[p.metodo] = { usd: 0, bs: 0 };
-        b[p.metodo].usd += p.montoUSD; b[p.metodo].bs += p.montoBS;
-      });
-    });
-    const hS: Record<string, number> = {};
-    vHoy.forEach(v => {
-      const h = v.fecha.split('T')[1]?.slice(0, 2) + ':00';
-      if (h) hS[h] = (hS[h] || 0) + v.totalUSD;
-    });
-    return { brUSD, devUSD, descUSD, netUSD, igtfUSD, ivaUSD, baseImponibleUSD, breakdown: b, hourly: hS, ventasHoy: vHoy, devolucionesHoy: dHoy };
-  }, [state.ventas, state.devoluciones, state.tasa]);
-
   const ejecutarCierreZ = () => {
     if (summary.ventasHoy.length === 0) return alert("Sin ventas para cerrar hoy.");
     if (!confirm("¿Desea PROCESAR EL CIERRE Z FINAL? Esta acción es irreversible.")) return;
@@ -564,8 +493,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       ultimoZ: numeroZ
     });
 
-    toast({ title: `Reporte Z #${numeroZ} generado`, description: "Cierre de jornada completado con éxito." });
-    setShowReport(null);
+    toast({ title: `Reporte Z #${numeroZ} generado` });
+    setShowReportType(null);
   };
 
   return (
@@ -574,8 +503,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         <button onClick={() => setView('pos')} className={`btn btn-sm ${view === 'pos' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ShoppingCart className="w-3.5 h-3.5"/> Punto de Venta</button>
         <button onClick={() => setView('history')} className={`btn btn-sm ${view === 'history' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><History className="w-3.5 h-3.5"/> Historial</button>
         <button onClick={() => setView('credits')} className={`btn btn-sm ${view === 'credits' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ClipboardList className="w-3.5 h-3.5"/> Consultar Créditos</button>
-        <button onClick={() => setShowReport('X')} className="btn btn-sm bg-white text-ink font-bold border-line border"><FileText className="w-3.5 h-3.5"/> Reporte X</button>
-        <button onClick={() => setShowReport('Z')} className="btn btn-sm bg-white text-ink font-bold border-line border"><Receipt className="w-3.5 h-3.5"/> Reporte Z</button>
+        <button onClick={() => setShowReportType('REPORT_X')} className="btn btn-sm bg-white text-ink font-bold border-line border"><FileText className="w-3.5 h-3.5"/> Reporte X</button>
+        <button onClick={() => setShowReportType('REPORT_Z')} className="btn btn-sm bg-white text-ink font-bold border-line border"><Receipt className="w-3.5 h-3.5"/> Reporte Z</button>
         <button onClick={() => setView('returns')} className={`btn btn-sm ${view === 'returns' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><RotateCcw className="w-3.5 h-3.5"/> Devoluciones</button>
       </div>
 
@@ -604,13 +533,15 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                             {p.stock} <span className="text-[10px] opacity-60">Und.</span>
                           </span>
                        </div>
-                       <div className="flex flex-col items-end min-w-[90px]">
-                          <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Precio USD</span>
-                          <span className="text-lg font-black leading-none text-ink">{Utils.fmtUSD(p.precioUSD)}</span>
-                       </div>
-                       <div className="flex flex-col items-end min-w-[110px]">
-                          <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Equiv. BS</span>
-                          <span className="text-lg font-black leading-none text-brand-gold-deep">{Utils.fmtBS(p.precioUSD * state.tasa)}</span>
+                       <div className="flex items-center gap-2">
+                          <div className="flex flex-col items-end min-w-[90px]">
+                            <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Precio USD</span>
+                            <span className="text-lg font-black leading-none text-ink">{Utils.fmtUSD(p.precioUSD)}</span>
+                          </div>
+                          <div className="flex flex-col items-end min-w-[110px]">
+                            <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Equiv. BS</span>
+                            <span className="text-lg font-black leading-none text-brand-gold-deep">{Utils.fmtBS(p.precioUSD * state.tasa)}</span>
+                          </div>
                        </div>
                     </div>
                   </div>
@@ -969,104 +900,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* MODAL REPORTES X / Z */}
-      {showReport && (
-        <div className="modal show" style={{ zIndex: 500 }}>
-          <div className="modal-bg" onClick={() => setShowReport(null)}></div>
-          <div className="modal-box max-w-sm bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl font-mono text-[10px] leading-tight">
-            <div className="bg-ink p-3 text-white flex justify-between items-center no-print">
-               <h3 className="font-black uppercase text-[11px] tracking-widest">REPORTE {showReport} - CONTROL FISCAL</h3>
-               <button onClick={() => setShowReport(null)}><X className="w-4 h-4 text-white/40 hover:text-white" /></button>
-            </div>
-            <div className="p-8 text-black bg-white space-y-4">
-              <div className="text-center space-y-1">
-                <h4 className="font-black text-xs uppercase">{state.empresa.nombre}</h4>
-                <p>RIF: {state.empresa.rif}</p>
-                <p>{state.empresa.direccion}</p>
-              </div>
-              
-              <div className="border-t border-dashed border-black/30 pt-3 flex justify-between uppercase font-black text-[11px]">
-                <span>REPORTE {showReport}</span>
-                <span>#{showReport === 'Z' ? state.ultimoZ + 1 : '00000'}</span>
-              </div>
-              <div className="flex justify-between uppercase">
-                <span>FECHA:</span>
-                <span>{Utils.hoy()}</span>
-              </div>
-              <div className="flex justify-between uppercase">
-                <span>HORA EMISIÓN:</span>
-                <span>{new Date().toLocaleTimeString()}</span>
-              </div>
-
-              <div className="border-t border-dashed border-black/30 pt-3 space-y-1.5">
-                <div className="flex justify-between font-black uppercase text-xs">
-                  <span>VENTAS BRUTAS</span>
-                  <span>{Utils.fmtUSD(summary.brUSD)}</span>
-                </div>
-                <div className="flex justify-between uppercase">
-                  <span>DEVOLUCIONES</span>
-                  <span className="text-status-danger">-{Utils.fmtUSD(summary.devUSD)}</span>
-                </div>
-                <div className="flex justify-between uppercase">
-                  <span>DESCUENTOS</span>
-                  <span>-{Utils.fmtUSD(summary.descUSD)}</span>
-                </div>
-                <div className="flex justify-between font-black uppercase text-xs border-t border-black/10 pt-1">
-                  <span>TOTAL NETO</span>
-                  <span>{Utils.fmtUSD(summary.netUSD)}</span>
-                </div>
-              </div>
-
-              <div className="border-t border-dashed border-black/30 pt-3 space-y-1.5">
-                 <p className="font-black text-center text-[9px] mb-2 uppercase tracking-widest">RESUMEN IMPUESTOS</p>
-                 <div className="flex justify-between uppercase"><span>BASE IMPONIBLE G (16%)</span><span>{Utils.fmtUSD(summary.baseImponibleUSD)}</span></div>
-                 <div className="flex justify-between uppercase"><span>IVA GENERAL (16%)</span><span>{Utils.fmtUSD(summary.ivaUSD)}</span></div>
-                 <div className="flex justify-between uppercase font-black"><span>TOTAL IGTF (3%)</span><span>{Utils.fmtUSD(summary.igtfUSD)}</span></div>
-              </div>
-
-              <div className="border-t border-dashed border-black/30 pt-3 space-y-1.5">
-                 <p className="font-black text-center text-[9px] mb-2 uppercase tracking-widest">DESGLOSE PAGOS</p>
-                 {Object.entries(summary.breakdown).map(([m, vals]) => (
-                   <div key={m} className="flex justify-between uppercase">
-                      <span>{Utils.metodoLabel(m)}</span>
-                      <span>{Utils.fmtUSD(vals.usd)}</span>
-                   </div>
-                 ))}
-              </div>
-
-              <div className="border-t border-dashed border-black/30 pt-3 text-[9px] space-y-1">
-                <div className="flex justify-between"><span>FACTURAS HOY:</span><span>{summary.ventasHoy.length}</span></div>
-                <div className="flex justify-between"><span>DESDE FACTURA:</span><span>#{summary.ventasHoy[0]?.id || '-'}</span></div>
-                <div className="flex justify-between"><span>HASTA FACTURA:</span><span>#{summary.ventasHoy[summary.ventasHoy.length-1]?.id || '-'}</span></div>
-              </div>
-
-              {showReport === 'Z' && (
-                <div className="pt-6 no-print">
-                   <button 
-                    onClick={ejecutarCierreZ}
-                    className="w-full h-12 bg-black text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-black/90 transition-all flex items-center justify-center gap-2"
-                   >
-                     <Receipt className="w-4 h-4 text-brand-gold" /> PROCESAR CIERRE Z FINAL
-                   </button>
-                   <p className="text-[8px] text-ink/40 text-center mt-3 italic">Esta acción grabará los totales y sumará al acumulado histórico.</p>
-                </div>
-              )}
-
-              {showReport === 'X' && (
-                <div className="pt-4 no-print">
-                   <button 
-                    onClick={() => window.print()}
-                    className="w-full h-10 border-2 border-black text-black rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-black hover:text-white transition-all flex items-center justify-center gap-2"
-                   >
-                     <Printer className="w-4 h-4" /> IMPRIMIR LECTURA X
-                   </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* MODALES DE PAGOS Y CRÉDITOS */}
       {showMultiModal && (
         <FloatingPaymentModal
@@ -1122,7 +955,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                    </div>
                    <div className="relative"><Search className="absolute left-3 top-2.5 w-4 h-4 text-ink opacity-30" /><input className="form-input pl-10 h-10 text-xs font-bold" placeholder="Buscar cliente..." value={clientSearch} onChange={e => setClientSearch(e.target.value)} /></div>
                    <div className="max-h-[160px] overflow-y-auto border border-line rounded-xl bg-gray-50 shadow-inner">
-                     {(filteredClients || []).map(c => (<div key={c.id} onClick={() => setSelectedClient(c)} className={`p-3 border-b border-line/40 cursor-pointer hover:bg-brand-gold/10 transition-all ${selectedClient?.id === c.id ? 'bg-brand-gold-soft border-l-4 border-l-brand-gold' : ''}`}><div className="text-xs font-black text-ink uppercase">{c.name}</div><div className="text-[10px] text-ink/40 mono">{c.cedula}</div></div>))}
+                     {(filteredClients || []).map(c => (<div key={c.id} onClick={() => setSelectedClient(c)} className={`p-3 border-b border-line/40 cursor-pointer hover:bg-brand-gold-soft transition-all ${selectedClient?.id === c.id ? 'bg-brand-gold-soft border-l-4 border-l-brand-gold' : ''}`}><div className="text-xs font-black text-ink uppercase">{c.name}</div><div className="text-[10px] text-ink/40 mono">{c.cedula}</div></div>))}
                      {filteredClients.length === 0 && <div className="p-10 text-center text-[10px] font-black text-ink/20 uppercase">No hay resultados</div>}
                    </div>
                    <div className="flex flex-col gap-2">
@@ -1147,8 +980,22 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {showReceiptModal && lastProcessedSale && (
-        <ReceiptModal isOpen={showReceiptModal} onClose={() => setShowReceiptModal(false)} sale={{ ...lastProcessedSale, date: lastProcessedSale.fecha || lastProcessedSale.date, customerName: lastProcessedSale.cliente || lastProcessedSale.customerName, paymentMethod: Utils.metodoLabel(lastProcessedSale.metodoPago || lastProcessedSale.paymentMethod), items: (lastProcessedSale.items || []).map((it: any) => ({ ...it, name: it.nombre, qty: it.cantidad || it.qty, price: it.precioUnitUSD || it.price })), type: lastProcessedSale.type || (lastProcessedSale.metodoPago !== 'credito' ? 'CONTADO' : 'CRÉDITO') }} />
+      {showReceiptModal && (
+        <ReceiptModal 
+          isOpen={showReceiptModal} 
+          onClose={() => { setShowReceiptModal(false); setLastProcessedSale(null); }} 
+          sale={lastProcessedSale} 
+          type="SALE"
+        />
+      )}
+
+      {showReportType && (
+        <ReceiptModal 
+          isOpen={!!showReportType} 
+          onClose={() => { setShowReportType(null); if (showReportType === 'REPORT_Z') ejecutarCierreZ(); }} 
+          reportData={summary} 
+          type={showReportType}
+        />
       )}
     </div>
   );
