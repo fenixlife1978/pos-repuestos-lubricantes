@@ -76,6 +76,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
   const handleNativePrint = async () => {
     if (!window.electronAPI) {
       window.print();
+      if (isReport) setTimeout(onClose, 500);
       return;
     }
 
@@ -134,9 +135,15 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
 
     try {
       await window.electronAPI.printTicket(printData);
+      if (isReport) setTimeout(onClose, 500); // Auto-cierre quirúrgico
     } catch (e) {
       window.print();
     }
+  };
+
+  const handlePrint = () => {
+    window.print();
+    if (isReport) setTimeout(onClose, 500); // Auto-cierre quirúrgico
   };
 
   return (
@@ -274,7 +281,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
               <button className="py-3 bg-[#2ECC71] text-white font-black text-xs rounded-xl hover:bg-green-600 flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm"><Share2 size={14} /> Compartir</button>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => window.print()} className="py-3 bg-black text-white font-black text-xs rounded-xl hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-widest shadow-md"><Printer size={14} /> Estándar</button>
+              <button onClick={handlePrint} className="py-3 bg-black text-white font-black text-xs rounded-xl hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-widest shadow-md"><Printer size={14} /> Estándar</button>
               <button onClick={handleNativePrint} className="py-3 bg-[#C8952E] text-black font-black text-xs rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg">
                 <Zap size={16} className="fill-current" /> Impresión Roccia
               </button>

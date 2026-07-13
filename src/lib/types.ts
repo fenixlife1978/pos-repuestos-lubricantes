@@ -192,6 +192,7 @@ export interface AppState {
   proximoRecibo: number;
   proximaDevolucion: number;
   acumuladoHistorico: number;
+  fechaUltimoZ?: string;
   empresa: {
     nombre: string;
     rif: string;

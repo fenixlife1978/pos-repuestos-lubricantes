@@ -85,8 +85,13 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   // Función para obtener un resumen fresco al momento de solicitar un reporte
   const getFreshReportData = () => {
     const hoy = Utils.hoy();
-    const vHoy = (state.ventas || []).filter(v => v.fecha.startsWith(hoy));
-    const dHoy = (state.devoluciones || []).filter(d => d.fecha.startsWith(hoy));
+    // Filtramos quirúrgicamente las ventas desde el último cierre Z del día de hoy
+    const vHoy = (state.ventas || []).filter(v => 
+      v.fecha.startsWith(hoy) && v.fecha > (state.fechaUltimoZ || '')
+    );
+    const dHoy = (state.devoluciones || []).filter(d => 
+      d.fecha.startsWith(hoy) && d.fecha > (state.fechaUltimoZ || '')
+    );
     
     const brUSD = vHoy.reduce((s, v) => s + v.totalUSD, 0);
     const devUSD = dHoy.reduce((s, d) => s + d.totalUSD, 0);
@@ -354,9 +359,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   const ejecutarCierreZ = () => {
     const data = reportSnapshot;
-    if (!data || data.ventasHoy.length === 0) return alert("Sin ventas para cerrar hoy.");
-    if (!confirm("¿Desea PROCESAR EL CIERRE Z FINAL? Esta acción es irreversible.")) return;
-
+    if (!data || data.ventasHoy.length === 0) return;
+    
+    // Al procesar el Z, establecemos la fecha de corte para el próximo reporte
     const ahora = Utils.ahora();
     const numeroZ = state.ultimoZ + 1;
     const desdeFac = data.ventasHoy[0]?.id || '0';
@@ -377,10 +382,11 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
     updateState({
       reportesZ: [...(state.reportesZ || []), nuevoZ],
-      ultimoZ: numeroZ
+      ultimoZ: numeroZ,
+      fechaUltimoZ: ahora // Corte quirúrgico para limpiar el próximo reporte
     });
 
-    toast({ title: `Reporte Z #${numeroZ} generado.` });
+    toast({ title: `Reporte Z #${numeroZ} generado.`, description: "Acumulados diarios reiniciados." });
     setShowReportType(null);
   };
 
@@ -838,7 +844,10 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       {showReportType && reportSnapshot && (
         <ReceiptModal 
           isOpen={!!showReportType} 
-          onClose={() => { if (showReportType === 'REPORT_Z') ejecutarCierreZ(); setShowReportType(null); }} 
+          onClose={() => { 
+            if (showReportType === 'REPORT_Z') ejecutarCierreZ(); 
+            setShowReportType(null); 
+          }} 
           reportData={reportSnapshot} 
           type={showReportType}
         />
