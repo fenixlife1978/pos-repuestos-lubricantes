@@ -18,8 +18,8 @@ declare global {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  sale?: any; // Puede ser Sale o datos de Reporte
-  reportData?: any; // Para reportes X/Z
+  sale?: any; 
+  reportData?: any; 
   type?: 'SALE' | 'REPORT_X' | 'REPORT_Z';
 }
 
@@ -36,48 +36,61 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
   const customerName = (data.cliente || 'CONSUMIDOR FINAL').toUpperCase();
   const terminalIdLabel = data.terminalName || 'SISTEMA GLOBAL';
 
-  // ========== LÓGICA DE IMPRESIÓN NATIVA USB (ELECTRON / ROCCIA) ==========
+  // ========== LÓGICA DE IMPRESIÓN NATIVA USB (ROCCIA 80mm) ==========
   const handleNativePrint = async () => {
     if (!window.electronAPI) {
       window.print();
       return;
     }
 
+    // Configuración para 80mm (~48 caracteres)
+    const SEPARATOR = '------------------------------------------------';
+    
     let printData: any[] = [
-      { type: 'text', value: state.empresa.nombre.toUpperCase(), style: { fontWeight: "700", textAlign: 'center', fontSize: "18px" } },
-      { type: 'text', value: state.empresa.direccion.toUpperCase(), style: { textAlign: 'center', fontSize: "10px" } },
-      { type: 'text', value: `RIF: ${state.empresa.rif}`, style: { textAlign: 'center', fontSize: "10px" } },
-      { type: 'text', value: `TEL: ${state.empresa.telefono}`, style: { textAlign: 'center', fontSize: "10px" } },
-      { type: 'text', value: '--------------------------------', style: { textAlign: 'center' } }
+      { type: 'text', value: state.empresa.nombre.toUpperCase(), style: { fontWeight: "800", textAlign: 'center', fontSize: "20px" } },
+      { type: 'text', value: state.empresa.direccion.toUpperCase(), style: { textAlign: 'center', fontSize: "11px" } },
+      { type: 'text', value: `RIF: ${state.empresa.rif}`, style: { textAlign: 'center', fontSize: "11px" } },
+      { type: 'text', value: `TEL: ${state.empresa.telefono}`, style: { textAlign: 'center', fontSize: "11px" } },
+      { type: 'text', value: SEPARATOR, style: { textAlign: 'center' } }
     ];
 
     if (isReport) {
-      printData.push({ type: 'text', value: `REPORTE ${type === 'REPORT_X' ? 'X' : 'Z'}`, style: { textAlign: 'center', fontWeight: "700", fontSize: "14px" } });
-      printData.push({ type: 'text', value: `TERMINAL: ${terminalIdLabel.toUpperCase()}`, style: { textAlign: 'center', fontWeight: "700", fontSize: "11px" } });
-      printData.push({ type: 'text', value: `FECHA: ${transactionDate}`, style: { fontSize: "10px" } });
-      printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-      printData.push({ type: 'text', value: `VENTAS BRUTAS: ${formatBs(data.brUSD * state.tasa)}`, style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: `TOTAL NETO: ${formatBs(data.netUSD * state.tasa)}`, style: { fontSize: "12px", fontWeight: "700" } });
+      printData.push({ type: 'text', value: `REPORTE ${type === 'REPORT_X' ? 'X' : 'Z'}`, style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
+      printData.push({ type: 'text', value: `TERMINAL: ${terminalIdLabel.toUpperCase()}`, style: { textAlign: 'center', fontWeight: "700", fontSize: "12px" } });
+      printData.push({ type: 'text', value: `FECHA: ${transactionDate}`, style: { fontSize: "11px", textAlign: 'center' } });
+      printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
+      
+      printData.push({ type: 'text', value: `VENTAS BRUTAS: ${formatBs(data.brUSD * state.tasa)}`, style: { fontSize: "12px", fontWeight: "700" } });
+      printData.push({ type: 'text', value: `DEVOLUCIONES:  -${formatBs(data.devUSD * state.tasa)}`, style: { fontSize: "11px" } });
+      printData.push({ type: 'text', value: `TOTAL NETO:    ${formatBs(data.netUSD * state.tasa)}`, style: { fontSize: "14px", fontWeight: "800" } });
     } else {
-      printData.push({ type: 'text', value: (data.type || 'RECIBO').toUpperCase(), style: { textAlign: 'center', fontWeight: "700", fontSize: "14px" } });
-      printData.push({ type: 'text', value: `N° CONTROL: ${data.id}`, style: { fontSize: "10px" } });
-      printData.push({ type: 'text', value: `FECHA: ${transactionDate}`, style: { fontSize: "10px" } });
-      printData.push({ type: 'text', value: `CLIENTE: ${customerName}`, style: { fontSize: "10px" } });
-      printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
+      printData.push({ type: 'text', value: (data.type || 'RECIBO').toUpperCase(), style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
+      printData.push({ type: 'text', value: `N° CONTROL: ${data.id}`, style: { fontSize: "11px", fontWeight: "700" } });
+      printData.push({ type: 'text', value: `FECHA: ${transactionDate}`, style: { fontSize: "11px" } });
+      printData.push({ type: 'text', value: `CLIENTE: ${customerName}`, style: { fontSize: "11px" } });
+      printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
 
       data.items.forEach((item: any) => {
-        printData.push({ type: 'text', value: `${item.cantidad}x ${item.nombre.toUpperCase().slice(0, 20)}`, style: { fontWeight: "700", fontSize: "10px" } });
-        printData.push({ type: 'text', value: `    Total: ${formatBs(item.subtotalUSD * state.tasa)}`, style: { fontSize: "10px" } });
+        printData.push({ 
+          type: 'text', 
+          value: `${item.cantidad || item.qty}x ${(item.nombre || item.name).toUpperCase().slice(0, 30)}`, 
+          style: { fontWeight: "700", fontSize: "11px" } 
+        });
+        printData.push({ 
+          type: 'text', 
+          value: `      Subtotal: ${formatBs((item.subtotalUSD || (item.price * item.qty)) * state.tasa)}`, 
+          style: { fontSize: "10px", textAlign: 'left' } 
+        });
       });
 
-      printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-      printData.push({ type: 'text', value: `TOTAL A PAGAR: ${formatBs(data.totalBS)}`, style: { textAlign: 'right', fontWeight: "700", fontSize: "15px" } });
-      printData.push({ type: 'text', value: `REF. DIVISAS: ${formatUsd(data.totalUSD)}`, style: { textAlign: 'right', fontSize: "11px" } });
+      printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
+      printData.push({ type: 'text', value: `TOTAL A PAGAR: ${formatBs(data.totalBS)}`, style: { textAlign: 'right', fontWeight: "800", fontSize: "18px" } });
+      printData.push({ type: 'text', value: `REF. DIVISAS: ${formatUsd(data.totalUSD)}`, style: { textAlign: 'right', fontSize: "12px" } });
     }
 
-    printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-    printData.push({ type: 'text', value: '¡GRACIAS POR SU PREFERENCIA!', style: { textAlign: 'center', fontWeight: "700", fontSize: "11px" } });
-    printData.push({ type: 'text', value: 'PosVEN Pro Cloud Sync v2.5', style: { textAlign: 'center', fontSize: "8px" } });
+    printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
+    printData.push({ type: 'text', value: '¡GRACIAS POR SU PREFERENCIA!', style: { textAlign: 'center', fontWeight: "700", fontSize: "12px" } });
+    printData.push({ type: 'text', value: 'PosVEN Pro Cloud Sync v2.5\n\n\n', style: { textAlign: 'center', fontSize: "9px" } });
 
     try {
       await window.electronAPI.printTicket(printData);
@@ -90,21 +103,19 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[420px] p-0 bg-transparent border-none overflow-hidden shadow-none">
         <DialogHeader className="sr-only">
-          <DialogTitle>Vista Previa de Impresión</DialogTitle>
+          <DialogTitle>Vista Previa de Impresión 80mm</DialogTitle>
         </DialogHeader>
 
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200">
-          {/* Header Modal - Navy Blue */}
           <div className="bg-[#1A2C4E] p-4 flex justify-between items-center">
             <h3 className="text-white font-black text-xs flex items-center gap-2 tracking-widest uppercase">
-              <Printer size={16} className="text-brand-gold" /> Vista Previa del Recibo
+              <Printer size={16} className="text-brand-gold" /> Roccia RC-8002 (80mm)
             </h3>
             <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
               <X size={20} />
             </button>
           </div>
 
-          {/* Area del Recibo con Scroll Vertical */}
           <div className="p-6 bg-gray-100 flex justify-center max-h-[70vh] overflow-y-auto custom-scrollbar">
             <div 
               ref={printRef}
@@ -142,7 +153,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                   <div className="flex justify-between"><span>DESCUENTOS:</span><span>-{formatBs(data.descUSD * state.tasa)}</span></div>
                   <div className="flex justify-between font-black text-base border-t border-black pt-2"><span>TOTAL NETO:</span><span>{formatBs(data.netUSD * state.tasa)}</span></div>
                   <div className="pt-2 text-[9px] uppercase space-y-1">
-                    <p className="font-black border-b border-dotted pb-1">Desglose de Impuestos</p>
+                    <p className="font-black border-b border-dotted pb-1">Desglose Fiscal (Periodo)</p>
                     <div className="flex justify-between"><span>Base Imponible (16%):</span><span>{formatBs(data.baseImponibleUSD * state.tasa)}</span></div>
                     <div className="flex justify-between"><span>IVA Recaudado:</span><span>{formatBs(data.ivaUSD * state.tasa)}</span></div>
                     <div className="flex justify-between font-bold"><span>Total IGTF (3%):</span><span>{formatBs(data.igtfUSD * state.tasa)}</span></div>
@@ -186,25 +197,23 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                     <span>REF. DIVISAS:</span>
                     <span>{formatUsd(data.totalUSD)}</span>
                   </div>
-                  <div className="flex justify-between text-[10px] pt-1"><span>MONTO RECIBIDO:</span><span>{formatBs(data.totalBS)}</span></div>
                 </div>
               )}
 
               <div className="text-center mt-5 pt-3 text-[9px] italic border-t border-dotted border-black/30">
                 <p className="font-black uppercase mb-1">¡Gracias por su preferencia!</p>
                 <p>Conserve este ticket como comprobante</p>
-                <p className="mt-3 opacity-50 uppercase font-bold">PosVEN Pro Cloud Sync</p>
+                <p className="mt-3 opacity-50 uppercase font-bold text-[7px]">PosVEN Pro RC-8002 Optimized</p>
               </div>
             </div>
           </div>
 
-          {/* Footer Botones - Estilo imagen */}
           <div className="p-4 bg-white border-t border-gray-100 grid grid-cols-2 gap-3">
             <button onClick={onClose} className="py-3 bg-[#E5E7EB] text-[#374151] font-black text-xs rounded-xl hover:bg-gray-300 transition-all uppercase tracking-widest">Cerrar</button>
             <button className="py-3 bg-[#2ECC71] text-white font-black text-xs rounded-xl hover:bg-green-600 flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm"><Share2 size={14} /> Compartir</button>
             <button onClick={() => window.print()} className="py-3 bg-[#1A2C4E] text-white font-black text-xs rounded-xl hover:bg-black flex items-center justify-center gap-2 uppercase tracking-widest shadow-md"><Printer size={14} /> Estándar</button>
             <button onClick={handleNativePrint} className="py-3 bg-[#C8952E] text-black font-black text-xs rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg">
-              <Zap size={16} className="fill-current" /> Impresión USB
+              <Zap size={16} className="fill-current" /> Impresión Roccia
             </button>
           </div>
         </div>

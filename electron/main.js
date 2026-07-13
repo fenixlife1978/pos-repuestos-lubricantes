@@ -59,78 +59,24 @@ app.on('activate', () => {
   }
 });
 
-// Lógica de Impresión Térmica Roccia RC-8002 Pro
-ipcMain.on('print-ticket', (event, data) => {
+// Lógica de Impresión Térmica Roccia RC-8002 Pro (80mm)
+ipcMain.on('print-ticket', (event, printData) => {
   const options = {
-    preview: false,
-    width: '80mm',
+    preview: false,               
+    width: '80mm',               
     margins: { top: 0, bottom: 0, left: 0, right: 0 },
     printerName: 'Roccia RC-8002', 
     timeOutPerLine: 400,
     silent: true,
   };
 
-  // Si recibimos un array directo lo usamos, si no construimos el reporte
-  const printData = Array.isArray(data) ? data : [
-    {
-      type: 'text',
-      value: data.empresa.nombre.toUpperCase(),
-      style: { fontWeight: '700', textAlign: 'center', fontSize: '18px' }
-    },
-    {
-      type: 'text',
-      value: `RIF: ${data.empresa.rif}\n${data.empresa.direccion}\n${data.empresa.telefono}`,
-      style: { textAlign: 'center', fontSize: '11px', fontWeight: '400' }
-    },
-    { type: 'text', value: '--------------------------------', style: { textAlign: 'center' } },
-    {
-      type: 'text',
-      value: `${data.type || 'RECIBO DE VENTA'}\n#${data.id}`,
-      style: { textAlign: 'center', fontWeight: '700', fontSize: '14px' }
-    },
-    {
-      type: 'text',
-      value: `FECHA: ${data.date}\nCLIENTE: ${data.customerName || 'CONSUMIDOR FINAL'}`,
-      style: { fontSize: '10px', textAlign: 'left' }
-    },
-    { type: 'text', value: '--------------------------------', style: { textAlign: 'center' } }
-  ];
-
-  if (!Array.isArray(data) && data.items) {
-    data.items.forEach(item => {
-      printData.push({
-        type: 'text',
-        value: `${item.qty}x ${item.name.toUpperCase().substring(0, 20)}`,
-        style: { fontWeight: '700', fontSize: '11px' }
-      });
-      printData.push({
-        type: 'text',
-        value: `      Subtotal: Bs. ${item.subtotal.toFixed(2)}`,
-        style: { fontSize: '10px', textAlign: 'left' }
-      });
-    });
-    
-    printData.push({ type: 'text', value: '--------------------------------', style: { textAlign: 'center' } });
-    
-    if (data.totals) {
-      data.totals.forEach(t => {
-        printData.push({
-          type: 'text',
-          value: `${t.label}: ${t.value}`,
-          style: { fontWeight: '700', fontSize: '13px', textAlign: 'right' }
-        });
-      });
-    }
-
-    printData.push({
-      type: 'text',
-      value: '\n¡Gracias por su compra!\nPosVEN Pro Cloud Sync\n',
-      style: { textAlign: 'center', fontSize: '9px', fontStyle: 'italic' }
-    });
-  }
-
+  // El comando de corte (0x1D 0x56 0x41 0x00) es manejado automáticamente 
+  // por la librería PosPrinter al finalizar el array de datos si el driver está correcto.
   PosPrinter.print(printData, options)
+    .then(() => {
+      console.log('Impresión completada en Roccia RC-8002');
+    })
     .catch((error) => {
-      console.error('Error de impresión hardware:', error);
+      console.error('Error de hardware en Roccia:', error);
     });
 });

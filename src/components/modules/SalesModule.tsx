@@ -64,7 +64,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [showMultiModal, setShowMultiModal] = useState(false);
   
   const [showAbonoModal, setShowAbonoModal] = useState<Debt | null>(null);
-  const [abonoPagos, setAbonoPagos] = useState<PagoRealizado[]>([]);
   
   const [showDetailsModal, setShowDetailsModal] = useState<any | null>(null);
   const [lastProcessedSale, setLastProcessedSale] = useState<any | null>(null);
@@ -78,7 +77,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [newClient, setNewClient] = useState({ name: '', cedula: 'V-', phone: '', address: '' });
 
   // Estados de Devolución
-  const [returnView, setReturnView] = useState<'list' | 'create'>('list');
   const [returnSaleSearch, setReturnSaleSearch] = useState('');
   const [selectedSaleForReturn, setSelectedSaleForReturn] = useState<Sale | null>(null);
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
@@ -129,7 +127,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     };
   }, [state.ventas, state.devoluciones, state.tasa, state.terminales]);
 
-  // Lógica de agrupación de deudas
   const groupedCredits = useMemo(() => {
     const groups: Record<string, { totalUSD: number; debts: Debt[] }> = {};
     (state.cxc || []).filter(x => x.estado !== 'pagada').forEach(debt => {
@@ -491,7 +488,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   const ejecutarCierreZ = () => {
     if (summary.ventasHoy.length === 0) return alert("Sin ventas para cerrar hoy.");
-    if (!confirm("¿Desea PROCESAR EL CIERRE Z FINAL? Esta acción es irreversible.")) return;
+    if (!confirm("¿Desea PROCESAR EL CIERRE Z FINAL? Esta acción es irreversible y persistirá los datos fiscales.")) return;
 
     const ahora = Utils.ahora();
     const numeroZ = state.ultimoZ + 1;
@@ -507,7 +504,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       baseImponibleUSD: summary.baseImponibleUSD,
       ivaUSD: summary.ivaUSD,
       exentoUSD: 0,
-      totalBrutoUSD: summary.netUSD,
+      totalBrutoUSD: summary.brUSD,
       acumuladoHistoricoUSD: state.acumuladoHistorico
     };
 
@@ -516,7 +513,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       ultimoZ: numeroZ
     });
 
-    toast({ title: `Reporte Z #${numeroZ} generado` });
+    toast({ title: `Reporte Z #${numeroZ} generado y archivado.` });
     setShowReportType(null);
   };
 
@@ -800,171 +797,43 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-2 duration-300 flex-1 overflow-y-auto">
           <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-line shadow-sm shrink-0">
             <div><h2 className="text-ink font-black uppercase italic tracking-tighter text-lg flex items-center gap-2"><RotateCcw className="text-status-danger w-5 h-5" /> GESTIÓN DE DEVOLUCIONES</h2></div>
-            <div className="flex gap-2"><button onClick={() => setReturnView('list')} className={`btn ${returnView === 'list' ? 'btn-primary' : 'btn-secondary'} h-9 px-6 font-black uppercase text-[10px]`}>Historial</button><button onClick={() => { setReturnView('create'); setSelectedSaleForReturn(null); }} className={`btn ${returnView === 'create' ? 'btn-primary' : 'btn-secondary'} h-9 px-6 font-black uppercase text-[10px]`}>Nueva Devolución</button></div>
+            <div className="flex gap-2"><button onClick={() => setView('pos')} className="btn btn-secondary h-9 px-6 font-black uppercase text-[10px]">Nueva Devolución</button></div>
           </div>
-          {returnView === 'list' ? (
-            <div className="card bg-white border-line shadow-lg overflow-hidden flex flex-col rounded-xl flex-1">
-              <div className="card-head bg-ink border-b border-white/10 px-6 py-4"><h3 className="text-white font-black text-xs uppercase italic tracking-tighter">DEVOLUCIONES DE HOY</h3></div>
-              <div className="table-wrap flex-1 overflow-y-auto">
-                <table>
-                  <thead><tr><th>ID</th><th>Hora</th><th>Venta</th><th>Items</th><th className="text-right">Total</th><th>Reembolso</th></tr></thead>
-                  <tbody>
-                    {summary.devolucionesHoy.map(d => (
-                      <tr key={d.id} className="border-b border-line/40"><td className="text-status-danger font-black text-xs mono">{d.id}</td><td className="text-ink font-bold text-xs">{d.fecha.split('T')[1].slice(0, 8)}</td><td className="text-ink font-black text-xs mono opacity-60">{d.ventaId}</td><td className="text-ink font-bold text-[10px] uppercase">{d.items.length} productos</td><td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(d.totalUSD)}</td><td><span className="badge badge-neutral font-black text-[9px] uppercase">{d.metodoReembolso}</span></td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col flex-1 overflow-hidden">
-              {!selectedSaleForReturn ? (
-                <div className="card p-12 flex-1 flex flex-col items-center justify-center text-center space-y-6 bg-white border-dashed border-2 border-line"><div className="p-5 bg-surface-soft rounded-full"><Search className="w-10 h-10 text-ink/20" /></div><h3 className="text-ink font-black uppercase text-sm">Localizar Venta Original</h3><div className="flex gap-2 w-full sm:max-w-sm"><input className="form-input flex-1 h-11 bg-white border-line text-ink font-black uppercase" placeholder="Ej: 000000024" value={returnSaleSearch} onChange={e => setReturnSaleSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && buscarVentaParaDevolucion()} /><button onClick={buscarVentaParaDevolucion} className="btn btn-primary h-11 px-6 font-black uppercase text-xs">Buscar</button></div></div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-y-auto pr-1">
-                  <div className="lg:col-span-2 flex flex-col gap-4">
-                    <div className="card bg-white border-status-info/30 rounded-xl overflow-hidden shadow-sm"><div className="card-head py-3 px-6 bg-ink border-b border-white/10 flex justify-between"><h3 className="text-white font-black uppercase italic text-[10px]">VENTA: {selectedSaleForReturn.id}</h3><button onClick={() => setSelectedSaleForReturn(null)}><X className="w-4 h-4 text-white"/></button></div><div className="table-wrap"><table><thead><tr className="bg-surface-soft"><th>Producto</th><th className="text-center">Cant</th><th className="text-right">Precio</th><th className="text-center">Acción</th></tr></thead><tbody>{selectedSaleForReturn.items.map((it, idx) => (<tr key={idx} className="border-b border-line/30"><td className="text-ink font-bold text-[11px] uppercase">{it.nombre}</td><td className="text-center text-ink font-black">{it.cantidad}</td><td className="text-right text-ink font-black">{Utils.fmtUSD(it.precioUnitUSD)}</td><td className="text-center"><button onClick={() => handleAddReturnItem(it.productoId, it.nombre, it.precioUnitUSD, it.cantidad)} className="btn btn-sm btn-secondary h-7 px-3 text-[9px] font-black uppercase">Seleccionar</button></td></tr>))}</tbody></table></div></div>
-                    <div className="card bg-white border-line shadow-md rounded-xl overflow-hidden"><div className="card-head py-3 px-6 bg-ink border-b border-white/10"><h3 className="text-white font-black uppercase italic text-[10px]">REINTEGRÓ</h3></div><div className="table-wrap"><table><thead><tr className="bg-surface-soft"><th>Producto</th><th className="text-center">Cant</th><th>Estado</th><th className="text-right">Total</th><th></th></tr></thead><tbody>{returnItems.map((it, idx) => (<tr key={idx} className="border-b border-line/30"><td className="text-ink font-bold text-[11px] uppercase">{it.nombre}</td><td className="text-status-danger font-black text-center">{it.cantidad}</td><td><span className="badge badge-neutral text-[8px] font-black">{it.estadoProducto}</span></td><td className="text-brand-gold-deep font-black text-right">{Utils.fmtUSD(it.cantidad * it.precioUnitUSD)}</td><td className="text-center"><button onClick={() => setReturnItems(returnItems.filter((_,i)=>i!==idx))}><Trash2 className="w-4 h-4 text-ink/20"/></button></td></tr>))}</tbody></table></div></div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="card bg-white border-line shadow-lg rounded-xl overflow-hidden p-5 space-y-5"><div className="bg-surface-soft p-4 rounded-lg text-center border border-line shadow-inner"><p className="text-ink text-[9px] font-black uppercase mb-1">TOTAL REEMBOLSO</p><p className="text-3xl font-black text-status-danger">{Utils.fmtUSD(returnItems.reduce((s, i) => s + (i.cantidad * i.precioUnitUSD), 0))}</p></div><div className="form-group"><label className="text-[10px] font-black uppercase block mb-1">Método</label><select className="form-select h-10 text-xs font-black uppercase" value={refundMethod} onChange={e=>setRefundMethod(e.target.value as any)}><option value="EFECTIVO">Efectivo</option><option value="MISMO_METODO">Reverso</option><option value="CREDITO_TIENDA">Nota Crédito</option></select></div><div className="form-group"><label className="text-[10px] font-black uppercase block mb-1">Motivo</label><textarea className="form-input text-xs min-h-[80px]" value={returnReason} onChange={e=>setReturnReason(e.target.value)}></textarea></div><button disabled={returnItems.length === 0 || !returnReason.trim()} onClick={procesarDevolucionPOS} className="btn btn-primary w-full h-14 font-black uppercase text-xs shadow-xl"><CheckCircle2 className="w-5 h-5 mr-2" /> Finalizar</button></div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* MODAL DETALLES AVANZADOS (AUDITORÍA DE DEUDA) */}
-      {showDetailsModal && (
-        <div className="modal show" style={{ zIndex: 300 }}>
-          <div className="modal-bg" onClick={() => setShowDetailsModal(null)}></div>
-          <div className="modal-box max-w-[600px] bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl">
-            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center text-white">
-              <h3 className="font-black text-xs uppercase italic tracking-tighter flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-brand-gold" /> AUDITORÍA DE DEUDA: {showDetailsModal.id}
-              </h3>
-              <button onClick={() => setShowDetailsModal(null)} className="text-white hover:text-brand-gold"><X className="w-5 h-5"/></button>
-            </div>
-            <div className="modal-body p-6 space-y-6 max-h-[75vh] overflow-y-auto bg-white">
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="p-3 bg-surface-soft rounded-lg border border-line">
-                    <label className="text-[8px] font-black uppercase text-ink block mb-1">Monto Original</label>
-                    <p className="text-lg font-black text-ink leading-none">{Utils.fmtUSD(showDetailsModal.montoUSD)}</p>
-                    <p className="text-[10px] font-bold text-ink/40 mt-1 uppercase italic">{Utils.fmtBS(showDetailsModal.montoUSD * state.tasa)}</p>
-                 </div>
-                 <div className="p-3 bg-brand-gold-soft border border-brand-gold/20 rounded-lg">
-                    <label className="text-[8px] font-black uppercase text-brand-gold-deep block mb-1">Saldo Actual</label>
-                    <p className="text-lg font-black text-brand-gold-deep leading-none">{Utils.fmtUSD(showDetailsModal.saldoUSD)}</p>
-                    <p className="text-[10px] font-bold text-brand-gold-deep/60 mt-1 uppercase italic">{Utils.fmtBS(showDetailsModal.saldoUSD * state.tasa)}</p>
-                 </div>
-              </div>
-
-              {(() => {
-                const sale = state.ventas.find(v => v.id === showDetailsModal.ventaId || v.id === showDetailsModal.id);
-                if (!sale) return null;
-                return (
-                  <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
-                    <h4 className="text-[10px] font-black uppercase text-ink tracking-[0.2em] border-b border-line pb-2">DETALLE DE COMPRA ORIGINAL</h4>
-                    <div className="bg-surface-soft/50 rounded-lg overflow-hidden border border-line/30">
-                       <table className="w-full">
-                          <thead>
-                            <tr className="bg-ink/5">
-                               <th className="text-[8px] font-black uppercase p-2 text-left">Cant</th>
-                               <th className="text-[8px] font-black uppercase p-2 text-left">Descripción</th>
-                               <th className="text-[8px] font-black uppercase p-2 text-right">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(sale.items || []).map((it: any, idx: number) => (
-                              <tr key={idx} className="border-b border-line/20">
-                                 <td className="text-[9px] font-black p-2">{it.cantidad}</td>
-                                 <td className="text-[9px] font-black uppercase p-2 truncate max-w-[180px]">{it.nombre}</td>
-                                 <td className="text-[9px] font-black p-2 text-right">{Utils.fmtUSD(it.subtotalUSD)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                       </table>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div className="space-y-3">
-                 <h4 className="text-[10px] font-black uppercase text-ink tracking-[0.2em] border-b border-line pb-2">HISTORIAL DE ABONOS</h4>
-                 <div className="space-y-2">
-                    {(!showDetailsModal.historialPagos || showDetailsModal.historialPagos.length === 0) ? (
-                      <div className="py-4 text-center text-ink/30 text-[10px] font-black uppercase">Sin abonos registrados</div>
-                    ) : (
-                      showDetailsModal.historialPagos.map((p: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center p-3 bg-surface-soft border border-line rounded-lg">
-                           <div>
-                              <p className="text-[10px] font-black text-ink">{Utils.fmtFecha(p.fecha)}</p>
-                              <p className="text-[8px] font-black text-ink/40 mono">{p.reciboId}</p>
-                           </div>
-                           <div className="text-right">
-                              <p className="text-xs font-black text-status-success">+{Utils.fmtUSD(p.montoUSD)}</p>
-                              <p className="text-[8px] font-black text-ink/40 uppercase">{Utils.metodoLabel(p.metodo)}</p>
-                           </div>
-                        </div>
-                      ))
-                    )}
-                 </div>
-              </div>
+          <div className="card bg-white border-line shadow-lg overflow-hidden flex flex-col rounded-xl flex-1">
+            <div className="card-head bg-ink border-b border-white/10 px-6 py-4"><h3 className="text-white font-black text-xs uppercase italic tracking-tighter">HISTORIAL DE DEVOLUCIONES</h3></div>
+            <div className="table-wrap flex-1 overflow-y-auto">
+              <table>
+                <thead><tr><th>ID</th><th>Fecha</th><th>Venta Ref.</th><th>Items</th><th className="text-right">Total</th><th>Reembolso</th></tr></thead>
+                <tbody>
+                  {state.devoluciones.map(d => (
+                    <tr key={d.id} className="border-b border-line/40"><td className="text-status-danger font-black text-xs mono">{d.id}</td><td className="text-ink font-bold text-xs">{Utils.fmtFecha(d.fecha)}</td><td className="text-ink font-black text-xs mono opacity-60">{d.ventaId}</td><td className="text-ink font-bold text-[10px] uppercase">{d.items.length} productos</td><td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(d.totalUSD)}</td><td><span className="badge badge-neutral font-black text-[9px] uppercase">{d.metodoReembolso}</span></td></tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL HISTORIAL COMPLETO DE CLIENTE */}
-      {showClientHistory && (
-        <div className="modal show" style={{ zIndex: 300 }}>
-          <div className="modal-bg" onClick={() => setShowClientHistory(null)}></div>
-          <div className="modal-box max-w-4xl bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl">
-            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center text-white">
-              <h3 className="font-black uppercase italic tracking-tighter text-xs flex items-center gap-2">
-                <Contact className="w-5 h-5 text-brand-gold" /> ESTADO DE CUENTA: {showClientHistory}
-              </h3>
-              <button onClick={() => setShowClientHistory(null)} className="text-white hover:text-brand-gold"><X className="w-5 h-5"/></button>
-            </div>
-            <div className="modal-body p-0 max-h-[70vh] overflow-y-auto bg-white">
-               <div className="table-wrap">
-                  <table className="w-full">
-                    <thead className="bg-surface-soft sticky top-0 z-10">
-                      <tr>
-                        <th className="text-[9px] font-black uppercase p-4 text-left">Fecha</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-left">Referencia</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-right">Total</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-right">Abonado</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-right">Saldo</th>
-                        <th className="text-[9px] font-black uppercase p-4 text-center">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {state.cxc.filter(d => d.cliente === showClientHistory).sort((a,b) => b.fecha.localeCompare(a.fecha)).map(d => (
-                        <tr key={d.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
-                          <td className="p-4 text-xs font-black">{Utils.fmtFecha(d.fecha)}</td>
-                          <td className="p-4 text-xs font-black mono text-ink/40">{d.id}</td>
-                          <td className="p-4 text-right text-xs font-black">{Utils.fmtUSD(d.montoUSD)}</td>
-                          <td className="p-4 text-right text-xs font-black text-status-success">{Utils.fmtUSD(d.abonadoUSD)}</td>
-                          <td className="p-4 text-right text-sm font-black text-brand-gold-deep">{Utils.fmtUSD(d.saldoUSD)}</td>
-                          <td className="p-4 text-center">
-                            <span className={`badge ${d.estado === 'pagada' ? 'badge-ok' : (d.estado === 'parcial' ? 'badge-info' : 'badge-warn')} font-black text-[8px] uppercase`}>
-                              {d.estado}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-               </div>
-            </div>
-          </div>
-        </div>
+      {/* MODALES REUTILIZABLES */}
+      {showReceiptModal && (
+        <ReceiptModal 
+          isOpen={showReceiptModal} 
+          onClose={() => { setShowReceiptModal(false); setLastProcessedSale(null); }} 
+          sale={lastProcessedSale} 
+          type="SALE"
+        />
       )}
 
-      {/* MODALES DE PAGOS Y CRÉDITOS */}
+      {showReportType && (
+        <ReceiptModal 
+          isOpen={!!showReportType} 
+          onClose={() => { if (showReportType === 'REPORT_Z') ejecutarCierreZ(); setShowReportType(null); }} 
+          reportData={summary} 
+          type={showReportType}
+        />
+      )}
+
       {showMultiModal && (
         <FloatingPaymentModal
           total={totalBS}
@@ -1042,24 +911,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             </div>
           </div>
         </div>
-      )}
-
-      {showReceiptModal && (
-        <ReceiptModal 
-          isOpen={showReceiptModal} 
-          onClose={() => { setShowReceiptModal(false); setLastProcessedSale(null); }} 
-          sale={lastProcessedSale} 
-          type="SALE"
-        />
-      )}
-
-      {showReportType && (
-        <ReceiptModal 
-          isOpen={!!showReportType} 
-          onClose={() => { setShowReportType(null); if (showReportType === 'REPORT_Z') ejecutarCierreZ(); }} 
-          reportData={summary} 
-          type={showReportType}
-        />
       )}
     </div>
   );
