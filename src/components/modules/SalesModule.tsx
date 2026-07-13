@@ -73,6 +73,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [newClient, setNewClient] = useState({ name: '', cedula: 'V-', phone: '', address: '' });
 
+  // Estados de Devolución
+  const [returnView, setReturnView] = useState<'list' | 'create'>('list');
   const [returnSaleSearch, setReturnSaleSearch] = useState('');
   const [selectedSaleForReturn, setSelectedSaleForReturn] = useState<Sale | null>(null);
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
@@ -165,6 +167,53 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     if (isNaN(n) || n <= 0) return alert('Tasa inválida');
     updateState({ tasa: n });
     setEditandoTasa(false);
+  };
+
+  // Funciones de Devolución
+  const buscarVentaParaDevolucion = () => {
+    const sale = state.ventas.find(v => v.id === returnSaleSearch || v.id.endsWith(returnSaleSearch));
+    if (!sale) return alert('Venta no encontrada');
+    setSelectedSaleForReturn(sale);
+    setReturnItems([]);
+  };
+
+  const handleAddReturnItem = (productoId: string, nombre: string, precioUnitUSD: number, maxQty: number) => {
+    const qtyStr = prompt(`Cantidad a devolver (Máx: ${maxQty}):`, '1');
+    if (qtyStr === null) return;
+    const qty = parseInt(qtyStr);
+    if (isNaN(qty) || qty <= 0 || qty > maxQty) return alert('Cantidad no válida');
+    setReturnItems([...returnItems, {
+      productoId,
+      nombre,
+      cantidad: qty,
+      precioUnitUSD,
+      estadoProducto: 'REINTEGRADO_STOCK'
+    }]);
+  };
+
+  const procesarDevolucionPOS = () => {
+    if (!selectedSaleForReturn || returnItems.length === 0) return;
+    if (!returnReason.trim()) return alert('Indique motivo');
+    const totalDevuelto = returnItems.reduce((s, i) => s + (i.cantidad * i.precioUnitUSD), 0);
+    const idDev = 'DEV-' + String(state.proximaDevolucion).padStart(6, '0');
+    const ahoraStr = Utils.ahora();
+    const nuevaDevolucion: Return = {
+      id: idDev,
+      ventaId: selectedSaleForReturn.id,
+      fecha: ahoraStr,
+      items: [...returnItems],
+      totalUSD: totalDevuelto,
+      metodoReembolso: refundMethod,
+      motivo: returnReason
+    };
+    updateState({
+      devoluciones: [nuevaDevolucion, ...state.devoluciones],
+      proximaDevolucion: state.proximaDevolucion + 1
+    });
+    alert(`Devolución ${idDev} procesada`);
+    setReturnView('list');
+    setSelectedSaleForReturn(null);
+    setReturnItems([]);
   };
 
   const ejecutarVenta = () => {
