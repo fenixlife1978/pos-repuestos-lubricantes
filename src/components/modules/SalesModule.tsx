@@ -35,7 +35,8 @@ import {
   TrendingUp,
   BarChart3,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Contact
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
@@ -69,6 +70,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [showAbonoMultiModal, setShowAbonoMultiModal] = useState(false);
   
   const [showDetailsModal, setShowDetailsModal] = useState<any | null>(null);
+  const [showClientHistory, setShowClientHistory] = useState<string | null>(null);
   
   const [lastProcessedSale, setLastProcessedSale] = useState<any | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
@@ -98,14 +100,14 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const groupedCredits = useMemo(() => {
     const groups: Record<string, { totalUSD: number; debts: Debt[] }> = {};
     state.cxc.filter(c => c.estado !== 'pagada').forEach(debt => {
-      const clientName = debt.cliente || 'DESCONOCIDO';
-      if (!groups[clientName]) {
-        groups[clientName] = { totalUSD: 0, debts: [] };
+      const name = debt.cliente || 'DESCONOCIDO';
+      if (!groups[name]) {
+        groups[name] = { totalUSD: 0, debts: [] };
       }
-      groups[clientName].totalUSD += debt.saldoUSD;
-      groups[clientName].debts.push(debt);
+      groups[name].totalUSD += debt.saldoUSD;
+      groups[name].debts.push(debt);
     });
-    // Ordenar deudas dentro de cada grupo por fecha ascendente (más antigua primero)
+    
     Object.keys(groups).forEach(name => {
       groups[name].debts.sort((a, b) => a.fecha.localeCompare(b.fecha));
     });
@@ -943,9 +945,21 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                         <td className="text-right py-4 font-black text-status-info text-base">{Utils.fmtUSD(group.totalUSD)}</td>
                         <td className="text-right py-4 font-bold text-ink/60">{Utils.fmtBS(group.totalUSD * state.tasa)}</td>
                         <td className="text-center py-4">
-                           <button onClick={() => { setShowAbonoModal(clientName); setAbonoPagos([]); }} className="btn btn-primary h-9 px-6 font-black uppercase text-[10px] shadow-lg flex items-center gap-2 mx-auto">
-                             <HandCoins className="w-4 h-4" /> Abonar Todo
-                           </button>
+                           <div className="flex items-center justify-center gap-2">
+                             <button 
+                                onClick={() => setShowClientHistory(clientName)} 
+                                className="btn btn-secondary h-9 w-9 p-0 flex items-center justify-center shadow-sm"
+                                title="Consultar Historial Completo"
+                             >
+                                <User className="w-4 h-4" />
+                             </button>
+                             <button 
+                                onClick={() => { setShowAbonoModal(clientName); setAbonoPagos([]); }} 
+                                className="btn btn-primary h-9 px-6 font-black uppercase text-[10px] shadow-lg flex items-center gap-2"
+                             >
+                               <HandCoins className="w-4 h-4" /> Abonar Todo
+                             </button>
+                           </div>
                         </td>
                       </tr>
                       {expandedClient === clientName && (
@@ -1236,6 +1250,62 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             </div>
             <div className="modal-foot p-4 bg-surface-soft border-t border-line text-right">
                <button onClick={() => setShowDetailsModal(null)} className="btn btn-primary px-8 font-black uppercase text-[10px] rounded-lg">Cerrar Ficha</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL HISTORIAL COMPLETO DE CLIENTE */}
+      {showClientHistory && (
+        <div className="modal show"><div className="modal-bg" onClick={() => setShowClientHistory(null)}></div>
+          <div className="modal-box max-w-4xl bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl">
+            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center">
+              <h3 className="text-white font-black uppercase italic tracking-tighter text-xs flex items-center gap-2">
+                <Contact className="w-5 h-5 text-brand-gold" /> ESTADO DE CUENTA MAESTRO: {showClientHistory}
+              </h3>
+              <button onClick={() => setShowClientHistory(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="modal-body p-0 max-h-[70vh] overflow-y-auto">
+               <div className="table-wrap">
+                  <table className="w-full">
+                    <thead className="bg-surface-soft sticky top-0 z-10">
+                      <tr>
+                        <th className="text-[9px] font-black uppercase p-4 text-left">Fecha</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-left">ID Documento</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-right">Monto Total</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-right">Abonado</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-right">Saldo Pend.</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-center">Estado</th>
+                        <th className="text-[9px] font-black uppercase p-4 text-center">Auditoría</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {state.cxc.filter(d => d.cliente === showClientHistory).sort((a,b) => b.fecha.localeCompare(a.fecha)).map(d => (
+                        <tr key={d.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
+                          <td className="p-4 text-xs font-bold text-ink">{Utils.fmtFecha(d.fecha)}</td>
+                          <td className="p-4 text-xs font-black mono text-ink/40">{d.id}</td>
+                          <td className="p-4 text-right text-xs font-black text-ink">{Utils.fmtUSD(d.montoUSD)}</td>
+                          <td className="p-4 text-right text-xs font-black text-status-success">{Utils.fmtUSD(d.abonadoUSD)}</td>
+                          <td className="p-4 text-right text-sm font-black text-brand-gold-deep">{Utils.fmtUSD(d.saldoUSD)}</td>
+                          <td className="p-4 text-center">
+                            <span className={`badge ${d.estado === 'pagada' ? 'badge-ok' : (d.estado === 'parcial' ? 'badge-info' : 'badge-warn')} font-black text-[8px] uppercase px-3`}>
+                              {d.estado}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center">
+                             <button onClick={() => setShowDetailsModal(d)} className="text-ink/30 hover:text-brand-gold p-1 transition-colors"><Eye className="w-4 h-4"/></button>
+                          </td>
+                        </tr>
+                      ))}
+                      {state.cxc.filter(d => d.cliente === showClientHistory).length === 0 && (
+                        <tr><td colSpan={7} className="py-20 text-center text-ink/20 font-black uppercase italic">Sin actividad crediticia registrada</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+               </div>
+            </div>
+            <div className="modal-foot p-4 bg-surface-soft border-t border-line text-right">
+               <button onClick={() => setShowClientHistory(null)} className="btn btn-primary px-8 font-black uppercase text-[10px] rounded-lg">Cerrar Historial</button>
             </div>
           </div>
         </div>
