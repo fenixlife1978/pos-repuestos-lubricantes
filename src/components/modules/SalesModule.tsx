@@ -948,7 +948,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                            <div className="flex items-center justify-center gap-2">
                              <button 
                                 onClick={() => setShowClientHistory(clientName)} 
-                                className="btn btn-secondary h-9 w-9 p-0 flex items-center justify-center shadow-sm"
+                                className="btn h-9 w-9 p-0 flex items-center justify-center shadow-sm bg-brand-gold-soft text-brand-gold-deep border border-brand-gold/30 hover:bg-brand-gold hover:text-white transition-all"
                                 title="Consultar Historial Completo"
                              >
                                 <User className="w-4 h-4" />
@@ -1177,7 +1177,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       {showDetailsModal && (
         <div className="modal show" style={{ zIndex: 70 }}><div className="modal-bg" onClick={() => setShowDetailsModal(null)}></div>
           <div className="modal-box max-w-[600px] bg-white border-2 border-line rounded-xl overflow-hidden shadow-2xl">
-            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center"><h3 className="text-white font-black uppercase italic tracking-tighter">HISTORIAL DETALLADO: {showDetailsModal.id}</h3><button onClick={() => setShowDetailsModal(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button></div>
+            <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center text-white"><h3 className="font-black uppercase italic tracking-tighter text-xs flex items-center gap-2"><Receipt className="w-5 h-5 text-brand-gold" /> HISTORIAL DETALLADO: {showDetailsModal.id}</h3><button onClick={() => setShowDetailsModal(null)} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button></div>
             <div className="modal-body p-6 space-y-6 max-h-[75vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
                  <div className="p-3 bg-surface-soft rounded-lg border border-line">
