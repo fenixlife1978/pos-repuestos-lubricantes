@@ -2,7 +2,7 @@
 
 import React, { useRef } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Printer, X, Monitor } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
 import { formatBs, formatUsd } from '@/lib/currency-formatter';
 
@@ -59,31 +59,17 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
     return (data.type || 'RECIBO DE VENTA').toUpperCase();
   };
 
-  const DataRow = ({ label, value, bold = false, indent = false }: { label: string, value: string, bold?: boolean, indent?: boolean }) => (
-    <div 
-      className="data-row" 
-      style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        width: '100%', 
-        fontSize: '11px', 
-        fontWeight: bold ? '900' : 'normal',
-        paddingLeft: indent ? '15px' : '0',
-        marginBottom: '2px'
-      }}
-    >
-      <span style={{ textAlign: 'left', textTransform: 'uppercase' }}>{label}</span>
-      <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{value}</span>
-    </div>
+  // Helper para filas con alineación garantizada por tablas
+  const DataRow = ({ label, value, bold = false }: { label: string, value: string, bold?: boolean }) => (
+    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2px' }}>
+      <tbody>
+        <tr style={{ fontSize: '11px', fontWeight: bold ? '900' : 'normal' }}>
+          <td style={{ textAlign: 'left', textTransform: 'uppercase', padding: '0' }}>{label}</td>
+          <td style={{ textAlign: 'right', whiteSpace: 'nowrap', padding: '0' }}>{value}</td>
+        </tr>
+      </tbody>
+    </table>
   );
-
-  const handleNativePrint = async () => {
-    if (!window.electronAPI) {
-      handlePrint();
-      return;
-    }
-    handlePrint();
-  };
 
   const handlePrint = () => {
     const printContent = printRef.current?.innerHTML;
@@ -108,6 +94,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
               background: #fff;
               line-height: 1.2;
               -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             .thermal-80mm { width: 100%; }
             .black-box { 
@@ -121,17 +108,12 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
               font-size: 13px;
               width: 100%;
               box-sizing: border-box;
+              display: block;
             }
             .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .separator { border-top: 1px dashed #000; margin: 8px 0; width: 100%; }
-            .data-row { 
-              display: flex !important; 
-              justify-content: space-between !important; 
-              width: 100% !important; 
-              margin-bottom: 2px;
-            }
-            table { width: 100%; border-collapse: collapse; }
+            .separator { border-top: 1px dashed #000; margin: 8px 0; width: 100%; display: block; }
+            table { width: 100%; border-collapse: collapse; margin: 0; padding: 0; }
+            td { padding: 0; margin: 0; }
             .bold { font-weight: bold; }
           </style>
         </head>
@@ -177,7 +159,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
 
               <div className="separator" />
 
-              <div className="black-box">
+              <div className="black-box" style={{ background: '#000', color: '#fff', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}>
                 {getReportTitle()}
               </div>
 
@@ -206,36 +188,38 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
 
                   <div style={{ marginBottom: '10px' }}>
                     <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>RESUMEN DE FACTURACIÓN</p>
-                    <DataRow label="Venta Bruta:" value={formatBs(data.brUSD * state.tasa).replace('Bs. ', 'Bs.')} />
-                    <DataRow label="Descuentos:" value={'-' + formatBs(data.descUSD * state.tasa).replace('Bs. ', 'Bs.')} />
-                    <DataRow label="Devoluciones:" value={'-' + formatBs(data.devUSD * state.tasa).replace('Bs. ', 'Bs.')} />
+                    <DataRow label="Venta Bruta:" value={formatBs(data.brUSD * state.tasa)} />
+                    <DataRow label="Descuentos:" value={'-' + formatBs(data.descUSD * state.tasa)} />
+                    <DataRow label="Devoluciones:" value={'-' + formatBs(data.devUSD * state.tasa)} />
                     <div className="separator" />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '14px', borderTop: '1px solid black', paddingTop: '2px' }}>
-                      <span>VENTA NETA:</span>
-                      <span>{formatBs(data.netUSD * state.tasa).replace('Bs. ', 'Bs.')}</span>
-                    </div>
+                    <table style={{ width: '100%', borderTop: '1px solid black', paddingTop: '2px' }}>
+                      <tr>
+                        <td style={{ textAlign: 'left', fontWeight: '900', fontSize: '14px' }}>VENTA NETA:</td>
+                        <td style={{ textAlign: 'right', fontWeight: '900', fontSize: '14px' }}>{formatBs(data.netUSD * state.tasa)}</td>
+                      </tr>
+                    </table>
                   </div>
 
                   <div style={{ marginBottom: '10px' }}>
                     <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>DESGLOSE FISCAL</p>
-                    <DataRow label="Monto Exento:" value={formatBs((data.exentoUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
-                    <DataRow label="Base Imponible:" value={formatBs((data.baseImponibleUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
-                    <DataRow label="IVA Recaudado (16%):" value={formatBs((data.ivaUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
-                    <DataRow label="Total IGTF (3%):" value={formatBs((data.igtfUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
+                    <DataRow label="Monto Exento:" value={formatBs((data.exentoUSD || 0) * state.tasa)} />
+                    <DataRow label="Base Imponible:" value={formatBs((data.baseImponibleUSD || 0) * state.tasa)} />
+                    <DataRow label="IVA Recaudado (16%):" value={formatBs((data.ivaUSD || 0) * state.tasa)} />
+                    <DataRow label="Total IGTF (3%):" value={formatBs((data.igtfUSD || 0) * state.tasa)} />
                   </div>
 
                   <div style={{ marginBottom: '10px' }}>
                     <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>MOVIMIENTOS DE CAJA</p>
-                    <DataRow label="Fondo de apertura Bs.:" value={formatBs(data.fondoAperturaBS || 0).replace('Bs. ', 'Bs.')} />
+                    <DataRow label="Fondo de apertura Bs.:" value={formatBs(data.fondoAperturaBS || 0)} />
                     <DataRow label="Fondo de Apertura USD:" value={formatUsd(data.fondoAperturaUSD || 0)} />
-                    <DataRow label="Entradas Caja:" value={formatBs((data.manualEntradas || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
-                    <DataRow label="Salidas / Gastos:" value={'-' + formatBs((data.manualSalidas || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
+                    <DataRow label="Entradas Caja:" value={formatBs((data.manualEntradas || 0) * state.tasa)} />
+                    <DataRow label="Salidas / Gastos:" value={'-' + formatBs((data.manualSalidas || 0) * state.tasa)} />
                   </div>
 
                   <div style={{ marginBottom: '10px' }}>
                     <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>CONCILIACIÓN DE PAGOS</p>
                     {Object.entries(data.paymentMethods || {}).map(([method, val]) => (
-                      <DataRow key={method} label={Utils.metodoLabel(method)} value={formatBs((val as number) * state.tasa).replace('Bs. ', 'Bs.')} />
+                      <DataRow key={method} label={Utils.metodoLabel(method)} value={formatBs((val as number) * state.tasa)} />
                     ))}
                   </div>
 
@@ -244,12 +228,12 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                     <DataRow label="Facturas Emitidas:" value={String(data.stats.facturas)} />
                     <DataRow label="Notas Crédito:" value={String(data.stats.devoluciones)} />
                     <DataRow label="Docs. Anulados:" value={String(data.stats.anulaciones)} bold />
-                    <DataRow label="Ticket Promedio:" value={formatBs(data.stats.ticketPromedio * state.tasa).replace('Bs. ', 'Bs.')} />
+                    <DataRow label="Ticket Promedio:" value={formatBs(data.stats.ticketPromedio * state.tasa)} />
                   </div>
 
                   {type === 'REPORT_Z' && (
                     <div style={{ paddingTop: '2px', borderTop: '1px double black', marginTop: '5px' }}>
-                      <DataRow label="GRAN TOTAL ACUMULADO (BS):" value={formatBs(data.acumuladoHistoricoUSD * state.tasa).replace('Bs. ', 'Bs.')} bold />
+                      <DataRow label="GRAN TOTAL ACUMULADO (BS):" value={formatBs(data.acumuladoHistoricoUSD * state.tasa)} bold />
                     </div>
                   )}
                 </div>
@@ -269,17 +253,19 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                       {data.items.map((item: any, idx: number) => (
                         <tr key={idx} style={{ fontSize: '10px' }}>
                           <td style={{ padding: '2px 0' }}>{item.cantidad || item.qty}x {(item.nombre || item.name).slice(0, 30)}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatBs((item.subtotalUSD || (item.price * item.qty)) * state.tasa).replace('Bs. ', 'Bs.')}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatBs((item.subtotalUSD || (item.price * item.qty)) * state.tasa)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   <div className="separator" />
                   <div style={{ marginTop: '4px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '16px' }}>
-                      <span>TOTAL A PAGAR:</span>
-                      <span>{formatBs(data.totalBS).replace('Bs. ', 'Bs.')}</span>
-                    </div>
+                    <table style={{ width: '100%' }}>
+                      <tr>
+                        <td style={{ textAlign: 'left', fontWeight: '900', fontSize: '16px' }}>TOTAL A PAGAR:</td>
+                        <td style={{ textAlign: 'right', fontWeight: '900', fontSize: '16px' }}>{formatBs(data.totalBS)}</td>
+                      </tr>
+                    </table>
                     <DataRow label="EQUIVALENTE REF. USD:" value={formatUsd(data.totalUSD)} bold />
                   </div>
                 </div>
@@ -297,7 +283,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
               <button onClick={onClose} className="py-3 bg-[#E5E7EB] text-[#374151] font-black text-xs rounded-xl hover:bg-gray-300 transition-all uppercase tracking-widest">Cerrar</button>
               <button className="py-3 bg-black text-white font-black text-xs rounded-xl hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-widest shadow-md" onClick={handlePrint}>Imprimir</button>
             </div>
-            <button onClick={handleNativePrint} className="py-3 bg-[#C8952E] text-black font-black text-xs rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg">
+            <button className="py-3 bg-[#C8952E] text-black font-black text-xs rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg" onClick={handlePrint}>
               <Printer size={16} /> Impresión Térmica Pro
             </button>
           </div>
