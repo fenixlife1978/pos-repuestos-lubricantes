@@ -32,6 +32,8 @@ export const initialState: AppState = {
   proximaDevolucion: 1,
   acumuladoHistorico: 0,
   fechaUltimoZ: '',
+  fondoCajaHoyUSD: 0,
+  fondoCajaHoyBS: 0,
   empresa: { 
     nombre: 'NOMBRE DE SU NEGOCIO', 
     rif: 'J-00000000-0', 
@@ -112,7 +114,9 @@ export const Store = {
       proximoRecibo: state.proximoRecibo || 1,
       proximaDevolucion: state.proximaDevolucion || 1,
       acumuladoHistorico: state.acumuladoHistorico || 0,
-      fechaUltimoZ: state.fechaUltimoZ || ''
+      fechaUltimoZ: state.fechaUltimoZ || '',
+      fondoCajaHoyUSD: state.fondoCajaHoyUSD || 0,
+      fondoCajaHoyBS: state.fondoCajaHoyBS || 0
     };
 
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, ...dataToPersist }));

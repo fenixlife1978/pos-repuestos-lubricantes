@@ -182,6 +182,7 @@ export interface ReportZ {
   salidasCajaUSD: number;
   entradasCajaUSD: number;
   fondoAperturaUSD: number;
+  fondoAperturaBS: number;
   acumuladoHistoricoUSD: number;
   stats: {
     facturas: number;
@@ -211,6 +212,8 @@ export interface AppState {
   proximaDevolucion: number;
   acumuladoHistorico: number;
   fechaUltimoZ?: string;
+  fondoCajaHoyUSD: number;
+  fondoCajaHoyBS: number;
   empresa: {
     nombre: string;
     rif: string;

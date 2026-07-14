@@ -143,7 +143,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       paymentMethods: paymentMethodsMap,
       manualSalidas: totalSalidasCaja,
       manualEntradas: totalEntradasCaja,
-      fondoAperturaUSD: 0, // Implementar si se requiere valor persistente de apertura
+      fondoAperturaUSD: state.fondoCajaHoyUSD || 0,
+      fondoAperturaBS: state.fondoCajaHoyBS || 0,
       desdeFactura,
       hastaFactura,
       desdeNC,
@@ -196,15 +197,23 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       salidasCajaUSD: data.manualSalidas,
       entradasCajaUSD: data.manualEntradas,
       fondoAperturaUSD: data.fondoAperturaUSD,
+      fondoAperturaBS: data.fondoAperturaBS,
       acumuladoHistoricoUSD: data.acumuladoHistoricoUSD,
       stats: { ...data.stats }
     };
+
+    // Limpiar bandera de apertura para forzar nuevo fondo el próximo día
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem('posven_apertura_done');
+    }
 
     updateState({
       reportesZ: [...(state.reportesZ || []), nuevoZ],
       ultimoZ: numeroZ,
       fechaUltimoZ: ahora,
-      acumuladoHistorico: data.acumuladoHistoricoUSD
+      acumuladoHistorico: data.acumuladoHistoricoUSD,
+      fondoCajaHoyBS: 0,
+      fondoCajaHoyUSD: 0
     });
 
     toast({ title: `Cierre Fiscal Z #${numeroZ} Exitoso`, description: "La jornada se ha archivado y el historial visual se ha reiniciado." });
@@ -967,4 +976,3 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     </div>
   );
 }
-

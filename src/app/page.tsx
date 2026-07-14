@@ -348,6 +348,10 @@ export default function LicoreriaPOS() {
                 disabled={aperturaData.bs === '' || aperturaData.usd === ''} 
                 onClick={() => { 
                   sessionStorage.setItem('posven_apertura_done', 'true'); 
+                  updateState({
+                    fondoCajaHoyBS: parseFloat(aperturaData.bs) || 0,
+                    fondoCajaHoyUSD: parseFloat(aperturaData.usd) || 0
+                  });
                   setShowApertura(false); 
                 }} 
                 className="w-full h-14 bg-brand-gold text-ink font-black text-sm rounded-xl shadow-xl shadow-brand-gold/10 hover:bg-brand-gold-deep hover:text-white transition-all uppercase tracking-widest"

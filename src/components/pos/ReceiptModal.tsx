@@ -72,7 +72,6 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
       handlePrint();
       return;
     }
-    // Lógica para Roccia omitida por brevedad en este bloque, pero mantendrá la coherencia visual
     handlePrint();
   };
 
@@ -112,7 +111,9 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
           </style>
         </head>
         <body>
-          ${printContent}
+          <div class="thermal-80mm">
+            ${printContent}
+          </div>
           <script>
             window.onload = function() {
               window.print();
@@ -200,7 +201,8 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
 
                   <div className="space-y-1">
                     <p className="font-black text-center mb-2 uppercase text-[10px]">MOVIMIENTOS DE CAJA</p>
-                    <DataRow label="Fondo Apertura:" value={formatBs((data.fondoAperturaUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
+                    <DataRow label="Fondo de apertura Bs.:" value={formatBs(data.fondoAperturaBS || 0).replace('Bs. ', 'Bs.')} />
+                    <DataRow label="Fondo de Apertura USD:" value={formatUsd(data.fondoAperturaUSD || 0)} />
                     <DataRow label="Entradas Caja:" value={formatBs((data.manualEntradas || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
                     <DataRow label="Salidas / Gastos:" value={'-' + formatBs((data.manualSalidas || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
                   </div>
