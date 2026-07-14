@@ -2,7 +2,7 @@
 
 import React, { useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Printer, X, Zap, Share2, Monitor, User, ShieldCheck } from 'lucide-react';
+import { Printer, X, Zap, Share2, Monitor } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
 import { formatBs, formatUsd } from '@/lib/currency-formatter';
 import { auth } from '@/lib/firebase';
@@ -67,8 +67,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
 
   const handleNativePrint = async () => {
     if (!window.electronAPI) {
-      window.print();
-      if (isReport) setTimeout(onClose, 1000);
+      handlePrint();
       return;
     }
 
@@ -114,7 +113,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
       Object.entries(data.paymentMethods || {}).forEach(([method, val]) => {
         printData.push({ type: 'text', value: padRight(Utils.metodoLabel(method).toUpperCase(), formatBs((val as number) * state.tasa)), style: { fontSize: "11px" } });
       });
-      printData.push({ type: 'text', value: padRight('SALIDAS / GASTOS CAJA', '-' + formatBs((data.manualSalidas || 0) * state.tasa)), style: { fontSize: "11px", color: "#C0392B" } });
+      printData.push({ type: 'text', value: padRight('SALIDAS / GASTOS CAJA', '-' + formatBs((data.manualSalidas || 0) * state.tasa)), style: { fontSize: "11px" } });
       
       if (type === 'REPORT_Z') {
         printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
@@ -151,14 +150,60 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
 
     try {
       await window.electronAPI.printTicket(printData);
-      if (isReport) setTimeout(onClose, 1000);
+      if (isReport) setTimeout(onClose, 500);
     } catch (e) {
-      window.print();
+      handlePrint();
     }
   };
 
   const handlePrint = () => {
-    window.print();
+    const printContent = printRef.current?.innerHTML;
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Impresion_PosVEN_Pro</title>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            body {
+              font-family: 'Courier New', Courier, monospace;
+              width: 72mm;
+              margin: 0;
+              padding: 4mm;
+              font-size: 11px;
+              color: #000;
+              background: #fff;
+              line-height: 1.2;
+            }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .bold { font-weight: bold; }
+            .dashed-line { border-top: 1px dashed #000; margin: 5px 0; }
+            .solid-line { border-top: 1px solid #000; margin: 5px 0; }
+            .title { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 2px 0; }
+            .total-box { border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 4px 0; margin: 5px 0; font-size: 13px; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          ${printContent}
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() { window.close(); };
+              setTimeout(function() { window.close(); }, 1500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
     if (isReport) setTimeout(onClose, 1000);
   };
 
@@ -178,7 +223,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
           <div className="p-6 bg-gray-100 flex justify-center max-h-[70vh] overflow-y-auto custom-scrollbar">
             <div 
               ref={printRef}
-              className="bg-white p-6 shadow-sm text-black font-mono select-none"
+              className="thermal-80mm bg-white p-6 shadow-sm text-black font-mono select-none"
               style={{ width: '72mm', boxSizing: 'border-box', color: '#000', fontSize: '11px', lineHeight: '1.4' }}
             >
               <div className="text-center pb-3 mb-3 border-b border-dashed border-black">
