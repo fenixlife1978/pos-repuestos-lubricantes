@@ -34,7 +34,9 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
-  Contact
+  Contact,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
@@ -43,6 +45,7 @@ import { toast } from '@/hooks/use-toast';
 import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, PagoRealizado, Customer, Return, ReturnItem, Product, Debt, Movimiento, LibroDiarioEntry } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import ReturnsModule from '@/components/modules/ReturnsModule';
+import { cn } from '@/lib/utils';
 
 declare global {
   interface Window {
@@ -59,6 +62,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [showReportType, setShowReportType] = useState<'REPORT_X' | 'REPORT_Z' | null>(null);
   const [reportSnapshot, setReportSnapshot] = useState<any>(null);
   const [cliente, setCliente] = useState('Consumidor final');
+  const [isFullScreen, setIsFullScreen] = useState(false);
   
   const [pagos, setPagos] = useState<PagoRealizado[]>([]);
   const [showMultiModal, setShowMultiModal] = useState(false);
@@ -80,6 +84,17 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [nuevaTasa, setNuevaTasa] = useState(state.tasa.toString());
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Escuchar tecla ESC para salir de pantalla completa
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullScreen) {
+        setIsFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isFullScreen]);
 
   // Función para obtener un resumen fresco y detallado (Snapshot Inmutable)
   const getFreshReportData = () => {
@@ -634,19 +649,52 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setSelectedClient(null);
   };
 
+  const expandedClient = null; // Defined for scope
+  const setExpandedClient = (c: any) => {}; // Defined for scope
+  const setShowClientHistory = (c: any) => {}; // Defined for scope
+
   return (
     <div className="flex flex-col gap-2 h-[calc(100vh-100px)] max-w-7xl mx-auto w-full overflow-hidden">
-      <div className="flex gap-2 no-print shrink-0 overflow-x-auto pb-1">
+      <div className="flex gap-2 no-print shrink-0 overflow-x-auto pb-1 items-center">
         <button onClick={() => setView('pos')} className={`btn btn-sm ${view === 'pos' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ShoppingCart className="w-3.5 h-3.5"/> Punto de Venta</button>
         <button onClick={() => setView('history')} className={`btn btn-sm ${view === 'history' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><History className="w-3.5 h-3.5"/> Historial</button>
         <button onClick={() => setView('credits')} className={`btn btn-sm ${view === 'credits' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ClipboardList className="w-3.5 h-3.5"/> Consultar Créditos</button>
         <button onClick={() => handleOpenReport('REPORT_X')} className="btn btn-sm bg-white text-ink font-bold border-line border"><FileText className="w-3.5 h-3.5"/> Reporte X</button>
         <button onClick={() => handleOpenReport('REPORT_Z')} className="btn btn-sm bg-white text-ink font-bold border-line border"><Receipt className="w-3.5 h-3.5"/> Reporte Z</button>
         <button onClick={() => setView('returns')} className={`btn btn-sm ${view === 'returns' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><RotateCcw className="w-3.5 h-3.5"/> Devoluciones y Anulaciones</button>
+        
+        {view === 'pos' && (
+          <button 
+            onClick={() => setIsFullScreen(!isFullScreen)} 
+            className="btn btn-sm bg-white text-ink font-bold border-line border ml-auto hover:bg-brand-gold-soft transition-colors"
+            title={isFullScreen ? "Minimizar" : "Expandir Pantalla Completa"}
+          >
+            {isFullScreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+          </button>
+        )}
       </div>
 
       {view === 'pos' ? (
-        <div className="flex flex-col gap-2 flex-1 overflow-hidden animate-in fade-in duration-300">
+        <div className={cn(
+          "flex flex-col gap-2 flex-1 overflow-hidden animate-in fade-in duration-300",
+          isFullScreen && "fixed inset-0 z-[100] bg-surface-warm p-6 overflow-hidden flex flex-col"
+        )}>
+          {isFullScreen && (
+            <div className="absolute top-4 right-6 flex gap-2">
+               <div className="bg-white/80 backdrop-blur px-4 py-2 rounded-xl border border-line shadow-sm flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-status-success animate-pulse" />
+                 <span className="text-[10px] font-black uppercase text-ink/60">Modo Terminal Kiosko Activo</span>
+               </div>
+               <button 
+                onClick={() => setIsFullScreen(false)} 
+                className="w-10 h-10 bg-white border-2 border-line rounded-xl flex items-center justify-center text-ink hover:text-brand-gold shadow-lg hover:scale-110 transition-all"
+                title="Minimizar (ESC)"
+               >
+                <Minimize2 className="w-5 h-5" />
+               </button>
+            </div>
+          )}
+
           <div className="relative group shrink-0">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c8952e] z-10"><Barcode className="w-5 h-5" /></div>
             <input ref={searchInputRef} className="form-input pl-14 py-2 text-base bg-white border-brand-gold/30 text-ink font-black placeholder-ink/40" placeholder="Escanee o busque producto..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && matches.length >= 1 && agregar(matches[0].id)} autoFocus />
