@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useRef } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Printer, X, Zap, Share2, Monitor, HandCoins, BarChart3, Clock } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Printer, X, Monitor } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
 import { formatBs, formatUsd } from '@/lib/currency-formatter';
-import { auth } from '@/lib/firebase';
 
 declare global {
   interface Window {
@@ -61,9 +60,20 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
   };
 
   const DataRow = ({ label, value, bold = false, indent = false }: { label: string, value: string, bold?: boolean, indent?: boolean }) => (
-    <div className={`flex justify-between w-full text-[11px] leading-tight ${bold ? 'font-black' : 'font-normal'} ${indent ? 'pl-4' : ''}`}>
-      <span className="text-left uppercase">{label}</span>
-      <span className="text-right whitespace-nowrap">{value}</span>
+    <div 
+      className="data-row" 
+      style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        width: '100%', 
+        fontSize: '11px', 
+        fontWeight: bold ? '900' : 'normal',
+        paddingLeft: indent ? '15px' : '0',
+        marginBottom: '2px'
+      }}
+    >
+      <span style={{ textAlign: 'left', textTransform: 'uppercase' }}>{label}</span>
+      <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{value}</span>
     </div>
   );
 
@@ -96,18 +106,33 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
               font-size: 11px;
               color: #000;
               background: #fff;
-              line-height: 1.3;
+              line-height: 1.2;
               -webkit-print-color-adjust: exact;
             }
             .thermal-80mm { width: 100%; }
-            .black-box { background: #000 !important; color: #fff !important; padding: 4px; text-align: center; font-weight: bold; margin: 8px 0; text-transform: uppercase; }
+            .black-box { 
+              background: #000 !important; 
+              color: #fff !important; 
+              padding: 6px; 
+              text-align: center; 
+              font-weight: bold; 
+              margin: 10px 0; 
+              text-transform: uppercase; 
+              font-size: 13px;
+              width: 100%;
+              box-sizing: border-box;
+            }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
-            .bold { font-weight: bold; }
-            .separator { border-top: 1px dashed #000; margin: 6px 0; }
-            .flex-row { display: flex; justify-content: space-between; }
+            .separator { border-top: 1px dashed #000; margin: 8px 0; width: 100%; }
+            .data-row { 
+              display: flex !important; 
+              justify-content: space-between !important; 
+              width: 100% !important; 
+              margin-bottom: 2px;
+            }
             table { width: 100%; border-collapse: collapse; }
-            .title { font-size: 18px; font-weight: bold; margin-bottom: 2px; }
+            .bold { font-weight: bold; }
           </style>
         </head>
         <body>
@@ -145,22 +170,22 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
               style={{ width: '72mm', boxSizing: 'border-box', color: '#000', fontSize: '11px' }}
             >
               <div className="text-center mb-4">
-                <h1 className="text-[20px] font-black uppercase mb-1">{state.empresa.nombre}</h1>
-                <p className="text-[10px] leading-snug uppercase mb-1">{state.empresa.direccion}</p>
-                <p className="text-[10px] font-bold">RIF: {state.empresa.rif} | TEL: {state.empresa.telefono}</p>
+                <h1 className="text-[20px] font-black uppercase mb-1" style={{ margin: '0 0 4px 0' }}>{state.empresa.nombre}</h1>
+                <p className="text-[10px] leading-snug uppercase mb-1" style={{ margin: '0 0 2px 0' }}>{state.empresa.direccion}</p>
+                <p className="text-[10px] font-bold" style={{ margin: '0' }}>RIF: {state.empresa.rif} | TEL: {state.empresa.telefono}</p>
               </div>
 
               <div className="separator" />
 
-              <div className="black-box text-[13px] tracking-widest py-1.5" style={{ background: '#000', color: '#fff', textAlign: 'center', fontWeight: 'bold' }}>
+              <div className="black-box">
                 {getReportTitle()}
               </div>
 
-              <div className="text-center space-y-1 my-3">
-                <div className="text-[10px] font-bold uppercase flex items-center justify-center gap-1">
-                  <Monitor size={10} /> TERMINAL: {terminalIdLabel}
+              <div className="text-center my-3" style={{ marginBottom: '10px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                  TERMINAL: {terminalIdLabel}
                 </div>
-                <div className="text-[11px] font-black uppercase">
+                <div style={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase' }}>
                   FECHA/HORA: {transactionDate}
                 </div>
               </div>
@@ -168,10 +193,10 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
               <div className="separator" />
 
               {isReport ? (
-                <div className="space-y-4">
+                <div style={{ width: '100%' }}>
                   {type === 'REPORT_Z' && (
-                    <div className="space-y-1">
-                      <p className="font-black text-center mb-2 uppercase text-[10px]">DATOS DE CONTROL Y AUDITORÍA</p>
+                    <div style={{ marginBottom: '10px' }}>
+                      <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>DATOS DE CONTROL Y AUDITORÍA</p>
                       <DataRow label="Reporte Z N°:" value={String(data.numeroZ || 0).padStart(6, '0')} bold />
                       <DataRow label="Rango Facturas:" value={`${data.desdeFactura} - ${data.hastaFactura}`} />
                       <DataRow label="Rango Notas Cred:" value={`${data.desdeNC} - ${data.hastaNC}`} />
@@ -179,43 +204,43 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                     </div>
                   )}
 
-                  <div className="space-y-1">
-                    <p className="font-black text-center mb-2 uppercase text-[10px]">RESUMEN DE FACTURACIÓN</p>
+                  <div style={{ marginBottom: '10px' }}>
+                    <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>RESUMEN DE FACTURACIÓN</p>
                     <DataRow label="Venta Bruta:" value={formatBs(data.brUSD * state.tasa).replace('Bs. ', 'Bs.')} />
                     <DataRow label="Descuentos:" value={'-' + formatBs(data.descUSD * state.tasa).replace('Bs. ', 'Bs.')} />
                     <DataRow label="Devoluciones:" value={'-' + formatBs(data.devUSD * state.tasa).replace('Bs. ', 'Bs.')} />
                     <div className="separator" />
-                    <div className="flex justify-between font-black text-[14px] border-t border-black pt-1">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '14px', borderTop: '1px solid black', paddingTop: '2px' }}>
                       <span>VENTA NETA:</span>
                       <span>{formatBs(data.netUSD * state.tasa).replace('Bs. ', 'Bs.')}</span>
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <p className="font-black text-center mb-2 uppercase text-[10px]">DESGLOSE FISCAL</p>
+                  <div style={{ marginBottom: '10px' }}>
+                    <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>DESGLOSE FISCAL</p>
                     <DataRow label="Monto Exento:" value={formatBs((data.exentoUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
                     <DataRow label="Base Imponible:" value={formatBs((data.baseImponibleUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
                     <DataRow label="IVA Recaudado (16%):" value={formatBs((data.ivaUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
                     <DataRow label="Total IGTF (3%):" value={formatBs((data.igtfUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
                   </div>
 
-                  <div className="space-y-1">
-                    <p className="font-black text-center mb-2 uppercase text-[10px]">MOVIMIENTOS DE CAJA</p>
+                  <div style={{ marginBottom: '10px' }}>
+                    <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>MOVIMIENTOS DE CAJA</p>
                     <DataRow label="Fondo de apertura Bs.:" value={formatBs(data.fondoAperturaBS || 0).replace('Bs. ', 'Bs.')} />
                     <DataRow label="Fondo de Apertura USD:" value={formatUsd(data.fondoAperturaUSD || 0)} />
                     <DataRow label="Entradas Caja:" value={formatBs((data.manualEntradas || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
                     <DataRow label="Salidas / Gastos:" value={'-' + formatBs((data.manualSalidas || 0) * state.tasa).replace('Bs. ', 'Bs.')} />
                   </div>
 
-                  <div className="space-y-1">
-                    <p className="font-black text-center mb-2 uppercase text-[10px]">CONCILIACIÓN DE PAGOS</p>
+                  <div style={{ marginBottom: '10px' }}>
+                    <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>CONCILIACIÓN DE PAGOS</p>
                     {Object.entries(data.paymentMethods || {}).map(([method, val]) => (
                       <DataRow key={method} label={Utils.metodoLabel(method)} value={formatBs((val as number) * state.tasa).replace('Bs. ', 'Bs.')} />
                     ))}
                   </div>
 
-                  <div className="space-y-1">
-                    <p className="font-black text-center mb-2 uppercase text-[10px]">ESTADÍSTICAS DE JORNADA</p>
+                  <div style={{ marginBottom: '10px' }}>
+                    <p style={{ fontWeight: '900', textAlign: 'center', marginBottom: '4px', fontSize: '10px' }}>ESTADÍSTICAS DE JORNADA</p>
                     <DataRow label="Facturas Emitidas:" value={String(data.stats.facturas)} />
                     <DataRow label="Notas Crédito:" value={String(data.stats.devoluciones)} />
                     <DataRow label="Docs. Anulados:" value={String(data.stats.anulaciones)} bold />
@@ -223,35 +248,35 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                   </div>
 
                   {type === 'REPORT_Z' && (
-                    <div className="pt-2 border-t border-black border-double">
+                    <div style={{ paddingTop: '2px', borderTop: '1px double black', marginTop: '5px' }}>
                       <DataRow label="GRAN TOTAL ACUMULADO (BS):" value={formatBs(data.acumuladoHistoricoUSD * state.tasa).replace('Bs. ', 'Bs.')} bold />
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div style={{ width: '100%' }}>
                   <DataRow label="N° CONTROL:" value={data.id} bold />
                   <DataRow label="CLIENTE:" value={customerName} bold />
                   <div className="separator" />
-                  <table className="w-full">
+                  <table style={{ width: '100%', marginBottom: '5px' }}>
                     <thead>
-                      <tr className="text-[10px] border-b border-black">
-                        <th className="text-left py-1 uppercase">Producto</th>
-                        <th className="text-right py-1 uppercase">Total</th>
+                      <tr style={{ fontSize: '10px', borderBottom: '1px solid black' }}>
+                        <th style={{ textAlign: 'left', textTransform: 'uppercase' }}>PRODUCTO</th>
+                        <th style={{ textAlign: 'right', textTransform: 'uppercase' }}>TOTAL</th>
                       </tr>
                     </thead>
-                    <tbody className="uppercase">
+                    <tbody style={{ textTransform: 'uppercase' }}>
                       {data.items.map((item: any, idx: number) => (
-                        <tr key={idx} className="text-[10px]">
-                          <td className="py-1">{item.cantidad || item.qty}x {(item.nombre || item.name).slice(0, 30)}</td>
-                          <td className="text-right py-1 font-bold">{formatBs((item.subtotalUSD || (item.price * item.qty)) * state.tasa).replace('Bs. ', 'Bs.')}</td>
+                        <tr key={idx} style={{ fontSize: '10px' }}>
+                          <td style={{ padding: '2px 0' }}>{item.cantidad || item.qty}x {(item.nombre || item.name).slice(0, 30)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatBs((item.subtotalUSD || (item.price * item.qty)) * state.tasa).replace('Bs. ', 'Bs.')}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   <div className="separator" />
-                  <div className="space-y-1">
-                    <div className="flex justify-between font-black text-[16px]">
+                  <div style={{ marginTop: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '16px' }}>
                       <span>TOTAL A PAGAR:</span>
                       <span>{formatBs(data.totalBS).replace('Bs. ', 'Bs.')}</span>
                     </div>
@@ -260,9 +285,9 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                 </div>
               )}
 
-              <div className="text-center mt-8 pt-4 border-t border-dotted border-black/30">
-                <p className="font-bold mb-1">¡Gracias por su preferencia!</p>
-                <p className="opacity-60 text-[8px]">PosVEN Pro v2.5 - Bloque Fiscal Imagen 3</p>
+              <div style={{ textAlign: 'center', marginTop: '15px', paddingTop: '8px', borderTop: '1px dotted #ccc' }}>
+                <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>¡Gracias por su preferencia!</p>
+                <p style={{ opacity: '0.6', fontSize: '8px', margin: '0' }}>PosVEN Pro v2.5 - Bloque Fiscal Imagen 3</p>
               </div>
             </div>
           </div>
@@ -270,14 +295,11 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
           <div className="p-4 bg-white border-t border-gray-100 flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
               <button onClick={onClose} className="py-3 bg-[#E5E7EB] text-[#374151] font-black text-xs rounded-xl hover:bg-gray-300 transition-all uppercase tracking-widest">Cerrar</button>
-              <button className="py-3 bg-[#2ECC71] text-white font-black text-xs rounded-xl hover:bg-green-600 flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm"><Share2 size={14} /> Compartir</button>
+              <button className="py-3 bg-black text-white font-black text-xs rounded-xl hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-widest shadow-md" onClick={handlePrint}>Imprimir</button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={handlePrint} className="py-3 bg-black text-white font-black text-xs rounded-xl hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-widest shadow-md"><Printer size={14} /> Estándar</button>
-              <button onClick={handleNativePrint} className="py-3 bg-[#C8952E] text-black font-black text-xs rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg">
-                <Zap size={16} className="fill-current" /> Impresión Roccia
-              </button>
-            </div>
+            <button onClick={handleNativePrint} className="py-3 bg-[#C8952E] text-black font-black text-xs rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg">
+              <Printer size={16} /> Impresión Térmica Pro
+            </button>
           </div>
         </div>
       </DialogContent>
