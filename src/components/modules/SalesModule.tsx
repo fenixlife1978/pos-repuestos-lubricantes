@@ -695,44 +695,74 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
             </div>
           )}
 
-          <div className="relative group shrink-0">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c8952e] z-10"><Barcode className="w-5 h-5" /></div>
-            <input ref={searchInputRef} className="form-input pl-14 py-2 text-base bg-white border-brand-gold/30 text-ink font-black placeholder-ink/40" placeholder="Escanee o busque producto..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && matches.length >= 1 && agregar(matches[0].id)} autoFocus />
-            {matches.length > 0 && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-line rounded-b-lg shadow-2xl z-[100] mt-1 overflow-hidden">
-                {matches.map(p => (
-                  <div key={p.id} onClick={() => agregar(p.id)} className="flex items-center justify-between p-3 hover:bg-brand-gold/10 cursor-pointer border-b border-line group">
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className="text-ink text-sm font-black uppercase truncate group-hover:text-brand-gold-deep transition-colors">{p.nombre}</span>
-                      <span className="text-ink/60 text-[10px] mono font-bold">{p.codigo}</span>
-                    </div>
+          <div className="flex items-center gap-3 shrink-0 mb-1">
+            <div className="relative group flex-1">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c8952e] z-10"><Barcode className="w-5 h-5" /></div>
+              <input ref={searchInputRef} className="form-input pl-14 py-2 text-base bg-white border-brand-gold/30 text-ink font-black placeholder-ink/40" placeholder="Escanee o busque producto..." value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && matches.length >= 1 && agregar(matches[0].id)} autoFocus />
+              {matches.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-line rounded-b-lg shadow-2xl z-[100] mt-1 overflow-hidden">
+                  {matches.map(p => (
+                    <div key={p.id} onClick={() => agregar(p.id)} className="flex items-center justify-between p-3 hover:bg-brand-gold/10 cursor-pointer border-b border-line group">
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="text-ink text-sm font-black uppercase truncate group-hover:text-brand-gold-deep transition-colors">{p.nombre}</span>
+                        <span className="text-ink/60 text-[10px] mono font-bold">{p.codigo}</span>
+                      </div>
 
-                    <div className="flex items-center gap-10 shrink-0 ml-4">
-                       <div className="flex flex-col items-end min-w-[70px]">
-                          <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Stock</span>
-                          <span className={`text-lg font-black leading-none ${
-                            p.stock <= (p.stockMinimo || 3) ? 'text-red-600' : 
-                            p.stock <= (p.stockMinimo || 3) * 2 ? 'text-amber-500' : 
-                            'text-green-600'
-                          }`}>
-                            {p.stock} <span className="text-[10px] opacity-60">Und.</span>
-                          </span>
-                       </div>
-                       <div className="flex items-center gap-2">
-                          <div className="flex flex-col items-end min-w-[90px]">
-                            <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Precio USD</span>
-                            <span className="text-lg font-black leading-none text-ink">{Utils.fmtUSD(p.precioUSD)}</span>
-                          </div>
-                          <div className="flex flex-col items-end min-w-[110px]">
-                            <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Equiv. BS</span>
-                            <span className="text-lg font-black leading-none text-brand-gold-deep">{Utils.fmtBS(p.precioUSD * state.tasa)}</span>
-                          </div>
-                       </div>
+                      <div className="flex items-center gap-10 shrink-0 ml-4">
+                         <div className="flex flex-col items-end min-w-[70px]">
+                            <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Stock</span>
+                            <span className={`text-lg font-black leading-none ${
+                              p.stock <= (p.stockMinimo || 3) ? 'text-red-600' : 
+                              p.stock <= (p.stockMinimo || 3) * 2 ? 'text-amber-500' : 
+                              'text-green-600'
+                            }`}>
+                              {p.stock} <span className="text-[10px] opacity-60">Und.</span>
+                            </span>
+                         </div>
+                         <div className="flex items-center gap-2">
+                            <div className="flex flex-col items-end min-w-[90px]">
+                              <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Precio USD</span>
+                              <span className="text-lg font-black leading-none text-ink">{Utils.fmtUSD(p.precioUSD)}</span>
+                            </div>
+                            <div className="flex flex-col items-end min-w-[110px]">
+                              <span className="text-[9px] font-black uppercase text-ink/40 mb-0.5">Equiv. BS</span>
+                              <span className="text-lg font-black leading-none text-brand-gold-deep">{Utils.fmtBS(p.precioUSD * state.tasa)}</span>
+                            </div>
+                         </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 bg-white px-4 py-1.5 rounded-full border border-brand-gold/30 shadow-sm shrink-0">
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-line shrink-0">
+                <img src="/bcv-logo.png" alt="BCV" className="w-full h-full object-cover" />
               </div>
-            )}
+              <div className="flex items-center gap-1.5">
+                {!editandoTasa ? (
+                  <>
+                    <span className="text-ink font-black text-sm tabular-nums">{state.tasa.toFixed(2)}</span>
+                    <button onClick={() => { setEditandoTasa(true); setNuevaTasa(state.tasa.toString()); }} className="text-brand-gold hover:text-brand-gold-deep p-0.5 transition-colors">
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input 
+                      type="text" 
+                      value={nuevaTasa} 
+                      onChange={e => setNuevaTasa(e.target.value.replace(/[^0-9.]/g, ''))} 
+                      className="w-16 bg-surface-soft border border-brand-gold rounded px-1.5 py-0.5 text-ink font-black text-sm text-right outline-none" 
+                      autoFocus 
+                    />
+                    <button onClick={guardarNuevaTasa} className="text-status-success p-0.5"><Check className="w-4 h-4" /></button>
+                    <button onClick={() => setEditandoTasa(false)} className="text-status-danger p-0.5"><X className="w-4 h-4" /></button>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-1 gap-3 overflow-hidden">
@@ -741,18 +771,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                 <div className="form-group mb-0">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">IDENTIFICACIÓN CLIENTE</label>
                   <input className="form-input h-8 text-xs bg-surface-soft text-ink border-line font-black uppercase" value={cliente} onChange={e => setCliente(e.target.value)} />
-                </div>
-                <div className="bg-brand-gold-soft/30 border border-brand-gold-soft/30 rounded-lg p-2.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-ink text-[9px] font-black uppercase tracking-wider">TASA BCV</label>
-                    <div className="flex items-center gap-1">
-                      {!editandoTasa ? (
-                        <><span className="text-ink font-black text-sm">{state.tasa.toFixed(2)}</span><button onClick={() => { setEditandoTasa(true); setNuevaTasa(state.tasa.toString()); }} className="text-ink hover:text-brand-gold p-0.5"><RefreshCw className="w-3.5 h-3.5" /></button></>
-                      ) : (
-                        <><input type="text" value={nuevaTasa} onChange={e => setNuevaTasa(e.target.value.replace(/[^0-9.]/g, ''))} className="w-16 bg-white border border-brand-gold rounded px-1 py-0.5 text-ink font-black text-sm text-right" autoFocus /><button onClick={guardarNuevaTasa} className="text-green-600 p-0.5"><Check className="w-3.5 h-3.5" /></button><button onClick={() => setEditandoTasa(false)} className="text-red-500 p-0.5"><X className="w-3.5 h-3.5" /></button></>
-                      )}
-                    </div>
-                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-2 pt-2 border-t border-line/10">
