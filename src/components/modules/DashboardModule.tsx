@@ -42,6 +42,21 @@ export default function DashboardModule({ state }: { state: AppState }) {
 
   const totalVentasBs = ventasHoy.reduce((s, v) => s + v.totalBS, 0);
 
+  // Mapeo de colores por método de pago
+  const methodColors: Record<string, string> = {
+    efectivo_usd: '#C8952E', // Dorado
+    efectivo_bs: '#141414',  // Negro
+    punto_venta: '#2563EB',  // Azul
+    tarjeta: '#2563EB',      // Azul
+    biopago: '#7C3AED',      // Púrpura
+    pagomovil: '#F59E0B',    // Ámbar
+    zelle: '#2F8F3F',        // Verde
+    credito: '#DC2626',      // Rojo
+    mixto: '#6B7280',        // Gris
+    nota_credito: '#06B6D4', // Cian
+    otros: '#94A3B8'         // Pizarra
+  };
+
   // Derivación de métodos de pago reales
   const metodosDataMap: Record<string, number> = {};
   ventasHoy.forEach(v => {
@@ -53,7 +68,7 @@ export default function DashboardModule({ state }: { state: AppState }) {
     label: Utils.metodoLabel(label),
     ops: ventasHoy.filter(v => v.metodoPago === label).length,
     pct: totalVentasHoyUSD > 0 ? Math.round((val / totalVentasHoyUSD) * 100) : 0,
-    color: label === 'efectivo_usd' ? '#C8952E' : label === 'zelle' ? '#2F8F3F' : '#2563EB'
+    color: methodColors[label] || '#94A3B8'
   }));
 
   // Gráfico de los últimos 7 días
