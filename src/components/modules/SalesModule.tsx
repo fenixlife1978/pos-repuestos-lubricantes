@@ -83,6 +83,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [editandoTasa, setEditandoTasa] = useState(false);
   const [nuevaTasa, setNuevaTasa] = useState(state.tasa.toString());
 
+  const [expandedClient, setExpandedClient] = useState<string | null>(null);
+  const [showClientHistory, setShowClientHistory] = useState<string | null>(null);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -170,7 +173,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       fondoAperturaUSD: data.fondoAperturaUSD, fondoAperturaBS: data.fondoAperturaBS, acumuladoHistoricoUSD: data.acumuladoHistoricoUSD, stats: { ...data.stats }
     };
     
-    // CAMBIO QUIRÚRGICO: Limpiar el flag persistente de apertura solo después de generar satisfactoriamente el reporte Z
     if (typeof localStorage !== 'undefined') localStorage.removeItem('posven_apertura_done');
     
     updateState({ reportesZ: [...(state.reportesZ || []), nuevoZ], ultimoZ: numeroZ, fechaUltimoZ: ahora, acumuladoHistorico: data.acumuladoHistoricoUSD, fondoCajaHoyBS: 0, fondoCajaHoyUSD: 0 });
@@ -362,11 +364,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     });
     const nuevaVenta: Sale = { id: reciboId, fecha: ahoraStr, cliente: targetClient.name, items: [...state.carrito], subtotalUSD, descuentoUSD: 0, totalUSD: subtotalUSD, totalBS, metodoPago: 'credito', estado: 'completada', type: 'VENTA CRÉDITO', received: 0, change: 0, terminalId: terminal?.id, terminalName: terminal?.nombre || 'SISTEMA GLOBAL', cajeroId: auth?.currentUser?.uid, baseImponibleUSD: Utils.round(vBase), ivaUSD: Utils.round(vIVA), exentoUSD: Utils.round(vExento), igtfUSD: 0 };
     const nuevaDeuda: Debt = { id: 'CRD-' + reciboId.slice(-6), fecha: ahoraStr.slice(0, 10), fechaVencimiento: '2099-12-31', cliente: targetClient.name, montoUSD: subtotalUSD, abonadoUSD: 0, saldoUSD: subtotalUSD, estado: 'pendiente', historialPagos: [], ventaId: reciboId };
-    updateState({ productos: prodsActualizados, ventas: [...state.ventas, nuevaVenta], movimientos: [...state.movimientos, ...nuevosMovimientos], cxc: [...state.cxc, nuevaDeuda], clientes: showNewClientForm ? [...(state.clientes || []), { ...targetClient, debt: subtotalUSD }] : (state.clientes || []).map(c => c.id === targetClient!.id ? { ...c, debt: (c.debt || 0) + subtotalUSD } : c), libroDiario: [{ id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5), fecha: ahoraStr, tipo: 'ingreso', categoria: 'VENTA_CREDITO', concepto: `CRÉDITO #${reciboId} - CLIENTE: ${targetClient.name}`, montoUSD: subtotalUSD, montoBS: totalBS, metodo: 'credito', referencia: reciboId }, ...(state.libroDiario || [])], proximoRecibo: state.proximoRecibo + 1, terminales: state.terminales.map(t => t.id === terminal?.id ? { ...t, proximoRecibo: t.proximoRecibo + 1 } : t) });
+    updateState({ productos: prodsActualizados, ventas: [...state.ventas, nuevaVenta], movimientos: [...state.movimientos, ...nuevosMovimientos], cxc: [...state.cxc, nuevaDeuda], clientes: showNewClientForm ? [...(state.clientes || []), { ...targetClient, debt: subtotalUSD }] : (state.clientes || []).map(c => c.id === targetClient!.id ? { ...c, debt: (c.debt || 0) + subtotalUSD } : c), libroDiario: [{ id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5), fecha: ahoraStr, tipo: 'ingreso', categoria: 'VENTA_CREDITO', concepto: `CRÉDITO #${reciboId} - CLIENTE: ${targetClient.name}`, montoUSD: subtotalUSD, montoBS: totalBS, metodo: 'credito', referencia: reciboId }, ...(state.libroDiario || [])], proximoRecibo: state.proximoRecibo + 1, terminales: state.terminales.map(t => t.id === terminal?.id ? { ...t, proximoRecibo: t.proximoRecibo + 1 } : t), carrito: [] });
     setLastProcessedSale(nuevaVenta); setShowReceiptModal(true); setIsCreditView(false); setSelectedClient(null);
   };
-
-  const expandedClient = null; const setExpandedClient = (c: any) => {}; const setShowClientHistory = (c: any) => {};
 
   return (
     <div className="flex flex-col gap-2 h-[calc(100vh-100px)] max-w-7xl mx-auto w-full overflow-hidden">

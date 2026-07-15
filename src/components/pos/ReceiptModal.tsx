@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useRef } from 'react';
@@ -60,9 +59,8 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
     return (data.type || 'RECIBO DE VENTA').toUpperCase();
   };
 
-  // Helper para filas con alineación garantizada por tablas
   const DataRow = ({ label, value, bold = false }: { label: string, value: string, bold?: boolean }) => (
-    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2px' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2px', pageBreakInside: 'avoid' }}>
       <tbody>
         <tr style={{ fontSize: '11px', fontWeight: bold ? '900' : '700' }}>
           <td style={{ textAlign: 'left', textTransform: 'uppercase', padding: '0' }}>{label}</td>
@@ -85,6 +83,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
           <meta charset="UTF-8">
           <style>
             @page { size: 80mm auto; margin: 0; }
+            html, body { height: auto; overflow: visible; margin: 0; padding: 0; }
             body {
               font-family: 'Arial', 'Helvetica', sans-serif;
               width: 72mm;
@@ -96,9 +95,9 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
               line-height: 1.1;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
-              font-weight: 700; /* Refuerzo de contraste para letras claras */
+              font-weight: 700;
             }
-            .thermal-80mm { width: 100%; }
+            .thermal-80mm { width: 100%; display: block; overflow: hidden; page-break-after: avoid; }
             .black-box { 
               background: #000 !important; 
               color: #fff !important; 
@@ -111,14 +110,16 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
               width: 100%;
               box-sizing: border-box;
               display: block;
+              page-break-inside: avoid;
             }
             .text-center { text-align: center; }
-            .separator { border-top: 1px dashed #000; margin: 8px 0; width: 100%; display: block; }
-            table { width: 100%; border-collapse: collapse; margin: 0; padding: 0; }
+            .separator { border-top: 1px dashed #000; margin: 8px 0; width: 100%; display: block; height: 1px; }
+            table { width: 100%; border-collapse: collapse; margin: 0; padding: 0; page-break-inside: avoid; }
             td { padding: 0; margin: 0; }
             .bold { font-weight: 900; }
             .header-title { font-size: 20px; font-weight: 900; }
             .header-info { font-size: 10px; font-weight: 700; }
+            .items-table td { padding: 2px 0; }
           </style>
         </head>
         <body>
@@ -153,7 +154,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
             <div 
               ref={printRef}
               className="thermal-80mm bg-white p-6 shadow-sm text-black font-sans select-none"
-              style={{ width: '72mm', boxSizing: 'border-box', color: '#000', fontSize: '11px', fontWeight: 700 }}
+              style={{ width: '72mm', boxSizing: 'border-box', color: '#000', fontSize: '11px', fontWeight: 700, display: 'block' }}
             >
               <div className="text-center mb-4">
                 <h1 className="header-title uppercase mb-1" style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 900 }}>{state.empresa.nombre}</h1>
@@ -163,7 +164,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
 
               <div className="separator" />
 
-              <div className="black-box" style={{ background: '#000', color: '#fff', padding: '6px', textAlign: 'center', fontWeight: 900 }}>
+              <div className="black-box">
                 {getReportTitle()}
               </div>
 
@@ -244,11 +245,11 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                   )}
                 </div>
               ) : (
-                <div style={{ width: '100%' }}>
+                <div style={{ width: '100%', display: 'block' }}>
                   <DataRow label="N° CONTROL:" value={data.id} bold />
                   <DataRow label="CLIENTE:" value={customerName} bold />
                   <div className="separator" />
-                  <table style={{ width: '100%', marginBottom: '5px' }}>
+                  <table className="items-table" style={{ width: '100%', marginBottom: '5px', pageBreakInside: 'auto' }}>
                     <thead>
                       <tr style={{ fontSize: '10px', borderBottom: '1px solid black' }}>
                         <th style={{ textAlign: 'left', textTransform: 'uppercase' }}>PRODUCTO</th>
@@ -257,7 +258,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                     </thead>
                     <tbody style={{ textTransform: 'uppercase' }}>
                       {data.items.map((item: any, idx: number) => (
-                        <tr key={idx} style={{ fontSize: '10px' }}>
+                        <tr key={idx} style={{ fontSize: '10px', pageBreakInside: 'avoid' }}>
                           <td style={{ padding: '2px 0' }}>{item.cantidad || item.qty}x {(item.nombre || item.name).slice(0, 30)}</td>
                           <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatBs((item.subtotalUSD || (item.price * item.qty)) * state.tasa)}</td>
                         </tr>
@@ -265,7 +266,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                     </tbody>
                   </table>
                   <div className="separator" />
-                  <div style={{ marginTop: '4px' }}>
+                  <div style={{ marginTop: '4px', pageBreakInside: 'avoid' }}>
                     <table style={{ width: '100%' }}>
                       <tbody>
                         <tr>
@@ -279,7 +280,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
                 </div>
               )}
 
-              <div style={{ textAlign: 'center', marginTop: '15px', paddingTop: '8px', borderTop: '1px dotted #ccc' }}>
+              <div style={{ textAlign: 'center', marginTop: '15px', paddingTop: '8px', borderTop: '1px dotted #ccc', pageBreakInside: 'avoid' }}>
                 <p style={{ fontWeight: 'bold', margin: '0 0 2px 0' }}>¡Gracias por su preferencia!</p>
                 <p style={{ opacity: '0.6', fontSize: '8px', margin: '0' }}>PosVEN Pro v2.5 - Bloque Fiscal Imagen 3</p>
               </div>
