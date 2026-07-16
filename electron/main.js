@@ -14,27 +14,34 @@ function createWindow() {
     icon: path.join(__dirname, '../public/posven-logo.png'),
     title: "PosVEN Pro - Punto de Venta",
     show: false, // No mostrar hasta que esté listo
+    backgroundColor: '#E6E1D3', // Color de fondo del sistema para evitar destellos blancos
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      webSecurity: true,
     },
   });
 
   const isDev = process.env.NODE_ENV === 'development';
   
   if (isDev) {
-    mainWindow.loadURL('http://localhost:9002');
+    mainWindow.loadURL('http://localhost:9002').catch((err) => {
+      console.error("Error cargando URL de desarrollo:", err);
+    });
   } else {
     // Usar path absoluto robusto para la versión empaquetada
+    // Al usar output: export y trailingSlash: true, Next.js genera index.html en cada carpeta
     const indexPath = path.join(__dirname, '../out/index.html');
     mainWindow.loadFile(indexPath).catch((err) => {
-      console.error("Error cargando la app estática:", err);
+      console.error("Error crítico cargando la app estática:", err);
     });
   }
 
+  // Se muestra solo cuando el contenido está listo para renderizar
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    mainWindow.focus();
   });
 
   if (!isDev) {
@@ -46,7 +53,7 @@ function createWindow() {
   });
 
   if (!isDev) {
-    autoUpdater.checkForUpdatesAndNotify();
+    autoUpdater.checkForUpdatesAndNotify().catch(err => console.error("Update error:", err));
   }
 }
 

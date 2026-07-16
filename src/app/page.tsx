@@ -64,10 +64,10 @@ export default function LicoreriaPOS() {
     setMounted(true);
     let unsubscribeProfile: any = null;
 
-    // Safety timeout para evitar carga infinita si Firebase Auth no responde
+    // Safety timeout para evitar carga infinita en entornos de escritorio (Electron)
     const timerSafety = setTimeout(() => {
       if (loading) {
-        console.warn("Safety trigger: Loading state forced to false.");
+        console.warn("Safety trigger: Acceso forzado tras tiempo de espera.");
         setLoading(false);
       }
     }, 8000);
@@ -79,7 +79,7 @@ export default function LicoreriaPOS() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
-        // QUIRÚRGICO: No desactivamos 'loading' para que no se renderice el Dashboard antes de redirigir
+        // Mantenemos loading activo para evitar flash del dashboard antes de redirigir
         router.push('/login');
       } else {
         try {
@@ -108,7 +108,7 @@ export default function LicoreriaPOS() {
                       
                       if (!hasTerminal) {
                          signOut(auth).then(() => {
-                           alert("ACCESO RESTRINGIDO: Su usuario no tiene un terminal asignado. Contacte al Administrador.");
+                           alert("ACCESO RESTRINGIDO: Su usuario no tiene un terminal asignado.");
                            router.push('/login');
                          });
                          return;
@@ -118,7 +118,7 @@ export default function LicoreriaPOS() {
                       setActiveTab(target);
                       setShowApertura(!aperturaConfirmada);
                       setLoading(false);
-                   });
+                   }).catch(() => setLoading(false));
                 } else {
                    const target = savedModule || 'dashboard';
                    setActiveTab(target);
@@ -135,7 +135,6 @@ export default function LicoreriaPOS() {
               signOut(auth).then(() => router.push('/login'));
             }
           }, (err) => {
-            if (err.code === 'permission-denied') return;
             console.error("Sync error:", err);
             setLoading(false);
           });
@@ -177,7 +176,7 @@ export default function LicoreriaPOS() {
       clearInterval(timerClock);
       clearTimeout(timerSafety);
     };
-  }, [router]);
+  }, [router, loading]);
 
   useEffect(() => {
     if (mounted) {
@@ -209,13 +208,10 @@ export default function LicoreriaPOS() {
     if (confirm('¿Cerrar sesión del sistema?')) {
       setLoading(true);
       try {
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.clear();
-        }
+        if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
         if (auth) await signOut(auth);
         router.push('/login');
       } catch (e) {
-        console.error("Error al cerrar sesión:", e);
         if (auth) await signOut(auth);
         router.push('/login');
       }
@@ -391,71 +387,69 @@ export default function LicoreriaPOS() {
 
   return (
     <div className="flex min-h-screen bg-surface-warm text-ink overflow-hidden">
-      {!isCajero && (
-        <aside 
-          onMouseLeave={() => setIsSidebarOpen(false)}
-          className={`fixed top-0 left-0 w-[260px] h-screen bg-white border-line flex flex-col z-50 transition-all duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} border-r shadow-2xl`}
-        >
-          <div className="p-6 border-b border-line flex flex-col gap-1 relative">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-ink border border-brand-gold rounded-[10px] flex items-center justify-center font-black text-brand-gold text-lg shadow-sm">P</div>
-              <div>
-                <div className="font-display font-[800] text-lg leading-none text-ink">Pos<span className="text-brand-gold">VEN</span> Pro</div>
-                <div className="text-[0.68rem] font-bold text-ink uppercase tracking-widest mt-1">Soluciones Venezuela</div>
+      <aside 
+        onMouseLeave={() => setIsSidebarOpen(false)}
+        className={`fixed top-0 left-0 w-[260px] h-screen bg-white border-line flex flex-col z-50 transition-all duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} border-r shadow-2xl`}
+      >
+        <div className="p-6 border-b border-line flex flex-col gap-1 relative">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-ink border border-brand-gold rounded-[10px] flex items-center justify-center font-black text-brand-gold text-lg shadow-sm">P</div>
+            <div>
+              <div className="font-display font-[800] text-lg leading-none text-ink">Pos<span className="text-brand-gold">VEN</span> Pro</div>
+              <div className="text-[0.68rem] font-bold text-ink uppercase tracking-widest mt-1">Soluciones Venezuela</div>
+            </div>
+          </div>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border border-line rounded-full flex items-center justify-center text-ink hover:text-brand-gold shadow-sm"
+          >
+            <ChevronLeft size={14} />
+          </button>
+        </div>
+        
+        <nav className="flex-1 overflow-y-auto p-4 space-y-6">
+          {menuGroups.map((group) => (
+            <div key={group.id} className="space-y-1">
+              <div className="px-2.5 mb-2 text-[0.66rem] font-bold text-ink uppercase tracking-[0.18em]">{group.label}</div>
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = activeModule === item.id;
+                  return (
+                    <button key={item.id} onClick={() => handleModuleChange(item.id)} className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-[10px] text-[0.9rem] font-bold transition-all group relative ${active ? 'bg-brand-gold-soft text-brand-gold-deep' : 'text-ink hover:bg-surface-soft hover:text-ink'}`}>
+                      {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-brand-gold rounded-r-full" />}
+                      <div className="flex items-center gap-2.5">
+                        <Icon className={`w-4 h-4 ${active ? 'text-brand-gold-deep' : 'text-ink group-hover:text-ink'}`} />
+                        {item.label}
+                      </div>
+                      {item.count !== undefined && (
+                        <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black ${active ? 'bg-brand-gold text-white' : 'bg-surface-soft text-ink'}`}>{item.count}</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            <button 
-              onClick={() => setIsSidebarOpen(false)}
-              className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border border-line rounded-full flex items-center justify-center text-ink hover:text-brand-gold shadow-sm"
-            >
-              <ChevronLeft size={14} />
-            </button>
-          </div>
-          
-          <nav className="flex-1 overflow-y-auto p-4 space-y-6">
-            {menuGroups.map((group) => (
-              <div key={group.id} className="space-y-1">
-                <div className="px-2.5 mb-2 text-[0.66rem] font-bold text-ink uppercase tracking-[0.18em]">{group.label}</div>
-                <div className="space-y-1">
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = activeModule === item.id;
-                    return (
-                      <button key={item.id} onClick={() => handleModuleChange(item.id)} className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-[10px] text-[0.9rem] font-bold transition-all group relative ${active ? 'bg-brand-gold-soft text-brand-gold-deep' : 'text-ink hover:bg-surface-soft hover:text-ink'}`}>
-                        {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-brand-gold rounded-r-full" />}
-                        <div className="flex items-center gap-2.5">
-                          <Icon className={`w-4 h-4 ${active ? 'text-brand-gold-deep' : 'text-ink group-hover:text-ink'}`} />
-                          {item.label}
-                        </div>
-                        {item.count !== undefined && (
-                          <span className={`px-2 py-0.5 rounded-full text-[0.7rem] font-black ${active ? 'bg-brand-gold text-white' : 'bg-surface-soft text-ink'}`}>{item.count}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </nav>
-          
-          <div className="p-4 border-t border-line bg-surface-warm/50 flex flex-col gap-2">
-            <div className="bg-brand-gold-soft border border-[#EFD9A4] rounded-lg p-3 flex items-center gap-3 shadow-sm">
-              <div className="flex-1">
-                <div className="text-[0.62rem] font-bold text-brand-gold-deep uppercase tracking-widest mb-1 leading-none">Tasa BCV</div>
-                <div className="font-display font-[800] text-sm text-ink">{state.tasa.toFixed(2)} <span className="text-[0.7rem] font-black opacity-60">Bs/USD</span></div>
-              </div>
+          ))}
+        </nav>
+        
+        <div className="p-4 border-t border-line bg-surface-warm/50 flex flex-col gap-2">
+          <div className="bg-brand-gold-soft border border-[#EFD9A4] rounded-lg p-3 flex items-center gap-3 shadow-sm">
+            <div className="flex-1">
+              <div className="text-[0.62rem] font-bold text-brand-gold-deep uppercase tracking-widest mb-1 leading-none">Tasa BCV</div>
+              <div className="font-display font-[800] text-sm text-ink">{state.tasa.toFixed(2)} <span className="text-[0.7rem] font-black opacity-60">Bs/USD</span></div>
             </div>
-            
-            <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] text-[0.8rem] font-black text-status-danger hover:bg-status-danger-soft transition-all uppercase tracking-widest">
-              <LogOut className="w-4 h-4" /> Cerrar Sistema
-            </button>
           </div>
-        </aside>
-      )}
+          
+          <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] text-[0.8rem] font-black text-status-danger hover:bg-status-danger-soft transition-all uppercase tracking-widest">
+            <LogOut className="w-4 h-4" /> Cerrar Sistema
+          </button>
+        </div>
+      </aside>
 
       <main className="flex-1 flex flex-col min-h-screen max-w-full overflow-hidden">
         <header className="sticky top-0 z-30 bg-surface-warm/85 backdrop-blur-md border-b border-line px-7 py-3.5 flex items-center gap-6 no-print">
-          <button className={`${isCajero ? 'hidden' : 'p-2 -ml-2 text-ink hover:text-brand-gold'}`} onClick={() => setIsSidebarOpen(true)}>
+          <button className="p-2 -ml-2 text-ink hover:text-brand-gold" onClick={() => setIsSidebarOpen(true)}>
             <Menu className="w-[20px] h-[20px]" />
           </button>
           
