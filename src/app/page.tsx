@@ -64,7 +64,6 @@ export default function LicoreriaPOS() {
     setMounted(true);
     let unsubscribeProfile: any = null;
 
-    // Safety timeout para evitar carga infinita en entornos de escritorio (Electron)
     const timerSafety = setTimeout(() => {
       if (loading) {
         console.warn("Safety trigger: Acceso forzado tras tiempo de espera.");
@@ -79,7 +78,6 @@ export default function LicoreriaPOS() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
-        // Mantenemos loading activo para evitar flash del dashboard antes de redirigir
         router.push('/login');
       } else {
         try {
