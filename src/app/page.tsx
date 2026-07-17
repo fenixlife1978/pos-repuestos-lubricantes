@@ -449,9 +449,11 @@ export default function LicoreriaPOS() {
 
       <main className="flex-1 flex flex-col min-h-screen max-w-full overflow-hidden">
         <header className="sticky top-0 z-30 bg-surface-warm/85 backdrop-blur-md border-b border-line px-7 py-3.5 flex items-center gap-6 no-print">
-          <button className="p-2 -ml-2 text-ink hover:text-brand-gold" onClick={() => setIsSidebarOpen(true)}>
-            <Menu className="w-[20px] h-[20px]" />
-          </button>
+          {!isCajero && (
+            <button className="p-2 -ml-2 text-ink hover:text-brand-gold" onClick={() => setIsSidebarOpen(true)}>
+              <Menu className="w-[20px] h-[20px]" />
+            </button>
+          )}
           
           <div className="shrink-0">
             <h2 className="font-display text-lg font-[800] text-ink leading-tight">Pos<span className="text-brand-gold">VEN</span> pro</h2>
