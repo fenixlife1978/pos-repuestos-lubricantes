@@ -371,7 +371,16 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     });
     const nuevaVenta: Sale = { id: reciboId, fecha: ahoraStr, cliente: targetClient.name, items: [...state.carrito], subtotalUSD, descuentoUSD: 0, totalUSD: subtotalUSD, totalBS, metodoPago: 'credito', estado: 'completada', type: 'VENTA CRÉDITO', received: 0, change: 0, terminalId: terminal?.id, terminalName: terminal?.nombre || 'SISTEMA GLOBAL', cajeroId: auth?.currentUser?.uid, baseImponibleUSD: Utils.round(vBase), ivaUSD: Utils.round(vIVA), exentoUSD: Utils.round(vExento), igtfUSD: 0 };
     const nuevaDeuda: Debt = { id: 'CRD-' + reciboId.slice(-6), fecha: ahoraStr.slice(0, 10), fechaVencimiento: '2099-12-31', cliente: targetClient.name, montoUSD: subtotalUSD, abonadoUSD: 0, saldoUSD: subtotalUSD, estado: 'pendiente', historialPagos: [], ventaId: reciboId };
-    updateState({ productos: prodsActualizados, ventas: [...state.ventas, nuevaVenta], movimientos: [...state.movimientos, ...nuevosMovimientos], cxc: [...state.cxc, nuevaDeuda], clientes: showNewClientForm ? [...(state.clientes || []), { ...targetClient, debt: subtotalUSD }] : (state.clientes || []).map(c => c.id === targetClient!.id ? { ...c, debt: (c.debt || 0) + subtotalUSD } : c), libroDiario: [{ id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5), fecha: ahoraStr, tipo: 'ingreso', categoria: 'VENTA_CREDITO', concepto: `CRÉDITO #${reciboId} - CLIENTE: ${targetClient.name}`, montoUSD: subtotalUSD, montoBS: totalBS, metodo: 'credito', referencia: reciboId + '-' + (terminal?.id || 'GLOBAL') }, ...(state.libroDiario || [])], proximoRecibo: state.proximoRecibo + 1, terminales: state.terminales.map(t => t.id === terminal?.id ? { ...t, proximoRecibo: t.proximoRecibo + 1 } : t), carrito: [] });
+    updateState({ 
+      productos: prodsActualizados, 
+      ventas: [...state.ventas, nuevaVenta], 
+      movimientos: [...state.movimientos, ...nuevosMovimientos], 
+      cxc: [...state.cxc, nuevaDeuda], 
+      clientes: showNewClientForm ? [...(state.clientes || []), { ...targetClient, debt: subtotalUSD }] : (state.clientes || []).map(c => c.id === targetClient!.id ? { ...c, debt: (c.debt || 0) + subtotalUSD } : c), 
+      proximoRecibo: state.proximoRecibo + 1, 
+      terminales: state.terminales.map(t => t.id === terminal?.id ? { ...t, proximoRecibo: t.proximoRecibo + 1 } : t), 
+      carrito: [] 
+    });
     setLastProcessedSale(nuevaVenta); setShowReceiptModal(true); setIsCreditView(false); setSelectedClient(null);
   };
 
@@ -666,7 +675,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                             {sale.items.map((it: any, idx: number) => (
                               <tr key={idx} className="border-b border-line/20">
                                  <td className="text-[9px] font-black p-2">{it.cantidad}</td>
-                                 <td className="text-[9px] font-black uppercase p-2 truncate max-w-[180px]">{it.nombre}</td>
+                                 <td className="text-[9px] font-black uppercase p-2 truncate max-w-[180px]">{item.nombre}</td>
                                  <td className="text-[9px] font-black p-2 text-right">{Utils.fmtUSD(it.precioUnitUSD)}</td>
                                  <td className="text-[9px] font-black p-2 text-right text-brand-gold-deep">{Utils.fmtUSD(it.subtotalUSD)}</td>
                               </tr>

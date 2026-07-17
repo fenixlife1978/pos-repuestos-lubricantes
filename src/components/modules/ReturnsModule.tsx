@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { AppState, Return, Sale, ReturnItem, Movimiento, Anulacion } from '@/lib/types';
+import { AppState, Return, Sale, ReturnItem, Movimiento, Anulacion, LibroDiarioEntry } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import { 
   RotateCcw, 
@@ -29,7 +29,6 @@ export default function ReturnsModule({ state, updateState, onBackToPOS, termina
   const [reason, setMotivo] = useState('');
 
   const buscarVenta = () => {
-    // Solo permitir buscar ventas del terminal actual si se especificó terminalId
     const sale = state.ventas.find(v => (v.id === saleSearch || v.id.endsWith(saleSearch)) && (!terminalId || v.terminalId === terminalId));
     if (!sale) return alert('Venta no encontrada en este terminal.');
     if (sale.estado === 'anulada') return alert('Esta factura ya ha sido anulada previamente.');
@@ -121,12 +120,25 @@ export default function ReturnsModule({ state, updateState, onBackToPOS, termina
       return v;
     });
 
+    const nuevoAsiento: LibroDiarioEntry = {
+      id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
+      fecha: ahoraStr,
+      tipo: 'egreso',
+      categoria: 'DEVOLUCION',
+      concepto: `DEVOLUCIÓN DINERO ${idDev} - REF VENTA ${selectedSale.id}`,
+      montoUSD: totalDevuelto,
+      montoBS: totalDevuelto * state.tasa,
+      metodo: refundMethod === 'EFECTIVO' ? 'efectivo_usd' : (refundMethod === 'MISMO_METODO' ? 'otros' : 'nota_credito'),
+      referencia: idDev
+    };
+
     updateState({
       productos: nuevosProductos,
       devoluciones: [nuevaDevolucion, ...(state.devoluciones || [])],
       movimientos: [...state.movimientos, ...nuevosMovimientos],
       ventas: nuevasVentas,
-      proximaDevolucion: (state.proximaDevolucion || 1) + 1
+      proximaDevolucion: (state.proximaDevolucion || 1) + 1,
+      libroDiario: [nuevoAsiento, ...(state.libroDiario || [])]
     });
 
     alert(`Devolución ${idDev} procesada con éxito`);
@@ -172,7 +184,6 @@ export default function ReturnsModule({ state, updateState, onBackToPOS, termina
       v.id === selectedSale.id ? { ...v, estado: 'anulada' } : v
     );
 
-    // Generar registro histórico de anulación
     const idAnu = 'ANU-' + String(state.proximaAnulacion || 1).padStart(5, '0');
     const nuevaAnulacion: Anulacion = {
       id: idAnu,
@@ -183,14 +194,10 @@ export default function ReturnsModule({ state, updateState, onBackToPOS, termina
       items: [...selectedSale.items]
     };
 
-    // Revertir en Libro Diario si existe
-    const nuevoDiario = state.libroDiario.filter(e => !(e.referencia === selectedSale.id && e.categoria === 'VENTA'));
-
     updateState({
       productos: nuevosProductos,
       ventas: nuevasVentas,
       movimientos: [...state.movimientos, ...nuevosMovimientos],
-      libroDiario: nuevoDiario,
       anulaciones: [nuevaAnulacion, ...(state.anulaciones || [])],
       proximaAnulacion: (state.proximaAnulacion || 1) + 1
     });
@@ -201,7 +208,6 @@ export default function ReturnsModule({ state, updateState, onBackToPOS, termina
   };
 
   const historialUnificado = useMemo(() => {
-    // FILTRADO POR TERMINAL SOLICITADO
     const devs = (state.devoluciones || [])
       .filter(d => !terminalId || state.ventas.find(v => v.id === d.ventaId)?.terminalId === terminalId)
       .map(d => ({ ...d, tipoOperacion: 'DEVOLUCIÓN' }));
