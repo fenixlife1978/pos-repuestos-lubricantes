@@ -1,180 +1,189 @@
 
 /**
  * thermal-printer.ts
- * 
+ *
  * Módulo universal para la generación de tickets de texto plano compatibles con ESC/POS.
- * Contiene funciones de utilidad para formatear y alinear texto, y genera los strings
- * para diferentes tipos de documentos (Ventas, Reportes X/Z).
+ * Utiliza datos dinámicos de la tienda para el encabezado y formatea la salida
+ * para que coincida con un estilo de impresora térmica nativa.
  */
 
 // --- Constantes de Configuración ---
-
 const PAPER_WIDTH = {
-  '80mm': 42,
+  '80mm': 48,
   '56mm': 32,
 };
 
-// --- Comandos ESC/POS Básicos ---
-
+// --- Comandos ESC/POS ---
 export const CMD = {
-  INIT: '\x1B\x40',          // Resetear impresora
-  CUT: '\x1B\x69',             // Corte total de papel
-  DRAWER_KICK: '\x1B\x70\x00\x19\x19', // Abrir gaveta de dinero (Pulso al pin 2)
-  BOLD_ON: '\x1B\x45\x01',      // Activar modo negrita
-  BOLD_OFF: '\x1B\x45\x00',     // Desactivar modo negrita
+  INIT: '\x1B\x40',
+  CUT: '\x1B\x69',
+  DRAWER_KICK: '\x1B\x70\x00\x19\x19',
+  BOLD_ON: '\x1B\x45\x01',
+  BOLD_OFF: '\x1B\x45\x00',
+  DOUBLE_HW_ON: '\x1B\x21\x30', // Doble altura y anchura
+  DOUBLE_HW_OFF: '\x1B\x21\x00', // Desactiva doble altura y anchura
 };
 
-// --- Funciones Auxiliares de Formateo de Texto ---
+// --- Funciones Auxiliares de Formateo ---
 
-/**
- * Crea una línea con texto alineado a la izquierda y a la derecha.
- * Rellena el centro con espacios para asegurar la alineación.
- * @param leftTxt Texto para la izquierda.
- * @param rightTxt Texto para la derecha.
- * @param width Ancho total en caracteres.
- * @returns {string} Línea formateada.
- */
 function alignLeftRight(leftTxt: string, rightTxt: string, width: number): string {
-  leftTxt = leftTxt || '';
-  rightTxt = rightTxt || '';
+  leftTxt = String(leftTxt || '');
+  rightTxt = String(rightTxt || '');
   const spaceCount = width - leftTxt.length - rightTxt.length;
-
   if (spaceCount < 1) {
-    // Si no hay espacio, acortar el texto izquierdo para que quepa el derecho
     const availableWidth = width - rightTxt.length - 1;
     return leftTxt.substring(0, availableWidth) + ' ' + rightTxt;
   }
-
   const spaces = ' '.repeat(spaceCount);
   return leftTxt + spaces + rightTxt;
 }
 
-/**
- * Centra un texto en una línea del ancho especificado.
- * @param txt Texto a centrar.
- * @param width Ancho total en caracteres.
- * @returns {string} Línea con texto centrado.
- */
 function center(txt: string, width: number): string {
-  txt = txt || '';
-  if (txt.length >= width) {
-    return txt.substring(0, width);
-  }
+  txt = String(txt || '');
+  if (txt.length >= width) return txt.substring(0, width);
   const leftPadding = Math.floor((width - txt.length) / 2);
   const rightPadding = width - txt.length - leftPadding;
   return ' '.repeat(leftPadding) + txt + ' '.repeat(rightPadding);
 }
 
-/**
- * Genera una línea separadora.
- * @param char Caracter para el separador (ej: '-', '=', '*').
- * @param width Ancho total en caracteres.
- * @returns {string} Línea separadora.
- */
 function separator(char: string, width: number): string {
   return char.repeat(width);
+}
+
+function formatCurrency(value: number, width: number, prefix = 'Bs. '): string {
+    const num = (typeof value === 'number') ? value : 0;
+    const formattedValue = prefix + num.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return formattedValue.padStart(width, ' ');
 }
 
 // --- Generadores de Tickets ---
 
 type PaperSize = '80mm' | '56mm';
 
+// La información de la tienda se pasará como argumento
+interface StoreInfo {
+    name?: string;
+    address?: string;
+    rif?: string;
+    phone?: string;
+}
+
 /**
  * Construye el string para un ticket de venta.
  * @param saleData - El objeto de la venta.
+ * @param storeInfo - Información de la tienda.
  * @param paperSize - '80mm' o '56mm'.
  * @returns {string} El ticket completo como un solo string.
  */
-export function generateSaleTicket(saleData: any, paperSize: PaperSize): string {
+export function generateSaleTicket(saleData: any, storeInfo: StoreInfo = {}, paperSize: PaperSize): string {
   const width = PAPER_WIDTH[paperSize];
   let ticket = [];
 
-  // Encabezado
-  ticket.push(center('EMPRESA XYZ, C.A.', width));
-  ticket.push(center('AV. PRINCIPAL, EDIF. ABC', width));
-  ticket.push(center('RIF: J-12345678-9', width));
+  // Encabezado dinámico
+  ticket.push(CMD.DOUBLE_HW_ON + center(storeInfo.name || '', width / 2) + CMD.DOUBLE_HW_OFF);
+  if (storeInfo.address) ticket.push(center(storeInfo.address, width));
+  if (storeInfo.rif) ticket.push(center(`RIF: ${storeInfo.rif}`, width));
+  if (storeInfo.phone) ticket.push(center(`TEL: ${storeInfo.phone}`, width));
   ticket.push(separator('-', width));
 
   // Datos del Ticket
-  ticket.push(alignLeftRight('CONTROL:', saleData.id, width));
-  ticket.push(alignLeftRight('FECHA:', saleData.fecha, width));
-  ticket.push(alignLeftRight('CLIENTE:', saleData.cliente, width));
+  ticket.push(alignLeftRight(`TERMINAL: ${saleData.terminal || 'CAJA-01'}`, '', width));
+  ticket.push(alignLeftRight(`FECHA/HORA: ${new Date().toLocaleString('es-ES')}`, '', width));
+  ticket.push(alignLeftRight(`CONTROL: ${saleData.id}`, '', width));
+  if (saleData.cliente) {
+      ticket.push(alignLeftRight(`CLIENTE: ${saleData.cliente.name}`, '', width));
+      ticket.push(alignLeftRight(`RIF/CI: ${saleData.cliente.id}`, '', width));
+  }
   ticket.push(separator('-', width));
 
   // Cabecera de Items
-  ticket.push(alignLeftRight('CANT  DESCRIPCION', 'MONTO', width));
-  ticket.push(separator('.', width));
+  ticket.push('DESCRIPCION');
+  ticket.push(alignLeftRight('CANT  x  PRECIO', 'TOTAL', width));
+  ticket.push(separator('-', width));
 
   // Items
   for (const item of saleData.items) {
-    const itemDesc = `${item.cantidad} x ${item.nombre}`;
-    const itemTotal = item.total.toFixed(2);
-    ticket.push(alignLeftRight(itemDesc, itemTotal, width));
+    ticket.push(item.nombre.toUpperCase());
+    const itemPrice = (item.precio || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+    const itemTotal = (item.total || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 });
+    ticket.push(alignLeftRight(` ${item.cantidad} x ${itemPrice}`, itemTotal, width));
   }
   ticket.push(separator('-', width));
 
   // Totales
-  ticket.push(alignLeftRight('SUB-TOTAL:', saleData.subtotal.toFixed(2), width));
-  ticket.push(alignLeftRight('IVA (16%):', saleData.iva.toFixed(2), width));
-  ticket.push(CMD.BOLD_ON + alignLeftRight('TOTAL A PAGAR:', saleData.total.toFixed(2), width) + CMD.BOLD_OFF);
-  ticket.push(alignLeftRight('Ref. USD:', saleData.totalUSD.toFixed(2), width));
-  ticket.push(separator('-', width));
+  ticket.push(CMD.BOLD_ON + alignLeftRight('TOTAL A PAGAR:', formatCurrency(saleData.total, 0, 'Bs. '), width) + CMD.BOLD_OFF);
+  ticket.push(''); // Espacio
 
-  // Mensaje final
-  ticket.push(center('¡Gracias por su compra!', width));
+  // Pie de página
+  ticket.push(center('¡Gracias por su preferencia!', width));
   
-  // Une todo y agrega comandos finales
-  return CMD.INIT + ticket.join('\n') + '\n\n' + CMD.CUT + CMD.DRAWER_KICK;
+  return CMD.INIT + ticket.join('\n') + '\n\n\n' + CMD.CUT + CMD.DRAWER_KICK;
 }
 
 /**
  * Construye el string para un Reporte X o Z.
  * @param reportData - Los datos del reporte.
+ * @param storeInfo - Información de la tienda.
  * @param type - 'X' o 'Z'.
  * @param paperSize - '80mm' o '56mm'.
  * @returns {string} El reporte completo como un solo string.
  */
-export function generateReport(reportData: any, type: 'X' | 'Z', paperSize: PaperSize): string {
+export function generateReport(reportData: any, storeInfo: StoreInfo = {}, type: 'X' | 'Z', paperSize: PaperSize): string {
   const width = PAPER_WIDTH[paperSize];
   let report = [];
 
-  const title = `REPORTE ${type}`;
+  const title = type === 'X' ? 'REPORTE X - LECTURA PARCIAL' : 'REPORTE Z - CIERRE DIARIO';
   
-  // Encabezado
-  report.push(center(title, width));
-  report.push(center('EMPRESA XYZ, C.A.', width));
-  report.push(separator('=', width));
-  report.push(alignLeftRight('FECHA:', reportData.fecha, width));
-  if (type === 'Z') {
-    report.push(alignLeftRight('REPORTE Z #:', reportData.numeroZ, width));
-  }
+  // Encabezado dinámico
+  report.push(CMD.DOUBLE_HW_ON + center(storeInfo.name || '', width / 2) + CMD.DOUBLE_HW_OFF);
+  if (storeInfo.address) report.push(center(storeInfo.address, width));
+  if (storeInfo.rif) report.push(center(`RIF: ${storeInfo.rif}`, width));
+  if (storeInfo.phone) report.push(center(`TEL: ${storeInfo.phone}`, width));
   report.push(separator('-', width));
+  report.push(CMD.BOLD_ON + center(title, width) + CMD.BOLD_OFF);
+  report.push(separator('-', width));
+
+  // Info general
+  report.push(alignLeftRight(`TERMINAL: ${reportData.terminal || 'CAJA-01'}`, '', width));
+  report.push(alignLeftRight(`FECHA/HORA: ${new Date().toLocaleString('es-ES')}`, '', width));
+  report.push('');
 
   // Cuerpo del reporte
-  report.push(center('RESUMEN DE VENTAS', width));
-  report.push(alignLeftRight('Venta Bruta:', reportData.ventaBruta.toFixed(2), width));
-  report.push(alignLeftRight('Descuentos:', `-${reportData.descuentos.toFixed(2)}`, width));
-  report.push(alignLeftRight('Devoluciones:', `-${reportData.devoluciones.toFixed(2)}`, width));
-  report.push(CMD.BOLD_ON + alignLeftRight('Venta Neta:', reportData.ventaNeta.toFixed(2), width) + CMD.BOLD_OFF);
-  report.push(separator('.', width));
-  
-  report.push(center('DESGLOSE FISCAL', width));
-  report.push(alignLeftRight('Base Imponible:', reportData.baseImponible.toFixed(2), width));
-  report.push(alignLeftRight('IVA (16%):', reportData.iva.toFixed(2), width));
-  report.push(alignLeftRight('IGTF (3%):', reportData.igtf.toFixed(2), width));
-  report.push(separator('-', width));
+  report.push(CMD.BOLD_ON + 'RESUMEN DE FACTURACION' + CMD.BOLD_OFF);
+  report.push(alignLeftRight('VENTA BRUTA:', formatCurrency(reportData.ventaBruta, 0, ''), width));
+  report.push(alignLeftRight('DESCUENTOS:', formatCurrency(reportData.descuentos, 0, '-'), width));
+  report.push(alignLeftRight('DEVOLUCIONES:', formatCurrency(reportData.devoluciones, 0, '-'), width));
+  report.push('');
+  report.push(CMD.BOLD_ON + alignLeftRight('VENTA NETA:', formatCurrency(reportData.ventaNeta, 0, 'Bs. '), width) + CMD.BOLD_OFF);
+  report.push('');
 
-  report.push(center('METODOS DE PAGO', width));
-  for (const metodo of reportData.metodosPago) {
-      report.push(alignLeftRight(metodo.nombre, metodo.total.toFixed(2), width));
-  }
+  report.push(CMD.BOLD_ON + 'DESGLOSE FISCAL' + CMD.BOLD_OFF);
+  report.push(alignLeftRight('MONTO EXENTO:', formatCurrency(reportData.baseImponible, 0, 'Bs. '), width));
+  report.push(alignLeftRight('BASE IMPONIBLE:', formatCurrency(0, 0, 'Bs. '), width));
+  report.push(alignLeftRight('IVA RECAUDADO (16%):', formatCurrency(reportData.iva, 0, 'Bs. '), width));
+  report.push(alignLeftRight('TOTAL IGTF (3%):', formatCurrency(reportData.igtf, 0, 'Bs. '), width));
+  report.push('');
   
-  // Final
-  report.push(separator('=', width));
+  report.push(CMD.BOLD_ON + 'CONCILIACION DE PAGOS' + CMD.BOLD_OFF);
+  (reportData.metodosPago || []).forEach((metodo: any) => {
+      report.push(alignLeftRight(metodo.nombre.toUpperCase() + ':', formatCurrency(metodo.total, 0, 'Bs. '), width));
+  });
+  report.push('');
+
+  report.push(CMD.BOLD_ON + 'ESTADISTICAS DE JORNADA' + CMD.BOLD_OFF);
+  report.push(alignLeftRight('FACTURAS EMITIDAS:', String(reportData.facturasEmitidas || 0), width));
+  report.push(alignLeftRight('NOTAS CREDITO:', String(reportData.notasCredito || 0), width));
+  report.push(alignLeftRight('DOCS. ANULADOS:', String(reportData.documentosAnulados || 0), width));
+  report.push(alignLeftRight('TICKET PROMEDIO:', formatCurrency(reportData.ticketPromedio, 0, 'Bs. '), width));
+  report.push('');
+
   if (type === 'Z') {
-      report.push(center('CIERRE DE CAJA REALIZADO', width));
+    report.push(CMD.BOLD_ON + center('CIERRE DE CAJA REALIZADO', width) + CMD.BOLD_OFF);
+    report.push('');
   }
-  
-  return CMD.INIT + report.join('\n') + '\n\n' + CMD.CUT;
-}
 
+  // Pie de página
+  report.push(center('¡Gracias por su preferencia!', width));
+  
+  return CMD.INIT + report.join('\n') + '\n\n\n' + CMD.CUT;
+}

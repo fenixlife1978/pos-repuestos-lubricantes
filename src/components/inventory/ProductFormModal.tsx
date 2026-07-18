@@ -44,11 +44,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   const [showPreview, setShowPreview] = useState(true);
   const [showPricesWithIVA, setShowPricesWithIVA] = useState([false, false, false, false, false]);
   
-  // Listas editables localmente
-  const [unidades, setUnidades] = useState(['unidad', 'litro', 'galón', 'cuarto', 'paila', 'kit', 'juego', 'par', 'metro', 'kilogramo', 'gramo', 'tambor']);
-  const [tiposArticulo, setTiposArticulo] = useState(['Repuesto', 'Lubricante', 'Filtro', 'Químico', 'Accesorio', 'Batería', 'Caucho', 'Freno', 'Suspensión', 'Motor', 'Eléctrico', 'Transmisión', 'Servicio']);
-  const [colores, setColores] = useState(['No Aplica', 'Negro', 'Gris', 'Cromo', 'Rojo', 'Azul', 'Blanco', 'Ámbar']);
-  const [tallas, setTallas] = useState(['N/A', 'Estándar', '0.10', '0.20', '0.30', '0.40', '0.50', '20', '30', '40', '50', '60']);
+  // Ahora las listas se leen del store, con un fallback por si no existen
+  const unidades = store?.productUnits || ['unidad', 'litro', 'galón', 'kit', 'juego'];
+  const tiposArticulo = store?.productCategories || ['Repuesto', 'Lubricante', 'Filtro'];
+  const colores = store?.productColors || ['No Aplica', 'Negro', 'Gris'];
+  const tallas = store?.productSizes || ['N/A', 'Estándar', '0.10', '0.20'];
   
   const [modalMarca, setModalMarca] = useState({ open: false, name: '' });
   const [modalGrupo, setModalGrupo] = useState({ open: false, name: '' });
@@ -312,38 +312,46 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     };
     modalMap[type]({ open: false, name: '', code: '' });
   };
+  
+  const handleSimpleListCreate = (listKey: string, newValue: string) => {
+    if (!newValue || !newValue.trim()) return;
+    updateStore((prev: any) => ({
+      ...prev,
+      [listKey]: [...(prev[listKey] || []), newValue.trim()]
+    }));
+  };
 
   const handleDelete = (type: string, idOrValue: any) => {
     if (!idOrValue || idOrValue === '0' || idOrValue === '') return;
     
-    if (!confirm('¿Está seguro de eliminar este elemento?')) return;
+    if (!confirm(`¿Está seguro de eliminar "${idOrValue}"? Esta acción no se puede deshacer.`)) return;
 
     const collections: any = {
-      marca: 'brands', grupo: 'groups', subgrupo: 'subgroups', linea: 'lines', proveedor: 'suppliers'
+      marca: 'brands', grupo: 'groups', subgrupo: 'subgroups', linea: 'lines', proveedor: 'suppliers',
+      categoria: 'productCategories', unidad: 'productUnits', color: 'productColors', talla: 'productSizes'
     };
     
-    const collection = collections[type];
-    if (collection) {
-      updateStore((prev: any) => ({
-        ...prev,
-        [collection]: (prev[collection] || []).filter((item: any) => item.id.toString() !== idOrValue.toString())
-      }));
+    const collectionKey = collections[type];
+    if (collectionKey) {
+      updateStore((prev: any) => {
+        const oldList = prev[collectionKey] || [];
+        const isObjectList = oldList.some((item: any) => typeof item === 'object');
+        const newList = isObjectList
+          ? oldList.filter((item: any) => item.id.toString() !== idOrValue.toString())
+          : oldList.filter((item: any) => item !== idOrValue);
+        return { ...prev, [collectionKey]: newList };
+      });
       
       const fieldMap: any = {
-        marca: 'brandId', grupo: 'groupId', subgrupo: 'subgroupId', linea: 'lineId', proveedor: 'supplierId'
-      };
-      setFormData(prev => ({ ...prev, [fieldMap[type]]: 0 }));
-    } else {
-      // Para arrays locales estáticos
-      if (type === 'categoria') setTiposArticulo(prev => prev.filter(t => t !== idOrValue));
-      if (type === 'color') setColores(prev => prev.filter(c => c !== idOrValue));
-      if (type === 'talla') setTallas(prev => prev.filter(t => t !== idOrValue));
-      if (type === 'unidad') setUnidades(prev => prev.filter(u => u !== idOrValue));
-      
-      const fieldMap: any = {
+        marca: 'brandId', grupo: 'groupId', subgrupo: 'subgroupId', linea: 'lineId', proveedor: 'supplierId',
         categoria: 'type', color: 'color', talla: 'size', unidad: 'mainUnit'
       };
-      setFormData(prev => ({ ...prev, [fieldMap[type]]: '' }));
+
+      const fieldToUpdate = fieldMap[type];
+      if (fieldToUpdate && formData[fieldToUpdate as keyof typeof formData] == idOrValue) {
+        const resetValue = ['brandId', 'groupId', 'subgroupId', 'lineId', 'supplierId'].includes(fieldToUpdate) ? 0 : '';
+        setFormData(prev => ({ ...prev, [fieldToUpdate]: resetValue }));
+      }
     }
   };
 
@@ -442,7 +450,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     </div>
   );
 
-  const SelectWithAdd = (props: any) => (
+  // El componente se memoiza para evitar re-renders innecesarios que cierran el select
+  const SelectWithAdd = React.memo((props: any) => (
     <div className="space-y-1">
       <Label className="text-[10px] font-black uppercase text-black">{props.label}</Label>
       <div className="flex gap-1">
@@ -475,7 +484,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         </div>
       </div>
     </div>
-  );
+  ));
 
   return (
     <>
@@ -581,10 +590,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     label="Categoría de Artículo"
                     value={formData.type}
                     onChange={(v: any) => setFormData(prev => ({ ...prev, type: v }))}
-                    options={tiposArticulo.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    options={tiposArticulo.map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     onAdd={() => {
                         const n = prompt("Nueva Categoría:");
-                        if(n) setTiposArticulo(prev => [...prev, n]);
+                        if(n) handleSimpleListCreate('productCategories', n);
                     }}
                     onDelete={(v: any) => handleDelete('categoria', v)}
                   />
@@ -643,10 +652,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     label="Color / Acabado"
                     value={formData.color}
                     onChange={(v: any) => setFormData(prev => ({ ...prev, color: v }))}
-                    options={colores.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    options={colores.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     onAdd={() => {
                         const n = prompt("Nuevo Color:");
-                        if(n) setColores(prev => [...prev, n]);
+                        if(n) handleSimpleListCreate('productColors', n);
                     }}
                     onDelete={(v: any) => handleDelete('color', v)}
                   />
@@ -655,10 +664,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     label="Medida / Talla / Grado"
                     value={formData.size}
                     onChange={(v: any) => setFormData(prev => ({ ...prev, size: v }))}
-                    options={tallas.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    options={tallas.map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     onAdd={() => {
                         const n = prompt("Nueva Talla/Medida:");
-                        if(n) setTallas(prev => [...prev, n]);
+                        if(n) handleSimpleListCreate('productSizes', n);
                     }}
                     onDelete={(v: any) => handleDelete('talla', v)}
                   />
@@ -694,10 +703,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     label="Unidad de Despacho"
                     value={formData.mainUnit}
                     onChange={(v: any) => setFormData(prev => ({ ...prev, mainUnit: v }))}
-                    options={unidades.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    options={unidades.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                     onAdd={() => {
                         const n = prompt("Nueva Unidad:");
-                        if(n) setUnidades(prev => [...prev, n]);
+                        if(n) handleSimpleListCreate('productUnits', n);
                     }}
                     onDelete={(v: any) => handleDelete('unidad', v)}
                   />
@@ -708,7 +717,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                       <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
                         <SelectValue placeholder="Opcional" />
                       </SelectTrigger>
-                      <SelectContent>{unidades.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                      <SelectContent>{unidades.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   
