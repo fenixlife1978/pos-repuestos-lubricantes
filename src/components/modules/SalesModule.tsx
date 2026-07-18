@@ -49,7 +49,6 @@ import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, PagoRealizado, Custom
 import { Utils, Store } from '@/lib/db-store';
 import ReturnsModule from '@/components/modules/ReturnsModule';
 import { cn } from '@/lib/utils';
-import '@/lib/window.d.ts';
 
 export default function SalesModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [search, setSearch] = useState('');
