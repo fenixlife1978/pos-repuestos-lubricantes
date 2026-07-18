@@ -46,7 +46,7 @@ import {
   exportarPDFKardex, 
   exportarPDFDevoluciones
 } from '@/lib/pdf-generator';
-import { ProductFormModal } from '@/components/inventory/ProductFormModal';
+import { ProductForm } from '@/components/inventory/ProductFormModal';
 
 export function InventoryModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [activeTab, setActiveTab] = useState('productos');
@@ -240,43 +240,12 @@ export function InventoryModule({ state, updateState }: { state: AppState, updat
       )}
 
       {showProducto && (
-        <ProductFormModal 
-          state={state}
-          producto={showProducto === 'nuevo' ? undefined : state.productos.find(p => p.id === showProducto)}
+        <ProductForm 
+          isOpen={!!showProducto}
           onClose={() => setShowProducto(null)}
-          onUpdateLists={(lists) => updateState(lists)}
-          onSave={(datos) => {
-            let nuevosProds;
-            if (showProducto === 'nuevo') {
-              const nuevo: Product = {
-                ...datos,
-                id: Store.uid(),
-                fechaCreacion: Utils.hoy(),
-                activo: true
-              };
-              nuevosProds = [...state.productos, nuevo];
-              if (nuevo.stock > 0) {
-                const mov: Movimiento = {
-                  id: Store.uid(),
-                  productoId: nuevo.id,
-                  tipo: 'inicial',
-                  cantidad: nuevo.stock,
-                  stockAntes: 0,
-                  stockDespues: nuevo.stock,
-                  fecha: Utils.ahora(),
-                  referencia: 'INICIAL',
-                  terminalId: 'SISTEMA'
-                };
-                updateState({ productos: nuevosProds, movimientos: [...state.movimientos, mov] });
-              } else {
-                updateState({ productos: nuevosProds });
-              }
-            } else {
-              nuevosProds = state.productos.map(p => p.id === showProducto ? { ...p, ...datos } : p);
-              updateState({ productos: nuevosProds });
-            }
-            setShowProducto(null);
-          }}
+          store={state}
+          updateStore={updateState}
+          editingProduct={showProducto === 'nuevo' ? null : state.productos.find(p => p.id === showProducto)}
         />
       )}
 
