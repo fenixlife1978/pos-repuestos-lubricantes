@@ -26,4 +26,4 @@ jobs:
       - name: Publish to GitHub Release
         run: npm run electron:publish
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}  # ← Cambiado de GITHUB_TOKEN a GH_TOKEN

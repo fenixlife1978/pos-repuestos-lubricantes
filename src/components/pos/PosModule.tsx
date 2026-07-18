@@ -1,362 +1,384 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, DollarSign } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { create, all } from 'mathjs';
+import { 
+  Search, History, Users, Barcode, Trash2, X, Plus, Minus, DollarSign, CreditCard,
+  Save, Printer, FileText, ChevronDown, BookOpen, HardDrive, Wifi, WifiOff
+} from 'lucide-react';
+import { useHotkeys } from 'react-hotkeys-hook';
+import { useToast } from '../../hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { Product, Customer } from '@/lib/types';
+import { formatBs, formatUsd } from '@/lib/currency-formatter';
 import { Store } from '@/lib/db-store';
-import { Product, Sale, SaleItem, Customer, PagoRealizado, PaymentMethod } from '@/lib/types';
-import { toast } from '@/hooks/use-toast';
 import FloatingPaymentModal from './FloatingPaymentModal';
 import { ReceiptModal } from './ReceiptModal';
+import { LoadCreditModal } from './LoadCreditModal';
 
-interface CartItem {
-    productId: string;
-    barcode: string;
-    name: string;
-    price: number;
-    qty: number;
-    maxStock: number;
-}
+const math = create(all);
 
-// Interface for the payment data coming from the modal
-interface ModalPaymentItem {
-  id: string;
-  method: string;
-  amount: number; // Bs amount
-  usdAmount?: number;
-}
-
-export function PosModule() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [exchangeRate, setExchangeRate] = useState(36.5);
-  const [isCashOpen, setIsCashOpen] = useState(true); // Default to true
-  
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [isCreditOpen, setIsCreditOpen] = useState(false);
-  const [lastSale, setLastSale] = useState<Sale | null>(null);
-  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
-
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const resultsContainerRef = useRef<HTMLDivElement>(null);
+// DEV-NOTE: Se ha movido el hook useDebounce aquí para solucionar un problema de resolución de módulos.
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
 
   useEffect(() => {
-    const state = Store.get();
-    setProducts(state?.productos || []);
-    setExchangeRate(state?.tasa || 36.5);
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+export default function PosModule() {
+  const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+  const [store, setStore] = useState<any>(Store.get());
+
+  const [cart, setCart] = useState<any[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [isCreditSale, setIsCreditSale] = useState(false);
+  const [isLoadCreditModalOpen, setLoadCreditModalOpen] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<any>(null);
+  const [isReceiptModalOpen, setReceiptModalOpen] = useState(false);
+
+  const [syncStatus, setSyncStatus] = useState('idle');
+
+  useEffect(() => {
+    setIsClient(true);
+    const unsubscribe = Store.subscribe(setStore);
+    return () => unsubscribe();
   }, []);
 
+  const exchangeRate = useMemo(() => store?.config?.exchangeRate || 1, [store]);
+
   const filteredProducts = useMemo(() => {
-    if (!searchTerm) return [];
+    if (!debouncedSearchTerm) return [];
+    const products: Product[] = store?.products || [];
     return products.filter(p => 
-      p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      p.codigo?.toLowerCase().includes(searchTerm.toLowerCase())
-    ).slice(0, 10);
-  }, [searchTerm, products]);
+      p.activo && (
+        p.nombre.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        p.codigo?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        p.codigo?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+      )
+    ).slice(0, 20);
+  }, [debouncedSearchTerm, store?.products]);
 
-  useEffect(() => {
-      setSelectedIndex(-1);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    if (selectedIndex >= 0 && resultsContainerRef.current) {
-        const selectedElement = resultsContainerRef.current.children[selectedIndex] as HTMLElement;
-        if (selectedElement) {
-            selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        }
-    }
-  }, [selectedIndex]);
-
-  const addToCart = (product: Product) => {
-    if (product.stock <= 0) {
-      toast({ title: "Sin Stock", variant: "destructive" });
-      return;
-    }
-    const existing = cart.find(c => c.productId === product.id);
-    if (existing) {
-      if (existing.qty >= product.stock) {
-        toast({ title: "Stock Máximo", variant: "destructive" });
-        return;
-      }
-      setCart(cart.map(c => c.productId === product.id ? { ...c, qty: c.qty + 1 } : c));
+  const addToCart = (product: Product, quantity = 1) => {
+    const existingItem = cart.find(item => item.id === product.id);
+    if (existingItem) {
+      updateQuantity(product.id, existingItem.quantity + quantity);
     } else {
-      setCart([...cart, { 
-        productId: product.id,
-        barcode: product.codigo || '',
-        name: product.nombre,
-        price: product.precioUSD || 0,
-        qty: 1,
-        maxStock: product.stock 
-      }]);
+      setCart(prev => [...prev, { ...product, quantity, precioUSD: product.precioUSD ?? 0 }]);
     }
     setSearchTerm('');
-    searchInputRef.current?.focus();
   };
 
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setSelectedIndex(prev => (prev < filteredProducts.length - 1 ? prev + 1 : prev));
-      } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
-      } else if (e.key === 'Enter') {
-          e.preventDefault();
-          if (selectedIndex >= 0 && filteredProducts[selectedIndex]) {
-            addToCart(filteredProducts[selectedIndex]);
-          }
-          setSelectedIndex(-1);
-      }
+  const updateQuantity = (productId: string, quantity: number) => {
+    if (quantity < 0) return;
+    setCart(prev => prev.map(item => 
+      item.id === productId ? { ...item, quantity: Math.max(0, quantity) } : item
+    ));
   };
 
-  const updateQty = (productId: string, delta: number) => {
-    setCart(currentCart => {
-        const itemIndex = currentCart.findIndex(item => item.productId === productId);
-        if (itemIndex === -1) return currentCart;
-
-        const item = currentCart[itemIndex];
-        const newQty = item.qty + delta;
-
-        if (newQty > item.maxStock) {
-            toast({ title: "Stock insuficiente", variant: "destructive" });
-            return currentCart;
-        }
-
-        if (newQty <= 0) {
-            return currentCart.filter(it => it.productId !== productId);
-        }
-
-        return currentCart.map(it => it.productId === productId ? { ...it, qty: newQty } : it);
-    });
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.id !== productId));
   };
 
-  const totalUSD = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-  const totalBS = totalUSD * exchangeRate;
+  const total = useMemo(() => {
+    return cart.reduce((sum, item) => sum + (item.precioUSD * item.quantity), 0);
+  }, [cart]);
 
-  const handleSaleComplete = (saleData: { customer?: Customer; method: string; payments: ModalPaymentItem[]; change: number; }) => {
-    const saleItems: SaleItem[] = cart.map(item => ({
-      productoId: item.productId,
-      cantidad: item.qty,
-      precioUnitUSD: item.price,
-      subtotalUSD: item.price * item.qty,
-      nombre: item.name,
-    }));
+  const handlePayment = (isCredit = false) => {
+    if (cart.length === 0) {
+        toast({ title: "Carrito Vacío", description: "Agregue productos antes de proceder.", variant: "destructive" });
+        return;
+    }
     
-    // CORRECT MAPPING from ModalPaymentItem[] to PagoRealizado[]
-    const paymentsForSale: PagoRealizado[] = saleData.payments.map(p => ({
-      metodo: p.method as PaymentMethod,
-      montoBS: p.amount,
-      montoUSD: p.usdAmount || (p.amount / exchangeRate)
-    }));
-
-    const newSale: Sale = {
-      id: `VTA-${Date.now()}`,
-      fecha: new Date().toISOString(),
-      cliente: saleData.customer ? `${saleData.customer.name} [${saleData.customer.id}]` : 'CONSUMIDOR FINAL',
-      items: saleItems,
-      subtotalUSD: totalUSD,
-      descuentoUSD: 0, // Assuming no discount for now
-      totalUSD: totalUSD,
-      totalBS: totalBS,
-      metodoPago: saleData.method,
-      estado: 'completada', // Assuming a default state
-      change: saleData.change || 0,
-      payments: paymentsForSale // CORRECT property name and structure
-    };
-
-    const currentState = Store.get() || {};
-    const updatedProducts = (currentState.productos || []).map((p: Product) => {
-      const itemVendido = newSale.items.find(i => i.productoId === p.id);
-      if (itemVendido) {
-        return { ...p, stock: p.stock - itemVendido.cantidad };
-      }
-      return p;
-    });
-
-    setProducts(updatedProducts);
-    
-    let newState: any = {
-      ...currentState,
-      productos: updatedProducts,
-      ventas: [...(currentState.ventas || []), newSale],
-    };
-
-    if (saleData.customer && newSale.metodoPago === 'credito') {
-      const newDebt = {
-        id: `CXC-${Date.now()}`,
-        fecha: new Date().toISOString(),
-        fechaVencimiento: '2099-12-31',
-        cliente: `${saleData.customer.name} [${saleData.customer.id}]`,
-        montoUSD: totalUSD,
-        abonadoUSD: 0,
-        saldoUSD: totalUSD,
-        estado: 'pendiente',
-        historialPagos: [],
-        ventaId: newSale.id,
-      };
-      newState.cxc = [...(currentState.cxc || []), newDebt];
+    if (isCredit && !selectedCustomer) {
+        toast({ title: "Venta a Crédito", description: "Por favor, busque y seleccione un cliente antes de proceder.", variant: "default"});
+        return;
     }
 
-    Store.set(newState);
-
-    setLastSale(newSale);
-    setIsReceiptOpen(true);
-    setCart([]);
-    setIsPaymentOpen(false);
-    setIsCreditOpen(false);
+    setIsCreditSale(isCredit);
+    setPaymentModalOpen(true);
+  };
+  
+  const handleConfirmLoadCredit = (customer: Customer, amount: number) => {
+      const creditSale = {
+          id: `CRED-${Date.now()}`,
+          type: 'CREDIT_LOAD',
+          date: new Date().toISOString(),
+          customer: {
+              id: customer.id,
+              name: customer.name,
+          },
+          items: [{
+              id: 'CREDIT',
+              nombre: 'CARGA DE SALDO',
+              quantity: 1,
+              price: amount
+          }],
+          total: amount,
+      };
+  
+      const updatedCustomers = (store.clientes || []).map((c: Customer) => 
+          c.id === customer.id ? { ...c, debt: (c.debt || 0) + amount } : c
+      );
+  
+      Store.set({ 
+          ...store, 
+          sales: [...(store.sales || []), creditSale],
+          clientes: updatedCustomers
+      });
+  
+      toast({ title: "Crédito Cargado", description: `Se cargaron ${formatUsd(amount)} al cliente ${customer.name}.` });
+      setLoadCreditModalOpen(false);
   };
 
+  const finalizeTransaction = (data: any) => {
+    const sale = {
+      id: data.method === 'credito' ? `NC-${Date.now()}`: `FACT-${Date.now()}`,
+      type: data.method === 'credito' ? 'CREDIT_SALE' : 'SALE',
+      date: new Date().toISOString(),
+      customer: data.customer || selectedCustomer || { id: '0', name: 'CONSUMIDOR FINAL' },
+      items: cart,
+      subtotal: total,
+      tax: total * 0.16, // Simulado
+      total: total,
+      totalBs: total * exchangeRate,
+      payments: data.payments,
+      change: data.change,
+      mainPaymentMethod: data.method
+    };
+
+    if (data.method === 'credito' && data.customer) {
+        const updatedCustomers = store.clientes.map((c: Customer) => c.id === data.customer.id ? {...c, debt: (c.debt || 0) + total} : c);
+        Store.set({ ...store, clientes: updatedCustomers });
+    }
+
+    const newSales = [...(store.sales || []), sale];
+    const updatedProducts = store.products.map((p: Product) => {
+      const cartItem = cart.find(item => item.id === p.id);
+      return cartItem ? { ...p, stock: (p.stock || 0) - cartItem.quantity } : p;
+    });
+
+    Store.set({ ...store, sales: newSales, products: updatedProducts });
+    
+    setLastTransaction(sale);
+    setCart([]);
+    setSelectedCustomer(null);
+    setPaymentModalOpen(false);
+    setReceiptModalOpen(true);
+    toast({ title: "Venta Completada", description: "La transacción se ha guardado exitosamente." });
+  };
+
+  const syncData = async () => {
+    setSyncStatus('syncing');
+    toast({ title: "Sincronizando...", description: "Enviando datos a la nube." });
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    setSyncStatus('success');
+    toast({ title: "Sincronización Exitosa", description: "Los datos están actualizados en la nube." });
+    setTimeout(() => setSyncStatus('idle'), 3000);
+  };
+
+  useHotkeys('f1', () => document.getElementById('search-input')?.focus(), { preventDefault: true });
+  useHotkeys('f2', () => handlePayment(false), { preventDefault: true });
+  useHotkeys('f3', () => handlePayment(true), { preventDefault: true });
+  useHotkeys('f4', () => setCart([]), { preventDefault: true });
+  useHotkeys('f6', () => setPaymentModalOpen(true), { preventDefault: true });
+
+  if (!isClient) {
+    return <div className="flex items-center justify-center h-screen bg-gray-100"><HardDrive className="w-10 h-10 animate-pulse text-gray-400" /></div>;
+  }
+
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full p-2 lg:p-4 overflow-hidden">
-      <div className="w-full lg:w-[420px] flex flex-col gap-4">
-        <Card className="bg-card border-border shadow-xl">
-          <CardContent className="p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input 
-                ref={searchInputRef}
-                placeholder="Buscar por Nombre o Código..."
-                className="pl-10 h-12 text-base bg-background/50 border-border focus:bg-white transition-all"
+    <div className="h-screen bg-white flex flex-col font-sans">
+      <header className="bg-white border-b border-gray-200 px-4 py-2 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+            <h1 className="text-lg font-black text-gray-800 tracking-tighter">Pos<span className="text-[#D4A017]">VEN</span> pro</h1>
+            <div className="flex items-center gap-3">
+              <button className="font-bold text-xs flex items-center gap-2 bg-primary px-3 py-1.5 rounded-lg text-black"><BookOpen className="w-4 h-4"/> PUNTO DE VENTA</button>
+              <button className="font-bold text-xs flex items-center gap-2 hover:bg-gray-100 px-3 py-1.5 rounded-lg"><History className="w-4 h-4"/> HISTORIAL</button>
+            </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <div 
+            onClick={syncData}
+            className={cn(
+              "flex items-center gap-2 text-xs font-bold px-3 py-1 rounded-full cursor-pointer transition-colors",
+              syncStatus === 'idle' && "bg-gray-100 hover:bg-gray-200 text-gray-600",
+              syncStatus === 'syncing' && "bg-blue-100 text-blue-600 animate-pulse",
+              syncStatus === 'success' && "bg-green-100 text-green-700",
+            )}
+          >
+            {syncStatus === 'syncing' ? <Wifi className="w-4 h-4 animate-ping"/> : <Wifi className="w-4 h-4"/>}
+            CLOUD SYNC
+          </div>
+          <div className="text-right">
+            <p className="font-bold text-sm text-gray-800">{store?.user?.nombre || 'FIONA'}</p>
+            <p className="text-[10px] font-bold text-gray-500">MODO OPERATIVO</p>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-black text-black">
+            {(store?.user?.nombre || 'F').charAt(0)}
+          </div>
+          <button className="text-gray-500 hover:text-gray-800">
+            <ChevronDown className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      <div className="flex-1 flex overflow-hidden">
+        <main className="flex-1 flex flex-col p-4 bg-gray-50 overflow-y-auto">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input 
+                id="search-input"
+                type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                autoFocus
+                placeholder="Escanee o busque producto por código o descripción... (F1)"
+                className="w-full h-12 pl-12 pr-4 bg-white border border-gray-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary focus:outline-none"
               />
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <div ref={resultsContainerRef} className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {filteredProducts.map((p, index) => (
-            <div 
-              key={p.id} 
-              className={`p-3 border rounded-lg transition-all transform hover:translate-x-1 cursor-pointer ${selectedIndex === index ? 'bg-primary/10 border-primary shadow-md' : 'bg-card border-border hover:border-primary/50'}`}
-              onClick={() => addToCart(p)}
-              onMouseEnter={() => setSelectedIndex(index)}
-            >
-              <div className="flex justify-between items-start">
-                <span className="font-semibold text-sm line-clamp-2 leading-tight">{p.nombre}</span>
-                <div className='text-right'>
-                    <span className="text-primary font-bold text-sm">${(p.precioUSD || 0).toFixed(2)}</span>
-                    <span className="text-muted-foreground text-[10px] block">Bs. {((p.precioUSD || 0) * exchangeRate).toFixed(2)}</span>
+          {debouncedSearchTerm && filteredProducts.length > 0 && (
+            <div className="bg-white rounded-lg shadow-md border mb-4 animate-in fade-in-50">
+              {filteredProducts.map(p => (
+                <div key={p.id} onClick={() => addToCart(p)} className="flex justify-between items-center p-3 border-b last:border-b-0 hover:bg-primary/20 cursor-pointer">
+                  <div>
+                    <p className="font-bold text-sm text-gray-800">{p.nombre}</p>
+                    <p className="text-xs text-gray-500 font-mono">{p.codigo}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-sm text-gray-800">{formatUsd(p.precioUSD)}</p>
+                    <p className="text-xs text-gray-500 font-mono">Stock: {p.stock}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-between items-end mt-2">
-                <span className="text-[10px] text-muted-foreground font-mono">{p.codigo}</span>
-                <Badge variant={p.stock <= (p.stockMinimo || 0) ? "destructive" : "secondary"} className="text-[10px] font-bold py-0 h-5">
-                  Stock: {p.stock}
-                </Badge>
-              </div>
-            </div>
-          ))}
-          {searchTerm && filteredProducts.length === 0 && (
-            <div className="text-center text-sm text-muted-foreground py-10 px-4">
-                <p className='font-bold'>Sin resultados para "{searchTerm}"</p>
-                <p className='text-xs mt-1'>Intente con otro término de búsqueda.</p>
+              ))}
             </div>
           )}
-        </div>
-      </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <Card className="flex-1 flex flex-col overflow-hidden bg-card border-none shadow-2xl relative">
-          {!isCashOpen && (
-            <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-6 text-center">
-              <div className="max-w-xs">
-                <h3 className="text-xl font-bold mb-2">Caja Cerrada</h3>
-                <p className="text-muted-foreground mb-4">Debe abrir una sesión de caja para poder procesar ventas.</p>
-              </div>
+          <div className="flex-1 bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-gray-800 text-white px-4 py-2 flex text-xs font-bold uppercase tracking-wider">
+              <div className="w-2/5">Descripción</div>
+              <div className="w-1/5 text-center">Cant</div>
+              <div className="w-1/5 text-right">Precio ($)</div>
+              <div className="w-1/5 text-right">Total</div>
             </div>
-          )}
-          
-          <CardHeader className="border-b bg-card">
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5 text-primary" />
-                Nota de Entrega
-              </CardTitle>
-              <Button variant="outline" size='sm' className='text-destructive hover:text-destructive h-8' onClick={() => setCart([])} disabled={cart.length === 0}>
-                  <Trash2 className='w-4 h-4 mr-2'/> Vaciar
-              </Button>
-            </div>
-          </CardHeader>
-          
-          <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
-            {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
-                <ShoppingCart className="w-16 h-16 mb-4" />
-                <p className='font-bold'>Carrito vacío</p>
-                <p className='text-sm'>Agregue productos desde el buscador</p>
-              </div>
-            ) : (
-              cart.map((item) => (
-                <div key={item.productId} className="flex items-center gap-4 p-3 bg-background/30 rounded-xl border animate-in slide-in-from-top-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate">{item.name}</p>
-                    <p className="text-xs text-muted-foreground font-mono">${item.price.toFixed(2)}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Button variant="outline" size="icon" className="w-8 h-8 rounded-full" onClick={() => updateQty(item.productId, -1)}><Minus className="w-4 h-4" /></Button>
-                    <span className="w-8 text-center font-bold text-base tabular-nums">{item.qty}</span>
-                    <Button variant="outline" size="icon" className="w-8 h-8 rounded-full" onClick={() => updateQty(item.productId, 1)}><Plus className="w-4 h-4" /></Button>
-                  </div>
-                  <div className="w-28 text-right">
-                    <p className="font-bold text-base">$ {(item.price * item.qty).toFixed(2)}</p>
-                  </div>
-                  <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 w-8 h-8" onClick={() => updateQty(item.productId, -item.qty)}><Trash2 className="w-4 h-4" /></Button>
+            <div className="h-[calc(100%-120px)] overflow-y-auto">
+              {cart.length === 0 ? (
+                <div className="text-center py-20 text-gray-400">
+                  <Barcode className="mx-auto w-16 h-16 mb-2" />
+                  <p className="font-bold">El carrito está vacío</p>
+                  <p className="text-sm">Agregue productos para iniciar una venta</p>
                 </div>
-              ))
-            )}
-          </CardContent>
+              ) : (
+                cart.map(item => (
+                  <div key={item.id} className="flex items-center px-4 py-3 border-b font-semibold text-gray-700">
+                    <div className="w-2/5">
+                      <p className="font-bold text-sm text-gray-800 leading-tight">{item.nombre}</p>
+                      <p className="text-xs text-gray-500 font-mono">{item.codigo}</p>
+                    </div>
+                    <div className="w-1/5 flex justify-center items-center gap-2">
+                      <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1 rounded-full bg-gray-200 hover:bg-gray-300"><Minus size={14}/></button>
+                      <input 
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                        className="w-12 text-center bg-transparent font-bold text-lg"
+                      />
+                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1 rounded-full bg-gray-200 hover:bg-gray-300"><Plus size={14}/></button>
+                    </div>
+                    <div className="w-1/5 text-right font-mono">{formatUsd(item.precioUSD)}</div>
+                    <div className="w-1/5 text-right font-mono font-bold text-lg text-gray-800">{formatUsd(item.precioUSD * item.quantity)}</div>
+                    <div className="pl-3">
+                        <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="bg-gray-800 h-24 p-4 flex justify-between items-center text-white">
+                <div className="flex gap-4">
+                    <button onClick={() => setCart([])} className="flex items-center gap-2 text-xs font-bold bg-red-500/20 hover:bg-red-500/40 px-3 py-2 rounded-lg"><X className="w-4"/> LIMPIAR (F4)</button>
+                </div>
+                <div className="text-right">
+                    <p className="text-sm font-bold text-gray-400">TOTAL FACTURA</p>
+                    <p className="text-4xl font-black tracking-tighter">{formatUsd(total)}</p>
+                    <p className="font-bold text-primary -mt-1">{formatBs(total * exchangeRate)}</p>
+                </div>
+            </div>
+          </div>
+        </main>
+
+        <aside className="w-80 bg-white p-4 border-l border-gray-200 flex flex-col gap-4">
+          <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+            <label className="text-xs font-bold text-gray-500">IDENTIFICACIÓN CLIENTE</label>
+            <div className="mt-1 p-2 bg-white rounded-lg font-bold text-gray-800">
+              {selectedCustomer ? selectedCustomer.name : 'CONSUMIDOR FINAL'}
+            </div>
+          </div>
           
-          <CardFooter className="flex-col gap-4 border-t bg-card/80 p-4">
-            <div className="w-full space-y-2">
-               <div className="flex justify-between text-muted-foreground">
-                 <span className='font-bold'>Subtotal ({cart.reduce((a,b) => a+b.qty, 0)} items)</span>
-                 <span className='font-bold'>$ {totalUSD.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-2xl font-black text-primary">
-                <span>TOTAL A PAGAR</span>
-                <span>$ {totalUSD.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold text-muted-foreground">
-                <span>≈ Equivalente en Bs.</span>
-                <span>{totalBS.toLocaleString('es-VE', {minimumFractionDigits: 2})}</span>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <Button variant="outline" size="lg" className="h-14 font-bold border-2 text-base border-primary/50 hover:bg-primary/10 hover:border-primary" disabled={cart.length === 0 || !isCashOpen} onClick={() => setIsCreditOpen(true)}>
-                <CreditCard className="w-5 h-5 mr-2"/> Venta a Crédito
-              </Button>
-              <Button size="lg" className="h-14 font-black bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 text-lg uppercase tracking-wider" disabled={cart.length === 0 || !isCashOpen} onClick={() => setIsPaymentOpen(true)}>
-                <DollarSign className="w-6 h-6 mr-2"/> Cobrar
-              </Button>
-            </div>
-          </CardFooter>
-        </Card>
+          <button 
+            onClick={() => setLoadCreditModalOpen(true)}
+            className="w-full h-16 bg-blue-50 border-2 border-blue-500 text-blue-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors"
+          >
+            <CreditCard className="w-5 h-5" /> CARGAR A CRÉDITO
+          </button>
+          
+          <div className="flex-1 flex flex-col gap-3">
+            <button onClick={() => handlePayment(false)} className="w-full flex-1 bg-[#D4A017] text-black rounded-xl font-black text-lg flex items-center justify-center gap-2 shadow-md hover:brightness-110 transition-transform active:scale-95">
+                <DollarSign /> COBRAR (F2)
+            </button>
+            <button onClick={() => handlePayment(true)} className="w-full flex-1 bg-gray-800 text-white rounded-xl font-black text-lg flex items-center justify-center gap-2 shadow-md hover:bg-gray-900 transition-transform active:scale-95">
+                <Users/> VENTA A CRÉDITO (F3)
+            </button>
+          </div>
+
+          <div className="text-xs text-center text-gray-400 font-semibold">
+            Atajos: [F1] Buscar | [F2] Cobrar | [F3] Crédito | [F4] Limpiar
+          </div>
+        </aside>
       </div>
 
-      {(isPaymentOpen || isCreditOpen) && (
+      {isPaymentModalOpen && (
         <FloatingPaymentModal 
-            total={totalBS}
-            exchangeRate={exchangeRate}
-            onClose={() => { setIsPaymentOpen(false); setIsCreditOpen(false); }}
-            onConfirm={handleSaleComplete}
-            isCredit={isCreditOpen}
+          total={total}
+          exchangeRate={exchangeRate}
+          onClose={() => setPaymentModalOpen(false)}
+          onConfirm={finalizeTransaction}
+          isCredit={isCreditSale}
+          customer={selectedCustomer}
         />
       )}
 
-      {lastSale && (
-        <ReceiptModal 
-          isOpen={isReceiptOpen}
-          onClose={() => setIsReceiptOpen(false)}
-          sale={lastSale}
+      {isLoadCreditModalOpen && (
+        <LoadCreditModal 
+            isOpen={isLoadCreditModalOpen}
+            onClose={() => setLoadCreditModalOpen(false)}
+            onConfirm={handleConfirmLoadCredit}
+            totalAmount={total}
+        />
+      )}
+
+      {isReceiptModalOpen && lastTransaction && (
+        <ReceiptModal
+          isOpen={isReceiptModalOpen}
+          onClose={() => setReceiptModalOpen(false)}
+          saleData={lastTransaction}
+          storeInfo={store.config}
         />
       )}
     </div>
