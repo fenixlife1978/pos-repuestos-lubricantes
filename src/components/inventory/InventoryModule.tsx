@@ -17,7 +17,7 @@ import {
 import { Store } from '@/lib/db-store';
 import { Product, getProductBarcode, getProductPrice, AppState } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
-import { ProductFormModal } from './ProductFormModal';
+import { ProductForm } from './ProductFormModal';
 import { generarPDFInventario } from '@/lib/pdf-generator';
 
 interface InventoryModuleProps {
@@ -33,7 +33,7 @@ export function InventoryModule({ state, updateState }: InventoryModuleProps) {
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(undefined);
 
   useEffect(() => {
-    refreshData();
+    setProducts(state.productos || []);
     
     // Escuchar escaneos de código de barras globales
     const handleScan = (e: any) => {
@@ -43,11 +43,9 @@ export function InventoryModule({ state, updateState }: InventoryModuleProps) {
     return () => window.removeEventListener('barcode-scanned', handleScan);
   }, []);
 
-  const refreshData = () => {
-    // Obtener productos del estado
-    const allProducts = state?.productos || [];
-    setProducts(allProducts);
-  };
+  useEffect(() => {
+    setProducts(state.productos || []);
+  }, [state.productos]);
 
   const filteredProducts = products.filter(p => {
     const barcode = getProductBarcode(p);
@@ -61,10 +59,9 @@ export function InventoryModule({ state, updateState }: InventoryModuleProps) {
 
   const handleDelete = (id: string) => {
     if (confirm('¿Eliminar este producto?')) {
-      const all = products.filter(p => p.id !== id);
+      const all = (state.productos || []).filter(p => p.id !== id);
       // Actualizar estado
       updateState({ productos: all });
-      refreshData();
       toast({ title: "Producto eliminado" });
     }
   };
@@ -214,13 +211,12 @@ export function InventoryModule({ state, updateState }: InventoryModuleProps) {
         </div>
       </Card>
 
-      <ProductFormModal 
+      <ProductForm 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        product={selectedProduct}
-        onSave={refreshData}
-        state={state}
-        updateState={updateState}
+        editingProduct={selectedProduct}
+        store={state}
+        updateStore={updateState}
       />
     </div>
   );

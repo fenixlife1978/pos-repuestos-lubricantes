@@ -6,14 +6,7 @@ import { Printer, X, Zap, Share2, Monitor } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
 import { formatBs, formatUsd } from '@/lib/currency-formatter';
 import { auth } from '@/lib/firebase';
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      printTicket: (data: any) => Promise<void>;
-    };
-  }
-}
+import '@/lib/window.d.ts';
 
 interface Props {
   isOpen: boolean;
@@ -101,7 +94,7 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE' 
       printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
       
       if (type === 'REPORT_Z') {
-        printData.push({ type: 'text', value: 'DATOS DE CONTROL Y AUDITORÍA', style: { textAlign: 'center', fontWeight: "bold" } });
+        printData.push({ type: 'text', value: 'DATOS DE CONTROL E AUDITORÍA', style: { textAlign: 'center', fontWeight: "bold" } });
         printData.push({ type: 'text', value: formatLine('REPORTE Z N°:', String(data.numeroZ || 0).padStart(6, '0')) });
         printData.push({ type: 'text', value: formatLine('RANGO FACTURAS', `${data.desdeFactura} - ${data.hastaFactura}`) });
         printData.push({ type: 'text', value: formatLine('RANGO NOTAS CRED', `${data.desdeNC} - ${data.hastaNC}`) });
