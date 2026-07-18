@@ -41,6 +41,8 @@ export default function LoginPage() {
         
         if (userSnapshot.empty) {
           setIsRegistering(true);
+          // CORRECCIÓN: Pre-establecer el rol a 'administrador' si el sistema está vacío
+          setRole('administrador');
         }
 
       } catch (e) {
@@ -101,7 +103,6 @@ export default function LoginPage() {
             variant: "default",
         });
 
-        // CORRECCIÓN: Obtener estado actual, modificarlo y luego establecerlo
         const currentState = Store.get();
         Store.set({
             ...currentState,
@@ -131,15 +132,13 @@ export default function LoginPage() {
       
       let user;
       if (isRegistering) {
-        // El primer usuario siempre es administrador
-        const userRole = systemEmpty ? 'administrador' : role;
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
 
         const newUserData = {
           email: user.email!.toLowerCase(),
           nombre: email.split('@')[0].toUpperCase(),
-          rol: userRole,
+          rol: role, // El rol ya estará seteado a 'administrador' si el sistema está vacío
           uid: user.uid,
           fechaCreacion: new Date().toISOString(),
           accesoBloqueado: false
@@ -227,13 +226,13 @@ export default function LoginPage() {
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase text-black/40 tracking-widest block ml-1">Perfil de Usuario</label>
             <select 
-              className="form-select h-[52px] bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl pl-4 pr-10 text-black font-semibold focus:border-[#C8952E] outline-none transition-all cursor-pointer w-full" 
-              value={systemEmpty ? 'administrador' : role}
+              className="form-select h-[52px] bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl pl-4 pr-10 text-black font-semibold focus:border-[#C8952E] outline-none transition-all cursor-pointer w-full disabled:bg-gray-200 disabled:cursor-not-allowed"
+              value={role} // Simplificado: El estado ahora siempre tiene el valor correcto
               onChange={e => setRole(e.target.value)} 
               required
               disabled={systemEmpty && isRegistering}
             >
-              <option value="" disabled={!systemEmpty}>Seleccione Rol</option>
+              <option value="" disabled>Seleccione Rol</option>
               <option value="administrador">Administrador</option>
               <option value="cajero">Cajero / Operador</option>
             </select>
