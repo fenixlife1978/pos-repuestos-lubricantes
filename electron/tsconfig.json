@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "CommonJS",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "resolveJsonModule": true,
+    "outDir": "."
+  },
+  "include": [
+    "main.ts",
+    "preload.ts"
+  ],
+  "exclude": [
+    "../node_modules"
+  ]
+}

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
 import { AppState, Product, Movimiento, PaymentMethod, KitItem, Supplier, LibroDiarioEntry, Debt } from '@/lib/types';
-import { ProductFormModal } from '@/components/inventory/ProductFormModal';
+import { ProductForm } from '@/components/inventory/ProductFormModal';
 
 interface PurchaseItemTemp {
   productoId: string;
@@ -448,37 +448,12 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
       </div>
 
       {showNewProductModal && (
-        <ProductFormModal 
-          state={state}
+        <ProductForm 
+          isOpen={showNewProductModal}
           onClose={() => setShowNewProductModal(false)}
-          onUpdateLists={(lists) => updateState(lists)}
-          onSave={(datos) => {
-            const nuevo: Product = {
-              ...datos,
-              id: Store.uid(),
-              fechaCreacion: Utils.hoy(),
-              activo: true
-            };
-            const nuevosProds = [...state.productos, nuevo];
-            
-            if (nuevo.stock > 0) {
-              const mov: Movimiento = {
-                id: Store.uid(),
-                productoId: nuevo.id,
-                tipo: 'inicial',
-                cantidad: nuevo.stock,
-                stockAntes: 0,
-                stockDespues: nuevo.stock,
-                fecha: Utils.ahora(),
-                referencia: 'INICIAL DESDE COMPRAS',
-                terminalId: 'ADMIN'
-              };
-              updateState({ productos: nuevosProds, movimientos: [...state.movimientos, mov] });
-            } else {
-              updateState({ productos: nuevosProds });
-            }
-            setShowNewProductModal(false);
-          }}
+          store={state}
+          updateStore={updateState}
+          editingProduct={null}
         />
       )}
     </div>
