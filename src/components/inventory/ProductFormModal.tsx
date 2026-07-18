@@ -39,6 +39,7 @@ CleanInput.displayName = 'CleanInput';
 export const ProductForm: React.FC<ProductFormProps> = ({ 
   isOpen, onClose, store, updateStore, editingProduct 
 }) => {
+  const exchangeRate = store?.config?.exchangeRate || 1;
   const [scanning, setScanning] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [showPricesWithIVA, setShowPricesWithIVA] = useState([false, false, false, false, false]);
@@ -120,7 +121,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       if (tierMargin >= 100) return { ...p, usd: '', bs: '' };
       
       const tierPriceUSD = round4(cost / (1 - (tierMargin / 100)));
-      const tierPriceBS = round2(tierPriceUSD * store.config.exchangeRate);
+      const tierPriceBS = round2(tierPriceUSD * exchangeRate);
       
       return {
         ...p,
@@ -130,7 +131,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     });
     
     setPrices(newPrices);
-  }, [prices, store.config.exchangeRate]);
+  }, [prices, exchangeRate]);
 
   const recalcMarginFromPrice = useCallback((priceUSDStr: string, costStr: string) => {
     const priceUSD = parseFloat(priceUSDStr);
@@ -167,7 +168,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     
     const usd = parseFloat(value);
     if (!isNaN(usd) && usd > 0) {
-      const bs = round2(usd * store.config.exchangeRate);
+      const bs = round2(usd * exchangeRate);
       newPrices[index].bs = bs.toString();
     } else {
       newPrices[index].bs = '';
@@ -188,7 +189,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     
     const bs = parseFloat(value);
     if (!isNaN(bs) && bs > 0) {
-      const usd = round4(bs / store.config.exchangeRate);
+      const usd = round4(bs / exchangeRate);
       newPrices[index].usd = usd.toString();
     } else {
       newPrices[index].usd = '';
@@ -952,7 +953,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                   <span className="text-[10px] text-black font-black uppercase">
                     Fórmula Automática: PV = Costo / (1 - Margen%)
                   </span>
-                  <Badge variant="outline" className="text-[10px] text-black font-black border-black">TASA VIGENTE: {store.config.exchangeRate} Bs/USD</Badge>
+                  <Badge variant="outline" className="text-[10px] text-black font-black border-black">TASA VIGENTE: {exchangeRate} Bs/USD</Badge>
                 </div>
               </div>
 
