@@ -1,3 +1,5 @@
+export {};
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -6,5 +8,3 @@ declare global {
     };
   }
 }
-
-export {};
