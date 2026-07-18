@@ -365,11 +365,11 @@ export default function PosModule() {
       )}
 
       {isLoadCreditModalOpen && (
-        <LoadCreditModal 
+        <LoadCreditModal totalAmount={total} 
             isOpen={isLoadCreditModalOpen}
             onClose={() => setLoadCreditModalOpen(false)}
             onConfirm={handleConfirmLoadCredit}
-            totalAmount={total}
+             
         />
       )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Customer } from '@/lib/types';
 import { Store } from '@/lib/db-store';
 import { toast } from '../../hooks/use-toast';
-import { formatBs } from '@/lib/currency-formatter';
+import { formatBs, formatUsd } from '@/lib/currency-formatter';
 import { Search, UserPlus, CreditCard, X, Save, Phone, MapPin } from 'lucide-react';
 
 interface LoadCreditModalProps {
@@ -50,41 +50,41 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
       toast({ title: "Error", description: "Por favor, ingrese un número de documento.", variant: "destructive" });
       return;
     }
-    const fullId = `${docPrefix}-${docNumber.replace(/\./g, '')}`;
+    const fullId = `${docPrefix}-${docNumber.replace(/\./g, '')}`.toUpperCase();
     const customers = Store.get()?.clientes || [];
-    const customer = customers.find((c: Customer) => c.id.toUpperCase() === fullId.toUpperCase());
+    const customer = customers.find((c: Customer) => c.id.toUpperCase() === fullId);
 
     if (customer) {
       setFoundCustomer(customer);
       setStep(2);
     } else {
-      if (window.confirm('Cliente no encontrado. ¿Desea registrarlo ahora?')) {
-        setStep(3);
-      } else {
-        handleClose();
-      }
+      setStep(3);
     }
   };
 
   const handleRegisterAndLoad = () => {
+    if (totalAmount <= 0) {
+      toast({ title: "Error", description: "El monto del carrito debe ser mayor a cero para cargarlo a crédito.", variant: "destructive" });
+      return;
+    }
     if (!newCustomerName.trim()) {
       toast({ title: "Error", description: "El nombre del cliente es obligatorio.", variant: "destructive" });
       return;
     }
 
-    const fullId = `${docPrefix}-${docNumber.replace(/\./g, '')}`;
+    const fullId = `${docPrefix}-${docNumber.replace(/\./g, '')}`.toUpperCase();
     const currentState = Store.get() || {};
     const currentCustomers = currentState.clientes || [];
     
-    if (currentCustomers.some((c: Customer) => c.id.toUpperCase() === fullId.toUpperCase())) {
+    if (currentCustomers.some((c: Customer) => c.id.toUpperCase() === fullId)) {
         toast({ title: "Error de Duplicidad", description: "Ya existe un cliente con este documento.", variant: "destructive" });
-        setStep(1); // Vuelve a la búsqueda
+        setStep(1);
         return;
     }
 
     const newCustomer: Customer = {
-      id: fullId.toUpperCase(),
-      cedula: fullId.toUpperCase(),
+      id: fullId,
+      cedula: fullId,
       name: newCustomerName.toUpperCase(),
       phone: newCustomerPhone,
       address: newCustomerAddress,
@@ -98,6 +98,10 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
   };
 
   const handleLoadCredit = () => {
+    if (totalAmount <= 0) {
+      toast({ title: "Error", description: "No hay un monto en el carrito para cargar a crédito.", variant: "destructive" });
+      return;
+    }
     if (foundCustomer) {
       onConfirm(foundCustomer, totalAmount);
       handleClose();
@@ -112,7 +116,7 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="bg-white rounded-xl shadow-2xl border-gray-300 sm:max-w-md">
-        <DialogHeader className="text-center">
+        <DialogHeader className="text-center pt-4">
           <DialogTitle className="text-lg font-black text-gray-800 flex items-center justify-center gap-2">
             <CreditCard className="w-5 h-5 text-blue-600" />
             CARGAR CRÉDITO A CLIENTE
@@ -121,15 +125,11 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
 
         {step === 1 && (
           <div className="py-4 animate-in fade-in-50 space-y-4">
-            <p className="text-sm text-center text-gray-600 font-semibold">Introduzca el documento de identidad para comenzar.</p>
+            <DialogDescription className="text-sm text-center text-gray-600 font-semibold px-4">Introduzca el documento de identidad para buscar o registrar un cliente.</DialogDescription>
             <div className="flex items-center gap-2 px-4">
               <Select value={docPrefix} onValueChange={setDocPrefix}>
-                <SelectTrigger className="w-[100px] h-11 bg-gray-50 border-gray-300 font-bold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {['V', 'E', 'J', 'G', 'P'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
+                <SelectTrigger className="w-[100px] h-11 bg-gray-50 border-gray-300 font-bold"><SelectValue /></SelectTrigger>
+                <SelectContent>{['V', 'E', 'J', 'G', 'P'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
               </Select>
               <Input
                 autoFocus
@@ -143,7 +143,7 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
             <div className="px-4">
                 <Button onClick={handleSearch} className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base">
                     <Search className="w-4 h-4 mr-2" />
-                    BUSCAR CLIENTE
+                    BUSCAR / CREAR
                 </Button>
             </div>
           </div>
@@ -159,10 +159,10 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
               <Label className="text-xs font-bold text-gray-500">SALDO ACTUAL</Label>
               <p className="text-2xl font-mono font-black text-blue-700">{formatBs(foundCustomer.debt || 0)}</p>
             </div>
-            <div className="px-4">
+            <div className="px-4 pt-2">
                 <Button onClick={handleLoadCredit} className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold text-base">
                     <CreditCard className="w-4 h-4 mr-2" />
-                    CARGAR CRÉDITO POR {formatBs(totalAmount)}
+                    CARGAR CRÉDITO POR {formatUsd(totalAmount)}
                 </Button>
             </div>
           </div>
@@ -170,13 +170,13 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
 
         {step === 3 && (
           <div className="py-4 animate-in fade-in-50 space-y-4">
-            <p className="text-sm text-center text-gray-600 font-semibold">Cliente no encontrado. Complete los datos para registrarlo.</p>
+             <DialogDescription className="text-sm text-center text-gray-600 font-semibold px-4">Cliente no encontrado con C.I. {docPrefix}-{docNumber}.<br/>Complete los datos para registrarlo y cargar crédito.</DialogDescription>
             <div className="px-4 space-y-3">
                 <div className="space-y-1">
                     <Label className="font-bold text-gray-700">Nombre Completo o Razón Social</Label>
                     <Input autoFocus value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} placeholder="Ej: John Doe C.A." className="h-10 border-gray-300" />
                 </div>
-                <div className="space-y-1">
+                 <div className="space-y-1">
                     <Label className="font-bold text-gray-700 flex items-center gap-1"><Phone className="w-3 h-3"/>Teléfono (Opcional)</Label>
                     <Input value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} placeholder="Ej: 0412-1234567" className="h-10 border-gray-300" />
                 </div>
@@ -185,17 +185,22 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
                     <Input value={newCustomerAddress} onChange={(e) => setNewCustomerAddress(e.target.value)} placeholder="Ej: Av. Principal, Edif. ABC" className="h-10 border-gray-300" />
                 </div>
             </div>
-            <div className="px-4">
+            <div className="px-4 pt-2">
                 <Button onClick={handleRegisterAndLoad} className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base">
                     <Save className="w-4 h-4 mr-2" />
-                    REGISTRAR Y CARGAR CRÉDITO
+                    REGISTRAR Y CARGAR {formatUsd(totalAmount)}
                 </Button>
             </div>
           </div>
         )}
 
         <DialogFooter className="p-3 bg-gray-50 border-t border-gray-200">
-            <Button variant="ghost" onClick={handleClose} className="font-bold text-gray-600 hover:text-gray-800">
+            {step > 1 && (
+                 <Button variant="outline" onClick={() => setStep(1)} className="font-bold text-gray-600 hover:text-gray-800">
+                    Atrás
+                </Button>
+            )}
+            <Button variant="ghost" onClick={handleClose} className="font-bold text-gray-600 hover:text-gray-800 ml-auto">
                 <X className="w-4 h-4 mr-1"/>
                 Cancelar
             </Button>
