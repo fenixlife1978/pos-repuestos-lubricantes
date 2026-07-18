@@ -12,8 +12,9 @@ import {
   browserSessionPersistence, 
   signOut 
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
+import { Store } from '@/lib/db-store';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,7 +28,6 @@ export default function LoginPage() {
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    // Safety timeout para evitar pantalla blanca infinita si Firebase no responde
     const timer = setTimeout(() => {
       if (!authChecked) setAuthChecked(true);
     }, 8000);
@@ -35,114 +35,157 @@ export default function LoginPage() {
     const checkSystemStatus = async () => {
       if (!db) return;
       try {
-        const stateDoc = await getDoc(doc(db, 'pos_system_data', 'state'));
-        if (stateDoc.exists()) {
-          const data = stateDoc.data();
-          setSystemEmpty(data.isInitialized === false);
-        } else {
-          setSystemEmpty(true);
+        const usersCollection = collection(db, 'users');
+        const userSnapshot = await getDocs(usersCollection);
+        setSystemEmpty(userSnapshot.empty);
+        
+        if (userSnapshot.empty) {
+          setIsRegistering(true);
         }
+
       } catch (e) {
-        console.warn("Silent status check:", e);
-        setSystemEmpty(false);
+        console.warn("Error chequeando estado del sistema:", e);
+        setSystemEmpty(false); // Asumir que no está vacío si hay error
       }
     };
-    checkSystemStatus();
 
-    if (!auth) return;
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            if (userData.accesoBloqueado) {
-              await signOut(auth);
-              toast({ variant: "destructive", title: "Acceso Bloqueado", description: "Su cuenta está suspendida." });
-              setAuthChecked(true);
-              return;
-            }
-            router.push('/');
-          } else {
+    const checkAuth = async () => {
+        if (!auth) {
             setAuthChecked(true);
-          }
-        } catch (e) {
-          setAuthChecked(true);
+            return;
         }
-      } else {
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                try {
+                    const userDoc = await getDoc(doc(db, 'users', user.uid));
+                    if (userDoc.exists() && !userDoc.data().accesoBloqueado) {
+                        router.push('/');
+                    } else {
+                        if (userDoc.exists()) {
+                            toast({
+                                variant: "destructive",
+                                title: "Acceso Bloqueado",
+                                description: "Su cuenta está suspendida."
+                            });
+                        }
+                        await signOut(auth);
+                        setAuthChecked(true);
+                    }
+                } catch (e) {
+                    await signOut(auth);
+                    setAuthChecked(true);
+                }
+            } else {
+                setAuthChecked(true);
+            }
+        });
+    };
+    
+    Promise.all([checkSystemStatus(), checkAuth()]).finally(() => {
         setAuthChecked(true);
-      }
+        clearTimeout(timer);
     });
 
-    return () => {
-      unsubscribe();
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, [router]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!role) {
-      toast({ variant: "destructive", title: "Atención", description: "Por favor seleccione su rol." });
+    
+    // Lógica para usuario de emergencia
+    if (systemEmpty && !isRegistering) {
+        setLoading(true);
+        toast({
+            title: "Acceso de Emergencia Activado",
+            description: "No se detectaron usuarios. Accediendo como Administrador temporal.",
+            variant: "default",
+        });
+
+        // CORRECCIÓN: Obtener estado actual, modificarlo y luego establecerlo
+        const currentState = Store.get();
+        Store.set({
+            ...currentState,
+            user: {
+                nombre: "ADMIN DE EMERGENCIA",
+                email: "temp@local.host",
+                rol: "administrador",
+                uid: "temp-admin-user",
+                accesoBloqueado: false,
+            },
+            isAuthenticated: true,
+        });
+        
+        router.push('/');
+        return;
+    }
+
+    if (!role && isRegistering) {
+      toast({ variant: "destructive", title: "Atención", description: "Debe seleccionar un rol para el nuevo usuario." });
       return;
     }
     setLoading(true);
 
     try {
-      if (!auth || !db) throw new Error("Servicios no disponibles");
+      if (!auth || !db) throw new Error("Servicios de Firebase no disponibles");
       await setPersistence(auth, browserSessionPersistence);
       
       let user;
       if (isRegistering) {
+        // El primer usuario siempre es administrador
+        const userRole = systemEmpty ? 'administrador' : role;
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         user = userCredential.user;
-      } else {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        user = userCredential.user;
-      }
 
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists() || isRegistering) {
         const newUserData = {
           email: user.email!.toLowerCase(),
           nombre: email.split('@')[0].toUpperCase(),
-          rol: role,
+          rol: userRole,
           uid: user.uid,
           fechaCreacion: new Date().toISOString(),
           accesoBloqueado: false
         };
-        await setDoc(userDocRef, newUserData);
+        await setDoc(doc(db, 'users', user.uid), newUserData);
 
-        if (isRegistering) {
-          const stateRef = doc(db, 'pos_system_data', 'state');
-          await setDoc(stateRef, { isInitialized: true }, { merge: true });
-          
-          toast({ 
-            title: "¡Configuración Exitosa!", 
-            description: "Administrador raíz creado. El sistema se ha inicializado.",
-            variant: "default"
-          });
+        if (systemEmpty) {
+            setSystemEmpty(false);
+            setIsRegistering(false);
+            toast({ 
+              title: "¡Administrador Raíz Creado!", 
+              description: "El sistema está listo. Por favor, inicie sesión.",
+              variant: "default"
+            });
+            await signOut(auth); // Desloguear para forzar login con el nuevo usuario
+        } else {
+            toast({ title: "Usuario Creado", description: `El usuario ${user.email} fue creado.` });
         }
+
       } else {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        user = userCredential.user;
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+
+        if (!userDoc.exists()) {
+            throw new Error("No hay registro de este usuario en la base de datos.");
+        }
+
         const userData = userDoc.data();
         if (userData.rol !== role) {
-          await signOut(auth);
-          toast({ variant: "destructive", title: "Rol Incorrecto", description: `Usted está registrado como ${userData.rol.toUpperCase()}.` });
-          setLoading(false);
-          return;
+             throw new Error(`Rol incorrecto. Usted es ${userData.rol.toUpperCase()}.`);
         }
+
+        router.push('/');
       }
 
-      router.push('/');
     } catch (err: any) {
       console.error('Error de Auth:', err);
-      let mensaje = "Credenciales inválidas o fallo de conexión.";
+      let mensaje = err.message || "Credenciales inválidas o fallo de conexión.";
       if (err.code === 'auth/email-already-in-use') mensaje = "El correo ya está registrado.";
-      if (err.code === 'auth/weak-password') mensaje = "La contraseña es muy débil.";
+      if (err.code === 'auth/weak-password') mensaje = "La contraseña es muy débil (mínimo 6 caracteres).";
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') mensaje = "Correo o contraseña incorrectos.";
       
       toast({ variant: "destructive", title: "Error de Acceso", description: mensaje });
+      signOut(auth).catch(() => {});
+
     } finally {
       setLoading(false);
     }
@@ -153,7 +196,7 @@ export default function LoginPage() {
       <div className="min-h-screen bg-surface-warm flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-brand-gold border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink/40">Iniciando Seguridad...</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-ink/40">Iniciando Módulos...</p>
         </div>
       </div>
     );
@@ -163,7 +206,6 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-[#D4C5A6] via-[#C8B99A] to-[#B8A98A] flex items-center justify-center p-6">
       <div className="w-full max-w-[440px] bg-white rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.25)] p-10 animate-in fade-in zoom-in duration-500">
         
-        {/* ENCABEZADO CENTRADO SOLICITADO */}
         <div className="mb-10 flex flex-col items-center">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-11 h-11 bg-[#C8952E] rounded-xl flex items-center justify-center text-black font-black text-2xl shadow-lg">P</div>
@@ -174,10 +216,10 @@ export default function LoginPage() {
 
         <div className="mb-8 text-center">
           <h1 className="text-[28px] font-extrabold text-black leading-tight mb-2 tracking-tight">
-            {isRegistering ? 'Configurar Administrador' : '¡Bienvenido!'}
+            {isRegistering ? (systemEmpty ? 'Configurar Administrador Raíz' : 'Crear Nuevo Usuario') : '¡Bienvenido!'}
           </h1>
           <p className="text-[#9CA3AF] text-[14px] font-medium">
-            {isRegistering ? 'Cree la cuenta raíz para la gestión del negocio.' : 'Ingrese sus credenciales de acceso.'}
+            {isRegistering ? (systemEmpty ? 'Este será el primer usuario con control total.' : 'Cree una nueva cuenta de acceso.') : 'Ingrese sus credenciales de acceso.'}
           </p>
         </div>
 
@@ -186,11 +228,12 @@ export default function LoginPage() {
             <label className="text-[10px] font-black uppercase text-black/40 tracking-widest block ml-1">Perfil de Usuario</label>
             <select 
               className="form-select h-[52px] bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl pl-4 pr-10 text-black font-semibold focus:border-[#C8952E] outline-none transition-all cursor-pointer w-full" 
-              value={role} 
+              value={systemEmpty ? 'administrador' : role}
               onChange={e => setRole(e.target.value)} 
               required
+              disabled={systemEmpty && isRegistering}
             >
-              <option value="" disabled>Seleccione Rol</option>
+              <option value="" disabled={!systemEmpty}>Seleccione Rol</option>
               <option value="administrador">Administrador</option>
               <option value="cajero">Cajero / Operador</option>
             </select>
@@ -242,20 +285,25 @@ export default function LoginPage() {
             disabled={loading} 
             className="w-full h-[56px] bg-[#C8952E] text-black font-black text-sm rounded-2xl flex items-center justify-center hover:bg-[#D9A540] transition-all disabled:opacity-50 shadow-lg uppercase tracking-widest"
           >
-            {loading ? <div className="w-6 h-6 border-2 border-black/20 border-t-black rounded-full animate-spin" /> : (isRegistering ? "Configurar Acceso Inicial" : "Iniciar Sesión")}
+            {loading ? <div className="w-6 h-6 border-2 border-black/20 border-t-black rounded-full animate-spin" /> : (isRegistering ? (systemEmpty ? 'Crear Admin y Reiniciar' : 'Registrar Usuario') : 'Iniciar Sesión')}
           </button>
         </form>
 
-        {systemEmpty && (
+        {!systemEmpty && (
           <div className="mt-6 text-center border-t border-line pt-6">
             <button 
               onClick={() => setIsRegistering(!isRegistering)} 
               className="text-[11px] font-black text-[#C8952E] hover:underline flex items-center justify-center gap-2 mx-auto uppercase tracking-tighter"
             >
-              {isRegistering ? <><LogIn className="w-4 h-4" /> Volver al Ingreso</> : <><UserPlus className="w-4 h-4" /> Registrar Administrador Raíz</>}
+              {isRegistering ? <><LogIn className="w-4 h-4" /> Volver al Ingreso</> : <><UserPlus className="w-4 h-4" /> Registrar Nuevo Usuario</>}
             </button>
-            <p className="text-[9px] font-bold text-ink/30 uppercase mt-2">Detección de sistema nuevo activada</p>
           </div>
+        )}
+         {systemEmpty && !isRegistering && (
+            <div className="mt-6 text-center border-t-2 border-dashed border-red-300 pt-5">
+                 <p className="text-[10px] font-bold text-red-500 uppercase  mx-auto">MODO EMERGENCIA: NO HAY USUARIOS</p>
+                 <p className="text-xs text-gray-500 mt-1">Puede ingresar con cualquier credencial para configurar el sistema, o <button onClick={() => setIsRegistering(true)} className="font-bold text-[#C8952E] underline">crear el administrador raíz</button>.</p>
+            </div>
         )}
       </div>
     </div>

@@ -1,3 +1,12 @@
+export interface User {
+  uid: string;
+  nombre: string;
+  email: string;
+  rol: 'administrador' | 'cajero';
+  accesoBloqueado: boolean;
+  fechaCreacion?: string;
+}
+
 export interface Product {
   id: string;
   codigo: string;
@@ -203,6 +212,8 @@ export interface ReportZ {
 }
 
 export interface AppState {
+  user: User | null;
+  isAuthenticated: boolean;
   tasa: number;
   pinDevolucion: string;
   isInitialized?: boolean;
