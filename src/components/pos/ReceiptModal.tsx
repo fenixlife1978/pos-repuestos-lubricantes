@@ -110,8 +110,8 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE',
           <div className="p-6 bg-gray-100 flex justify-center max-h-[70vh] overflow-y-auto custom-scrollbar">
             <div 
               ref={printRef}
-              className="thermal-80mm bg-white p-4 shadow-sm text-black font-mono text-xs select-none"
-              style={{ width: '72mm', boxSizing: 'border-box' }}
+              className="thermal-80mm bg-white p-4 shadow-sm font-mono text-xs select-none"
+              style={{ width: '72mm', boxSizing: 'border-box', color: 'black' }}
             >
                {/* ... Aquí va tu estructura de vista previa HTML, puede quedar como la tenías ... */}
                <div className="text-center font-bold">{getReportTitle()}</div>
@@ -142,4 +142,3 @@ export function ReceiptModal({ isOpen, onClose, sale, reportData, type = 'SALE',
     </Dialog>
   );
 }
-

@@ -1,145 +1,268 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, DollarSign, QrCode } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Store } from '@/lib/db-store';
-import { Product, CartItem, Sale, PaymentMethod } from '@/lib/types';
+import { Product, Sale, SaleItem, Customer, PagoRealizado, PaymentMethod } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
-import { PaymentModal } from './PaymentModal';
-import { CreditSaleModal } from './CreditSaleModal';
+import FloatingPaymentModal from './FloatingPaymentModal';
 import { ReceiptModal } from './ReceiptModal';
+
+interface CartItem {
+    productId: string;
+    barcode: string;
+    name: string;
+    price: number;
+    qty: number;
+    maxStock: number;
+}
+
+// Interface for the payment data coming from the modal
+interface ModalPaymentItem {
+  id: string;
+  method: string;
+  amount: number; // Bs amount
+  usdAmount?: number;
+}
 
 export function PosModule() {
   const [products, setProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [exchangeRate, setExchangeRate] = useState(36.5);
-  const [isCashOpen, setIsCashOpen] = useState(false);
+  const [isCashOpen, setIsCashOpen] = useState(true); // Default to true
   
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isCreditOpen, setIsCreditOpen] = useState(false);
   const [lastSale, setLastSale] = useState<Sale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const resultsContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    setProducts(Store.get('products', []));
-    setExchangeRate(Store.get('exchangeRate', 36.5));
-    setIsCashOpen(Store.get('isCashOpen', false));
+    const state = Store.get();
+    setProducts(state?.productos || []);
+    setExchangeRate(state?.tasa || 36.5);
   }, []);
 
   const filteredProducts = useMemo(() => {
     if (!searchTerm) return [];
     return products.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      p.barcode.includes(searchTerm)
+      p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      p.codigo?.toLowerCase().includes(searchTerm.toLowerCase())
     ).slice(0, 10);
   }, [searchTerm, products]);
 
+  useEffect(() => {
+      setSelectedIndex(-1);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (selectedIndex >= 0 && resultsContainerRef.current) {
+        const selectedElement = resultsContainerRef.current.children[selectedIndex] as HTMLElement;
+        if (selectedElement) {
+            selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }
+  }, [selectedIndex]);
+
   const addToCart = (product: Product) => {
     if (product.stock <= 0) {
-      toast({ title: "Sin Stock", description: "Este producto no tiene existencias.", variant: "destructive" });
+      toast({ title: "Sin Stock", variant: "destructive" });
       return;
     }
     const existing = cart.find(c => c.productId === product.id);
     if (existing) {
       if (existing.qty >= product.stock) {
-        toast({ title: "Stock Máximo", description: "No hay más unidades disponibles.", variant: "destructive" });
+        toast({ title: "Stock Máximo", variant: "destructive" });
         return;
       }
       setCart(cart.map(c => c.productId === product.id ? { ...c, qty: c.qty + 1 } : c));
     } else {
       setCart([...cart, { 
-        productId: product.id, 
-        barcode: product.barcode, 
-        name: product.name, 
-        price: product.price, 
-        qty: 1, 
+        productId: product.id,
+        barcode: product.codigo || '',
+        name: product.nombre,
+        price: product.precioUSD || 0,
+        qty: 1,
         maxStock: product.stock 
       }]);
     }
     setSearchTerm('');
+    searchInputRef.current?.focus();
   };
 
-  const updateQty = (id: string, delta: number) => {
-    setCart(cart.map(c => {
-      if (c.productId === id) {
-        const next = c.qty + delta;
-        if (next > c.maxStock) {
-          toast({ title: "Stock insuficiente", variant: "destructive" });
-          return c;
-        }
-        return next > 0 ? { ...c, qty: next } : c;
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedIndex(prev => (prev < filteredProducts.length - 1 ? prev + 1 : prev));
+      } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
+      } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (selectedIndex >= 0 && filteredProducts[selectedIndex]) {
+            addToCart(filteredProducts[selectedIndex]);
+          }
+          setSelectedIndex(-1);
       }
-      return c;
-    }).filter(c => c.qty > 0));
   };
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-  const totalUSD = subtotal / exchangeRate;
+  const updateQty = (productId: string, delta: number) => {
+    setCart(currentCart => {
+        const itemIndex = currentCart.findIndex(item => item.productId === productId);
+        if (itemIndex === -1) return currentCart;
 
-  const handleSaleComplete = (sale: Sale) => {
-    setLastSale(sale);
+        const item = currentCart[itemIndex];
+        const newQty = item.qty + delta;
+
+        if (newQty > item.maxStock) {
+            toast({ title: "Stock insuficiente", variant: "destructive" });
+            return currentCart;
+        }
+
+        if (newQty <= 0) {
+            return currentCart.filter(it => it.productId !== productId);
+        }
+
+        return currentCart.map(it => it.productId === productId ? { ...it, qty: newQty } : it);
+    });
+  };
+
+  const totalUSD = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+  const totalBS = totalUSD * exchangeRate;
+
+  const handleSaleComplete = (saleData: { customer?: Customer; method: string; payments: ModalPaymentItem[]; change: number; }) => {
+    const saleItems: SaleItem[] = cart.map(item => ({
+      productoId: item.productId,
+      cantidad: item.qty,
+      precioUnitUSD: item.price,
+      subtotalUSD: item.price * item.qty,
+      nombre: item.name,
+    }));
+    
+    // CORRECT MAPPING from ModalPaymentItem[] to PagoRealizado[]
+    const paymentsForSale: PagoRealizado[] = saleData.payments.map(p => ({
+      metodo: p.method as PaymentMethod,
+      montoBS: p.amount,
+      montoUSD: p.usdAmount || (p.amount / exchangeRate)
+    }));
+
+    const newSale: Sale = {
+      id: `VTA-${Date.now()}`,
+      fecha: new Date().toISOString(),
+      cliente: saleData.customer ? `${saleData.customer.name} [${saleData.customer.id}]` : 'CONSUMIDOR FINAL',
+      items: saleItems,
+      subtotalUSD: totalUSD,
+      descuentoUSD: 0, // Assuming no discount for now
+      totalUSD: totalUSD,
+      totalBS: totalBS,
+      metodoPago: saleData.method,
+      estado: 'completada', // Assuming a default state
+      change: saleData.change || 0,
+      payments: paymentsForSale // CORRECT property name and structure
+    };
+
+    const currentState = Store.get() || {};
+    const updatedProducts = (currentState.productos || []).map((p: Product) => {
+      const itemVendido = newSale.items.find(i => i.productoId === p.id);
+      if (itemVendido) {
+        return { ...p, stock: p.stock - itemVendido.cantidad };
+      }
+      return p;
+    });
+
+    setProducts(updatedProducts);
+    
+    let newState: any = {
+      ...currentState,
+      productos: updatedProducts,
+      ventas: [...(currentState.ventas || []), newSale],
+    };
+
+    if (saleData.customer && newSale.metodoPago === 'credito') {
+      const newDebt = {
+        id: `CXC-${Date.now()}`,
+        fecha: new Date().toISOString(),
+        fechaVencimiento: '2099-12-31',
+        cliente: `${saleData.customer.name} [${saleData.customer.id}]`,
+        montoUSD: totalUSD,
+        abonadoUSD: 0,
+        saldoUSD: totalUSD,
+        estado: 'pendiente',
+        historialPagos: [],
+        ventaId: newSale.id,
+      };
+      newState.cxc = [...(currentState.cxc || []), newDebt];
+    }
+
+    Store.set(newState);
+
+    setLastSale(newSale);
     setIsReceiptOpen(true);
     setCart([]);
-    setProducts(Store.get('products', [])); // Refresh stock
+    setIsPaymentOpen(false);
+    setIsCreditOpen(false);
   };
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-full p-2 lg:p-4 overflow-hidden">
-      {/* Sidebar: Search */}
-      <div className="w-full lg:w-80 flex flex-col gap-4">
-        <Card className="bg-secondary border-none shadow-xl">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <QrCode className="w-4 h-4 text-primary" />
-              Tasa de Cambio: <span className="text-primary">{exchangeRate} BS/$</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      <div className="w-full lg:w-[420px] flex flex-col gap-4">
+        <Card className="bg-card border-border shadow-xl">
+          <CardContent className="p-4">
             <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <Input 
-                placeholder="Escanee o busque..." 
-                className="pl-9 bg-background/50 border-border"
+                ref={searchInputRef}
+                placeholder="Buscar por Nombre o Código..."
+                className="pl-10 h-12 text-base bg-background/50 border-border focus:bg-white transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 autoFocus
               />
             </div>
-            <p className="text-[10px] text-center mt-2 text-muted-foreground">📷 Escáner HID listo para detectar códigos</p>
           </CardContent>
         </Card>
 
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {filteredProducts.map(p => (
+        <div ref={resultsContainerRef} className="flex-1 overflow-y-auto space-y-2 pr-1">
+          {filteredProducts.map((p, index) => (
             <div 
               key={p.id} 
-              className="p-3 bg-card border border-border hover:border-primary cursor-pointer rounded-lg transition-all transform hover:translate-x-1"
+              className={`p-3 border rounded-lg transition-all transform hover:translate-x-1 cursor-pointer ${selectedIndex === index ? 'bg-primary/10 border-primary shadow-md' : 'bg-card border-border hover:border-primary/50'}`}
               onClick={() => addToCart(p)}
+              onMouseEnter={() => setSelectedIndex(index)}
             >
               <div className="flex justify-between items-start">
-                <span className="font-semibold text-sm line-clamp-1">{p.name}</span>
-                <span className="text-primary font-bold text-sm">Bs. {p.price}</span>
+                <span className="font-semibold text-sm line-clamp-2 leading-tight">{p.nombre}</span>
+                <div className='text-right'>
+                    <span className="text-primary font-bold text-sm">${(p.precioUSD || 0).toFixed(2)}</span>
+                    <span className="text-muted-foreground text-[10px] block">Bs. {((p.precioUSD || 0) * exchangeRate).toFixed(2)}</span>
+                </div>
               </div>
               <div className="flex justify-between items-end mt-2">
-                <span className="text-[10px] text-muted-foreground font-code">{p.barcode}</span>
-                <Badge variant={p.stock <= p.minStock ? "destructive" : "secondary"} className="text-[10px] py-0">
+                <span className="text-[10px] text-muted-foreground font-mono">{p.codigo}</span>
+                <Badge variant={p.stock <= (p.stockMinimo || 0) ? "destructive" : "secondary"} className="text-[10px] font-bold py-0 h-5">
                   Stock: {p.stock}
                 </Badge>
               </div>
             </div>
           ))}
           {searchTerm && filteredProducts.length === 0 && (
-            <p className="text-center text-sm text-muted-foreground py-10">No se encontraron productos</p>
+            <div className="text-center text-sm text-muted-foreground py-10 px-4">
+                <p className='font-bold'>Sin resultados para "{searchTerm}"</p>
+                <p className='text-xs mt-1'>Intente con otro término de búsqueda.</p>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Main Area: Cart */}
       <div className="flex-1 flex flex-col min-w-0">
         <Card className="flex-1 flex flex-col overflow-hidden bg-card border-none shadow-2xl relative">
           {!isCashOpen && (
@@ -151,15 +274,15 @@ export function PosModule() {
             </div>
           )}
           
-          <CardHeader className="border-b bg-secondary/30">
+          <CardHeader className="border-b bg-card">
             <div className="flex justify-between items-center">
               <CardTitle className="text-lg flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-primary" />
-                Carrito de Compra
+                Nota de Entrega
               </CardTitle>
-              <Badge variant="outline" className="text-primary border-primary">
-                {cart.length} productos
-              </Badge>
+              <Button variant="outline" size='sm' className='text-destructive hover:text-destructive h-8' onClick={() => setCart([])} disabled={cart.length === 0}>
+                  <Trash2 className='w-4 h-4 mr-2'/> Vaciar
+              </Button>
             </div>
           </CardHeader>
           
@@ -167,89 +290,67 @@ export function PosModule() {
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
                 <ShoppingCart className="w-16 h-16 mb-4" />
-                <p>El carrito está vacío</p>
+                <p className='font-bold'>Carrito vacío</p>
+                <p className='text-sm'>Agregue productos desde el buscador</p>
               </div>
             ) : (
-              cart.map((item, i) => (
-                <div key={item.productId} className="flex items-center gap-4 p-3 bg-secondary/20 rounded-xl border border-border/50 animate-in slide-in-from-top-2">
+              cart.map((item) => (
+                <div key={item.productId} className="flex items-center gap-4 p-3 bg-background/30 rounded-xl border animate-in slide-in-from-top-2">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm truncate">{item.name}</p>
-                    <p className="text-xs text-muted-foreground font-code">{item.barcode}</p>
+                    <p className="text-xs text-muted-foreground font-mono">${item.price.toFixed(2)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" className="w-8 h-8 rounded-full" onClick={() => updateQty(item.productId, -1)}>
-                      <Minus className="w-3 h-3" />
-                    </Button>
-                    <span className="w-6 text-center font-bold text-sm">{item.qty}</span>
-                    <Button variant="outline" size="icon" className="w-8 h-8 rounded-full" onClick={() => updateQty(item.productId, 1)}>
-                      <Plus className="w-3 h-3" />
-                    </Button>
+                  <div className="flex items-center gap-3">
+                    <Button variant="outline" size="icon" className="w-8 h-8 rounded-full" onClick={() => updateQty(item.productId, -1)}><Minus className="w-4 h-4" /></Button>
+                    <span className="w-8 text-center font-bold text-base tabular-nums">{item.qty}</span>
+                    <Button variant="outline" size="icon" className="w-8 h-8 rounded-full" onClick={() => updateQty(item.productId, 1)}><Plus className="w-4 h-4" /></Button>
                   </div>
-                  <div className="w-24 text-right">
-                    <p className="font-bold text-sm">Bs. {(item.price * item.qty).toFixed(2)}</p>
+                  <div className="w-28 text-right">
+                    <p className="font-bold text-base">$ {(item.price * item.qty).toFixed(2)}</p>
                   </div>
-                  <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => updateQty(item.productId, -999)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 w-8 h-8" onClick={() => updateQty(item.productId, -item.qty)}><Trash2 className="w-4 h-4" /></Button>
                 </div>
               ))
             )}
           </CardContent>
           
-          <CardFooter className="flex-col gap-4 border-t bg-secondary/30 p-6">
-            <div className="w-full space-y-1">
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Subtotal</span>
-                <span>Bs. {subtotal.toFixed(2)}</span>
+          <CardFooter className="flex-col gap-4 border-t bg-card/80 p-4">
+            <div className="w-full space-y-2">
+               <div className="flex justify-between text-muted-foreground">
+                 <span className='font-bold'>Subtotal ({cart.reduce((a,b) => a+b.qty, 0)} items)</span>
+                 <span className='font-bold'>$ {totalUSD.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-2xl font-black text-primary">
-                <span>TOTAL</span>
-                <span>Bs. {subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold text-emerald-500">
-                <span>≈ USD</span>
+                <span>TOTAL A PAGAR</span>
                 <span>$ {totalUSD.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-lg font-bold text-muted-foreground">
+                <span>≈ Equivalente en Bs.</span>
+                <span>{totalBS.toLocaleString('es-VE', {minimumFractionDigits: 2})}</span>
               </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4 w-full">
-              <Button 
-                variant="outline" 
-                size="lg" 
-                className="h-14 font-bold border-2 hover:bg-primary/10"
-                disabled={cart.length === 0}
-                onClick={() => setIsCreditOpen(true)}
-              >
-                Venta a Crédito
+              <Button variant="outline" size="lg" className="h-14 font-bold border-2 text-base border-primary/50 hover:bg-primary/10 hover:border-primary" disabled={cart.length === 0 || !isCashOpen} onClick={() => setIsCreditOpen(true)}>
+                <CreditCard className="w-5 h-5 mr-2"/> Venta a Crédito
               </Button>
-              <Button 
-                size="lg" 
-                className="h-14 font-black bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 text-lg uppercase tracking-wider"
-                disabled={cart.length === 0}
-                onClick={() => setIsPaymentOpen(true)}
-              >
-                Cobrar Ahora
+              <Button size="lg" className="h-14 font-black bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 text-lg uppercase tracking-wider" disabled={cart.length === 0 || !isCashOpen} onClick={() => setIsPaymentOpen(true)}>
+                <DollarSign className="w-6 h-6 mr-2"/> Cobrar
               </Button>
             </div>
           </CardFooter>
         </Card>
       </div>
 
-      <PaymentModal 
-        isOpen={isPaymentOpen} 
-        onClose={() => setIsPaymentOpen(false)} 
-        cart={cart} 
-        exchangeRate={exchangeRate}
-        onComplete={handleSaleComplete}
-      />
-      
-      <CreditSaleModal
-        isOpen={isCreditOpen}
-        onClose={() => setIsCreditOpen(false)}
-        cart={cart}
-        exchangeRate={exchangeRate}
-        onComplete={handleSaleComplete}
-      />
+      {(isPaymentOpen || isCreditOpen) && (
+        <FloatingPaymentModal 
+            total={totalBS}
+            exchangeRate={exchangeRate}
+            onClose={() => { setIsPaymentOpen(false); setIsCreditOpen(false); }}
+            onConfirm={handleSaleComplete}
+            isCredit={isCreditOpen}
+        />
+      )}
 
       {lastSale && (
         <ReceiptModal 

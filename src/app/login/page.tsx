@@ -288,17 +288,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {!systemEmpty && (
-          <div className="mt-6 text-center border-t border-line pt-6">
-            <button 
-              onClick={() => setIsRegistering(!isRegistering)} 
-              className="text-[11px] font-black text-[#C8952E] hover:underline flex items-center justify-center gap-2 mx-auto uppercase tracking-tighter"
-            >
-              {isRegistering ? <><LogIn className="w-4 h-4" /> Volver al Ingreso</> : <><UserPlus className="w-4 h-4" /> Registrar Nuevo Usuario</>}
-            </button>
-          </div>
-        )}
-         {systemEmpty && !isRegistering && (
+        {systemEmpty && !isRegistering && (
             <div className="mt-6 text-center border-t-2 border-dashed border-red-300 pt-5">
                  <p className="text-[10px] font-bold text-red-500 uppercase  mx-auto">MODO EMERGENCIA: NO HAY USUARIOS</p>
                  <p className="text-xs text-gray-500 mt-1">Puede ingresar con cualquier credencial para configurar el sistema, o <button onClick={() => setIsRegistering(true)} className="font-bold text-[#C8952E] underline">crear el administrador raíz</button>.</p>
