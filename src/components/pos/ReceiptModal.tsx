@@ -134,24 +134,37 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     return 'N/A';
   }, [data.id, data.numero, data.controlNumber, data.numeroZ, data.numeroX, isReport, type]);
 
-  // ✅ Obtener el número de caja
-  const terminalId = React.useMemo(() => {
-    if (data.terminalId) return String(data.terminalId);
-    if (data.caja) return String(data.caja);
-    if (data.terminal) return String(data.terminal);
-    if (data.terminalName) return String(data.terminalName);
-    return 'TRM-MRQK';
-  }, [data.terminalId, data.caja, data.terminal, data.terminalName]);
+  // ✅ Obtener el nombre del terminal (CAJA) desde la configuración
+  const terminalName = React.useMemo(() => {
+    // Si el dato tiene terminalName, usarlo
+    if (data.terminalName) return data.terminalName;
+    if (data.terminal) return data.terminal;
+    if (data.caja) return data.caja;
+    
+    // Buscar el terminal en la lista de terminales del estado
+    const terminalId = data.terminalId || data.terminal || data.caja;
+    if (terminalId && state.terminales) {
+      const terminal = state.terminales.find((t: any) => t.id === terminalId);
+      if (terminal) return terminal.nombre || terminalId;
+    }
+    
+    // Si no se encuentra, usar el ID o un valor por defecto
+    return terminalId || 'CAJA-01';
+  }, [data.terminalName, data.terminal, data.caja, data.terminalId, state.terminales]);
 
-  // ✅ Obtener el nombre del cajero
+  // ✅ Obtener el nombre del cajero - CORREGIDO: sin usar state.usuarios
   const cajeroNombre = React.useMemo(() => {
+    // Si el dato tiene cajeroNombre, usarlo
     if (data.cajeroNombre) return data.cajeroNombre;
     if (data.cajero) return data.cajero;
     if (data.cashier) return data.cashier;
+    
+    // Si el usuario actual está autenticado, usar su nombre
     const currentUser = auth.currentUser;
     if (currentUser) {
       return currentUser.displayName || currentUser.email || 'Administrador';
     }
+    
     return 'Administrador';
   }, [data.cajeroNombre, data.cajero, data.cashier]);
 
@@ -249,7 +262,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     return usdMethods.some(m => method.toLowerCase().includes(m));
   };
 
-  // ✅ Función para imprimir
+  // ✅ Función para imprimir (estándar - usa el HTML renderizado)
   const handlePrint = () => {
     const printContent = printRef.current?.innerHTML;
     if (!printContent) return;
@@ -287,6 +300,10 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
             .total-box { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin: 8px 0; font-size: 16px; font-weight: bold; }
             .report-content { font-size: 10px; }
             .report-content .row { display: flex; justify-content: space-between; padding: 1px 0; }
+            .section-title { font-weight: bold; text-align: center; font-size: 12px; margin: 6px 0 4px 0; }
+            .separator-dashed { border-top: 1px dashed #000; margin: 4px 0; }
+            .separator-solid { border-top: 1px solid #000; margin: 4px 0; }
+            .value { font-weight: bold; }
           </style>
         </head>
         <body>
@@ -305,7 +322,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     setTimeout(onClose, 1000);
   };
 
-  // ✅ Función para imprimir con Electron
+  // ✅ Función para imprimir con Electron (usa el mismo HTML)
   const handleNativePrint = async () => {
     if (!window.electronAPI) {
       handlePrint();
@@ -313,180 +330,68 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     }
 
     try {
-      const printData = buildNativePrintData();
-      await window.electronAPI.printTicket(printData);
+      // Obtener el contenido HTML del recibo
+      const printContent = printRef.current?.innerHTML;
+      if (!printContent) {
+        handlePrint();
+        return;
+      }
+
+      // Construir el HTML completo con estilos para impresión térmica
+      const fullHtml = `
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>Impresion_PosVEN_Pro</title>
+            <style>
+              @page { 
+                size: 80mm auto; 
+                margin: 0; 
+              }
+              body {
+                font-family: 'Courier New', Courier, monospace;
+                width: 72mm;
+                margin: 0 auto;
+                padding: 4mm;
+                font-size: 11px;
+                color: #000;
+                background: #fff;
+                line-height: 1.3;
+              }
+              .text-center { text-align: center; }
+              .text-right { text-align: right; }
+              .bold { font-weight: bold; }
+              .dashed-line { border-top: 1px dashed #000; margin: 5px 0; }
+              .solid-line { border-top: 1px solid #000; margin: 5px 0; }
+              .title { font-size: 20px; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; }
+              .subtitle { font-size: 12px; margin-bottom: 2px; text-transform: uppercase; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { padding: 2px 0; }
+              .flex-row { display: flex; justify-content: space-between; }
+              .total-box { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin: 8px 0; font-size: 16px; font-weight: bold; }
+              .report-content { font-size: 10px; }
+              .report-content .row { display: flex; justify-content: space-between; padding: 1px 0; }
+              .section-title { font-weight: bold; text-align: center; font-size: 12px; margin: 6px 0 4px 0; }
+              .separator-dashed { border-top: 1px dashed #000; margin: 4px 0; }
+              .separator-solid { border-top: 1px solid #000; margin: 4px 0; }
+              .value { font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            ${printContent}
+          </body>
+        </html>
+      `;
+
+      // Enviar el HTML para impresión nativa
+      await window.electronAPI.printTicket([
+        { type: 'html', value: fullHtml }
+      ]);
       setTimeout(onClose, 500);
     } catch (e) {
+      console.error('Error en impresión nativa:', e);
       handlePrint();
     }
-  };
-
-  // ✅ Construir datos para impresión nativa
-  const buildNativePrintData = () => {
-    const printData: any[] = [];
-    const items = getItems();
-    const payments = getPaymentMethods();
-
-    // Encabezado
-    printData.push({ type: 'text', value: state.empresa.nombre.toUpperCase(), style: { fontWeight: "800", textAlign: 'center', fontSize: "20px" } });
-    if (state.empresa.rif) printData.push({ type: 'text', value: `RIF: ${state.empresa.rif}`, style: { textAlign: 'center', fontSize: "11px" } });
-    if (state.empresa.direccion) printData.push({ type: 'text', value: state.empresa.direccion.toUpperCase(), style: { textAlign: 'center', fontSize: "11px" } });
-    if (state.empresa.telefono) printData.push({ type: 'text', value: `Telf: ${state.empresa.telefono}`, style: { textAlign: 'center', fontSize: "11px" } });
-    printData.push({ type: 'text', value: separatorLine('='), style: { textAlign: 'center' } });
-
-    // Título del documento
-    printData.push({ type: 'text', value: getReportTitle(), style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
-    if (isReport) {
-      printData.push({ type: 'text', value: getReportSubtitle(), style: { textAlign: 'center', fontSize: "12px" } });
-    }
-    printData.push({ type: 'text', value: separatorLine('='), style: { textAlign: 'center' } });
-
-    // Información del documento
-    if (isReport) {
-      printData.push({ type: 'text', value: alignLeftRight(`FECHA: ${transactionDate.split(',')[0] || '19/07/2026'}`, `HORA: ${transactionDate.split(',')[1]?.trim() || '08:52 AM'}`), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight(`Nº REPORTE ${type === 'REPORT_Z' ? 'Z' : 'X'}: ${receiptNumber}`, `Nº CAJA: ${terminalId}`), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight(`CAJERO: ${cajeroNombre}`, ''), style: { fontSize: "11px" } });
-    } else {
-      printData.push({ type: 'text', value: alignLeftRight(`RECIBO N°: ${receiptNumber}`, `CAJA: ${terminalId}`), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight(`CAJERO: ${cajeroNombre}`, ''), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight(`FECHA: ${transactionDate.split(',')[0] || '19/07/2026'}`, `HORA: ${transactionDate.split(',')[1]?.trim() || '10:30 AM'}`), style: { fontSize: "11px" } });
-    }
-    printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-
-    // ============================================
-    // CONTENIDO DEL REPORTE X O Z
-    // ============================================
-    if (isReport) {
-      // CONTROL DE DOCUMENTOS - Solo para REPORTE Z
-      if (type === 'REPORT_Z') {
-        printData.push({ type: 'text', value: 'CONTROL DE DOCUMENTOS', style: { fontWeight: "700", textAlign: 'center', fontSize: "12px" } });
-        printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-        printData.push({ type: 'text', value: 'FACTURAS EMITIDAS:', style: { fontSize: "11px" } });
-        printData.push({ type: 'text', value: alignLeftRight(`DESDE: ${data.desdeFactura || 'N/A'}`, `HASTA: ${data.hastaFactura || 'N/A'}`), style: { fontSize: "10px" } });
-        printData.push({ type: 'text', value: alignLeftRight(`TOTAL FACTURAS:`, String(data.stats?.facturas || 0).padStart(6, ' ')), style: { fontSize: "10px" } });
-        printData.push({ type: 'text', value: '', style: { fontSize: "10px" } });
-        printData.push({ type: 'text', value: 'NOTAS DE CRÉDITO EMITIDAS:', style: { fontSize: "11px" } });
-        printData.push({ type: 'text', value: alignLeftRight(`DESDE: ${data.desdeNC || 'N/A'}`, `HASTA: ${data.hastaNC || 'N/A'}`), style: { fontSize: "10px" } });
-        printData.push({ type: 'text', value: alignLeftRight(`TOTAL NOTAS CRÉDITO:`, String(data.stats?.devoluciones || 0).padStart(6, ' ')), style: { fontSize: "10px" } });
-        printData.push({ type: 'text', value: '', style: { fontSize: "10px" } });
-        printData.push({ type: 'text', value: alignLeftRight(`CANT. DOCUMENTOS ANULADOS:`, String(data.stats?.anulaciones || 0).padStart(6, ' ')), style: { fontSize: "10px" } });
-        printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-      }
-
-      // RESUMEN DE OPERACIONES
-      printData.push({ type: 'text', value: 'RESUMEN DE OPERACIONES', style: { fontWeight: "700", textAlign: 'center', fontSize: "12px" } });
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-      const ventaBruta = data.ventaBrutaUSD || data.brUSD || 0;
-      const descuentos = data.descuentoUSD || data.descUSD || 0;
-      const devoluciones = data.devolucionesUSD || data.devUSD || 0;
-      const ventaNeta = data.ventaNetaUSD || data.netUSD || 0;
-      
-      printData.push({ type: 'text', value: alignLeftRight('VENTAS BRUTAS:', formatBs(ventaBruta * state.tasa)), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight('DESCUENTOS APLICADOS:', formatBs(descuentos * state.tasa)), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight('DEVOLUCIONES (N. CRÉDITO):', formatBs(devoluciones * state.tasa)), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-      printData.push({ type: 'text', value: alignLeftRight('VENTAS NETAS:', formatBs(ventaNeta * state.tasa)), style: { fontWeight: "700", fontSize: "12px" } });
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-
-      // DESGLOSE DE IMPUESTOS
-      printData.push({ type: 'text', value: 'DESGLOSE DE IMPUESTOS', style: { fontWeight: "700", textAlign: 'center', fontSize: "12px" } });
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-      const exento = data.exentoUSD || 0;
-      const baseImp = data.baseImponibleUSD || 0;
-      const ivaVal = data.ivaUSD || 0;
-      const igtfVal = data.igtfUSD || 0;
-      
-      printData.push({ type: 'text', value: alignLeftRight('VENTAS EXENTAS (E):', formatBs(exento * state.tasa)), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: '', style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight('BASE IMPONIBLE (G 16%):', formatBs(baseImp * state.tasa)), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight('IVA RECAUDADO (16%):', formatBs(ivaVal * state.tasa)), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: '', style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight('RECAUDACIÓN IGTF (3%):', formatBs(igtfVal * state.tasa)), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-
-      // FORMAS DE PAGO
-      printData.push({ type: 'text', value: 'FORMAS DE PAGO', style: { fontWeight: "700", textAlign: 'center', fontSize: "12px" } });
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-      
-      const paymentMethods = getPaymentMethods();
-      if (Object.keys(paymentMethods).length > 0) {
-        if (Array.isArray(paymentMethods)) {
-          paymentMethods.forEach((p: any) => {
-            const method = p.metodo || p.method || 'efectivo';
-            const amount = p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
-            const isUsd = isUsdPayment(method);
-            printData.push({ 
-              type: 'text', 
-              value: alignLeftRight(formatPaymentMethod(method) + ':', isUsd ? `$ ${formatUsd(amount)}` : formatBs(amount * state.tasa)),
-              style: { fontSize: "10px" }
-            });
-          });
-        } else {
-          Object.entries(paymentMethods).forEach(([method, amount]) => {
-            const amountNum = typeof amount === 'number' ? amount : 0;
-            const isUsd = isUsdPayment(method);
-            printData.push({ 
-              type: 'text', 
-              value: alignLeftRight(formatPaymentMethod(method) + ':', isUsd ? `$ ${formatUsd(amountNum)}` : formatBs(amountNum * state.tasa)),
-              style: { fontSize: "10px" }
-            });
-          });
-        }
-      }
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-
-      // MOVIMIENTO DE CAJA
-      printData.push({ type: 'text', value: 'MOVIMIENTO DE CAJA', style: { fontWeight: "700", textAlign: 'center', fontSize: "12px" } });
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-      const fondoApertura = data.fondoAperturaUSD || 0;
-      const entradas = data.entradasCajaUSD || data.manualEntradas || 0;
-      const salidas = data.salidasCajaUSD || data.manualSalidas || 0;
-      const efectivoCaja = data.efectivoRealCaja || data.efectivoEstimadoCaja || ventaNeta;
-      
-      printData.push({ type: 'text', value: alignLeftRight('FONDO DE APERTURA:', formatBs(fondoApertura * state.tasa)), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight('ENTRADAS DE EFECTIVO:', formatBs(entradas * state.tasa)), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: alignLeftRight('SALIDAS DE EFECTIVO:', formatBs(salidas * state.tasa)), style: { fontSize: "11px" } });
-      const labelEfectivo = type === 'REPORT_Z' ? 'EFECTIVO REAL EN CAJA:' : 'EFECTIVO ESTIMADO EN CAJA:';
-      printData.push({ type: 'text', value: alignLeftRight(labelEfectivo, formatBs(efectivoCaja * state.tasa)), style: { fontWeight: "700", fontSize: "12px" } });
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-
-      // ESTADÍSTICAS DE VENTA (solo para REPORTE X)
-      if (type === 'REPORT_X') {
-        printData.push({ type: 'text', value: 'ESTADÍSTICAS DE VENTA', style: { fontWeight: "700", textAlign: 'center', fontSize: "12px" } });
-        printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-        printData.push({ type: 'text', value: alignLeftRight('CANT. FACTURAS EMITIDAS:', String(data.stats?.facturas || 0).padStart(6, ' ')), style: { fontSize: "11px" } });
-        printData.push({ type: 'text', value: alignLeftRight('CANT. TRANSACCIONES ANULADAS:', String(data.stats?.anulaciones || 0).padStart(6, ' ')), style: { fontSize: "11px" } });
-        printData.push({ type: 'text', value: alignLeftRight('TICKET PROMEDIO:', formatBs((data.stats?.ticketPromedio || 0) * state.tasa)), style: { fontSize: "11px" } });
-        printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-      }
-
-      // TOTALES HISTÓRICOS (solo para REPORTE Z)
-      if (type === 'REPORT_Z') {
-        printData.push({ type: 'text', value: 'TOTALES HISTÓRICOS', style: { fontWeight: "700", textAlign: 'center', fontSize: "12px" } });
-        printData.push({ type: 'text', value: '(ACUMULADO NO REINICIABLE)', style: { textAlign: 'center', fontSize: "10px" } });
-        printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-        printData.push({ type: 'text', value: alignLeftRight('GRAN TOTAL VENTAS:', formatBs((data.acumuladoHistoricoUSD || 0) * state.tasa)), style: { fontSize: "11px" } });
-        printData.push({ type: 'text', value: alignLeftRight('GRAN TOTAL IVA:', formatBs((data.acumuladoIvaUSD || 0) * state.tasa)), style: { fontSize: "11px" } });
-        printData.push({ type: 'text', value: separatorLine('='), style: { textAlign: 'center' } });
-        printData.push({ type: 'text', value: 'CIERRE DE JORNADA EXITOSO', style: { fontWeight: "800", textAlign: 'center', fontSize: "12px" } });
-      } else {
-        // Para REPORTE X
-        printData.push({ type: 'text', value: separatorLine('='), style: { textAlign: 'center' } });
-        printData.push({ type: 'text', value: 'DOCUMENTO NO VÁLIDO COMO', style: { textAlign: 'center', fontSize: "11px" } });
-        printData.push({ type: 'text', value: 'CIERRE FISCAL', style: { textAlign: 'center', fontSize: "11px" } });
-        printData.push({ type: 'text', value: separatorLine('='), style: { textAlign: 'center' } });
-      }
-    }
-
-    // Pie de página
-    if (!isReport) {
-      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
-      printData.push({ type: 'text', value: '¡Gracias por su preferencia!', style: { textAlign: 'center', fontSize: "11px", fontWeight: "700" } });
-    }
-    printData.push({ type: 'text', value: 'Desarrollado por EFAS Freelancer', style: { textAlign: 'center', fontSize: "8px" } });
-    printData.push({ type: 'text', value: '\n\n\n', style: { textAlign: 'center' } });
-
-    return printData;
   };
 
   return (
@@ -512,17 +417,17 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
               {/* ENCABEZADO */}
               {/* ========================================== */}
               <div className="text-center pb-3">
-                <h1 className="text-[20px] font-bold uppercase mb-2 leading-tight" style={{ fontFamily: 'Courier New, Courier, monospace' }}>
+                <div className="text-[20px] font-bold uppercase mb-2 leading-tight" style={{ fontFamily: 'Courier New, Courier, monospace' }}>
                   {state.empresa.nombre || 'EFAS SOLUCIONES DIGITALES C.A.'}
-                </h1>
+                </div>
                 {state.empresa.rif && (
-                  <p className="text-[11px] font-bold uppercase">RIF: {state.empresa.rif}</p>
+                  <div className="text-[11px] font-bold uppercase">RIF: {state.empresa.rif}</div>
                 )}
                 {state.empresa.direccion && (
-                  <p className="text-[10px] leading-snug uppercase">{state.empresa.direccion}</p>
+                  <div className="text-[10px] leading-snug uppercase">{state.empresa.direccion}</div>
                 )}
                 {state.empresa.telefono && (
-                  <p className="text-[10px]">Telf: {state.empresa.telefono}</p>
+                  <div className="text-[10px]">Telf: {state.empresa.telefono}</div>
                 )}
               </div>
 
@@ -531,7 +436,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                 {isReport && <div className="text-[12px] font-bold">{getReportSubtitle()}</div>}
               </div>
 
-              <div className="border-t border-dashed border-black pt-3 mb-3"></div>
+              <div className="separator-dashed"></div>
 
               {/* ========================================== */}
               {/* INFORMACIÓN DEL DOCUMENTO */}
@@ -545,7 +450,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                     </div>
                     <div className="flex justify-between">
                       <span>Nº REPORTE {type === 'REPORT_Z' ? 'Z' : 'X'}: {receiptNumber}</span>
-                      <span>Nº CAJA: {terminalId}</span>
+                      <span>Nº CAJA: {terminalName}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>CAJERO: {cajeroNombre}</span>
@@ -561,7 +466,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                       <span>HORA: {transactionDate.split(',')[1]?.trim() || '10:30 AM'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>CAJA: {terminalId}</span>
+                      <span>CAJA: {terminalName}</span>
                       <span>CAJERO: {cajeroNombre}</span>
                     </div>
                   </>
@@ -569,203 +474,189 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
               </div>
 
               {/* ========================================== */}
-              {/* CONTENIDO DEL REPORTE X O Z - VISTA PREVIA */}
+              {/* CONTENIDO DEL REPORTE X O Z */}
               {/* ========================================== */}
               {isReport && (
                 <div className="report-content">
                   {/* CONTROL DE DOCUMENTOS - Solo para REPORTE Z */}
                   {type === 'REPORT_Z' && (
                     <>
-                      <div className="border-t border-dashed border-black pt-3 mb-3">
-                        <div className="text-center font-bold text-[11px] mb-2">CONTROL DE DOCUMENTOS</div>
-                        <div className="border-t border-dashed border-black mb-2"></div>
-                        <div className="space-y-1 text-[10px]">
-                          <div className="font-bold">FACTURAS EMITIDAS:</div>
-                          <div className="flex justify-between">
-                            <span>DESDE: {data.desdeFactura || 'N/A'}</span>
-                            <span>HASTA: {data.hastaFactura || 'N/A'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>TOTAL FACTURAS:</span>
-                            <span>{String(data.stats?.facturas || 0).padStart(6, ' ')}</span>
-                          </div>
-                          <div className="mt-2 font-bold">NOTAS DE CRÉDITO EMITIDAS:</div>
-                          <div className="flex justify-between">
-                            <span>DESDE: {data.desdeNC || 'N/A'}</span>
-                            <span>HASTA: {data.hastaNC || 'N/A'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>TOTAL NOTAS CRÉDITO:</span>
-                            <span>{String(data.stats?.devoluciones || 0).padStart(6, ' ')}</span>
-                          </div>
-                          <div className="flex justify-between mt-1">
-                            <span>CANT. DOCUMENTOS ANULADOS:</span>
-                            <span>{String(data.stats?.anulaciones || 0).padStart(6, ' ')}</span>
-                          </div>
-                        </div>
+                      <div className="section-title">CONTROL DE DOCUMENTOS</div>
+                      <div className="separator-dashed"></div>
+                      <div className="font-bold">FACTURAS EMITIDAS:</div>
+                      <div className="flex justify-between">
+                        <span>DESDE: {data.desdeFactura || 'N/A'}</span>
+                        <span>HASTA: {data.hastaFactura || 'N/A'}</span>
                       </div>
-                      <div className="border-t border-dashed border-black mb-3"></div>
+                      <div className="flex justify-between">
+                        <span>TOTAL FACTURAS:</span>
+                        <span className="value">{String(data.stats?.facturas || 0).padStart(6, ' ')}</span>
+                      </div>
+                      <div className="mt-2 font-bold">NOTAS DE CRÉDITO EMITIDAS:</div>
+                      <div className="flex justify-between">
+                        <span>DESDE: {data.desdeNC || 'N/A'}</span>
+                        <span>HASTA: {data.hastaNC || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>TOTAL NOTAS CRÉDITO:</span>
+                        <span className="value">{String(data.stats?.devoluciones || 0).padStart(6, ' ')}</span>
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span>CANT. DOCUMENTOS ANULADOS:</span>
+                        <span className="value">{String(data.stats?.anulaciones || 0).padStart(6, ' ')}</span>
+                      </div>
+                      <div className="separator-dashed"></div>
                     </>
                   )}
 
                   {/* RESUMEN DE OPERACIONES */}
-                  <div className="text-center font-bold text-[11px] mb-2">RESUMEN DE OPERACIONES</div>
-                  <div className="border-t border-dashed border-black mb-2"></div>
-                  <div className="space-y-1 text-[10px]">
-                    <div className="flex justify-between">
-                      <span>VENTAS BRUTAS:</span>
-                      <span>{formatBs(((data.ventaBrutaUSD || data.brUSD || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>DESCUENTOS APLICADOS:</span>
-                      <span>{formatBs(((data.descuentoUSD || data.descUSD || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>DEVOLUCIONES (N. CRÉDITO):</span>
-                      <span>{formatBs(((data.devolucionesUSD || data.devUSD || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="border-t border-black pt-1 mt-1 flex justify-between font-bold">
-                      <span>VENTAS NETAS:</span>
-                      <span>{formatBs(((data.ventaNetaUSD || data.netUSD || 0) * state.tasa))}</span>
-                    </div>
+                  <div className="section-title">RESUMEN DE OPERACIONES</div>
+                  <div className="separator-dashed"></div>
+                  <div className="flex justify-between">
+                    <span>VENTAS BRUTAS:</span>
+                    <span className="value">{formatBs(((data.ventaBrutaUSD || data.brUSD || 0) * state.tasa))}</span>
                   </div>
-                  <div className="border-t border-dashed border-black mt-3 mb-3"></div>
+                  <div className="flex justify-between">
+                    <span>DESCUENTOS APLICADOS:</span>
+                    <span className="value">{formatBs(((data.descuentoUSD || data.descUSD || 0) * state.tasa))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>DEVOLUCIONES (N. CRÉDITO):</span>
+                    <span className="value">{formatBs(((data.devolucionesUSD || data.devUSD || 0) * state.tasa))}</span>
+                  </div>
+                  <div className="separator-dashed"></div>
+                  <div className="flex justify-between font-bold">
+                    <span>VENTAS NETAS:</span>
+                    <span className="value">{formatBs(((data.ventaNetaUSD || data.netUSD || 0) * state.tasa))}</span>
+                  </div>
+                  <div className="separator-dashed"></div>
 
                   {/* DESGLOSE DE IMPUESTOS */}
-                  <div className="text-center font-bold text-[11px] mb-2">DESGLOSE DE IMPUESTOS</div>
-                  <div className="border-t border-dashed border-black mb-2"></div>
-                  <div className="space-y-1 text-[10px]">
-                    <div className="flex justify-between">
-                      <span>VENTAS EXENTAS (E):</span>
-                      <span>{formatBs(((data.exentoUSD || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>BASE IMPONIBLE (G 16%):</span>
-                      <span>{formatBs(((data.baseImponibleUSD || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>IVA RECAUDADO (16%):</span>
-                      <span>{formatBs(((data.ivaUSD || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>RECAUDACIÓN IGTF (3%):</span>
-                      <span>{formatBs(((data.igtfUSD || 0) * state.tasa))}</span>
-                    </div>
+                  <div className="section-title">DESGLOSE DE IMPUESTOS</div>
+                  <div className="separator-dashed"></div>
+                  <div className="flex justify-between">
+                    <span>VENTAS EXENTAS (E):</span>
+                    <span className="value">{formatBs(((data.exentoUSD || 0) * state.tasa))}</span>
                   </div>
-                  <div className="border-t border-dashed border-black mt-3 mb-3"></div>
+                  <div className="flex justify-between">
+                    <span>BASE IMPONIBLE (G 16%):</span>
+                    <span className="value">{formatBs(((data.baseImponibleUSD || 0) * state.tasa))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>IVA RECAUDADO (16%):</span>
+                    <span className="value">{formatBs(((data.ivaUSD || 0) * state.tasa))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>RECAUDACIÓN IGTF (3%):</span>
+                    <span className="value">{formatBs(((data.igtfUSD || 0) * state.tasa))}</span>
+                  </div>
+                  <div className="separator-dashed"></div>
 
                   {/* FORMAS DE PAGO */}
-                  <div className="text-center font-bold text-[11px] mb-2">FORMAS DE PAGO</div>
-                  <div className="border-t border-dashed border-black mb-2"></div>
-                  <div className="space-y-1 text-[10px]">
-                    {(() => {
-                      const paymentMethods = getPaymentMethods();
-                      if (Object.keys(paymentMethods).length > 0) {
-                        if (Array.isArray(paymentMethods)) {
-                          return paymentMethods.map((p: any, idx: number) => {
-                            const method = p.metodo || p.method || 'efectivo';
-                            const amount = p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
-                            const isUsd = isUsdPayment(method);
-                            return (
-                              <div key={idx} className="flex justify-between">
-                                <span>{formatPaymentMethod(method)}:</span>
-                                <span>{isUsd ? `$ ${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
-                              </div>
-                            );
-                          });
-                        } else {
-                          return Object.entries(paymentMethods).map(([method, amount], idx) => {
-                            const amountNum = typeof amount === 'number' ? amount : 0;
-                            const isUsd = isUsdPayment(method);
-                            return (
-                              <div key={idx} className="flex justify-between">
-                                <span>{formatPaymentMethod(method)}:</span>
-                                <span>{isUsd ? `$ ${formatUsd(amountNum)}` : formatBs(amountNum * state.tasa)}</span>
-                              </div>
-                            );
-                          });
-                        }
+                  <div className="section-title">FORMAS DE PAGO</div>
+                  <div className="separator-dashed"></div>
+                  {(() => {
+                    const paymentMethods = getPaymentMethods();
+                    if (Object.keys(paymentMethods).length > 0) {
+                      if (Array.isArray(paymentMethods)) {
+                        return paymentMethods.map((p: any, idx: number) => {
+                          const method = p.metodo || p.method || 'efectivo';
+                          const amount = p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
+                          const isUsd = isUsdPayment(method);
+                          return (
+                            <div key={idx} className="flex justify-between">
+                              <span>{formatPaymentMethod(method)}:</span>
+                              <span className="value">{isUsd ? `$ ${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
+                            </div>
+                          );
+                        });
+                      } else {
+                        return Object.entries(paymentMethods).map(([method, amount], idx) => {
+                          const amountNum = typeof amount === 'number' ? amount : 0;
+                          const isUsd = isUsdPayment(method);
+                          return (
+                            <div key={idx} className="flex justify-between">
+                              <span>{formatPaymentMethod(method)}:</span>
+                              <span className="value">{isUsd ? `$ ${formatUsd(amountNum)}` : formatBs(amountNum * state.tasa)}</span>
+                            </div>
+                          );
+                        });
                       }
-                      return null;
-                    })()}
-                  </div>
-                  <div className="border-t border-dashed border-black mt-3 mb-3"></div>
+                    }
+                    return null;
+                  })()}
+                  <div className="separator-dashed"></div>
 
                   {/* MOVIMIENTO DE CAJA */}
-                  <div className="text-center font-bold text-[11px] mb-2">MOVIMIENTO DE CAJA</div>
-                  <div className="border-t border-dashed border-black mb-2"></div>
-                  <div className="space-y-1 text-[10px]">
-                    <div className="flex justify-between">
-                      <span>FONDO DE APERTURA:</span>
-                      <span>{formatBs(((data.fondoAperturaUSD || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>ENTRADAS DE EFECTIVO:</span>
-                      <span>{formatBs(((data.entradasCajaUSD || data.manualEntradas || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>SALIDAS DE EFECTIVO:</span>
-                      <span>{formatBs(((data.salidasCajaUSD || data.manualSalidas || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="border-t border-black pt-1 mt-1 flex justify-between font-bold">
-                      <span>{type === 'REPORT_Z' ? 'EFECTIVO REAL EN CAJA:' : 'EFECTIVO ESTIMADO EN CAJA:'}</span>
-                      <span>{formatBs(((data.efectivoRealCaja || data.efectivoEstimadoCaja || data.ventaNetaUSD || data.netUSD || 0) * state.tasa))}</span>
-                    </div>
+                  <div className="section-title">MOVIMIENTO DE CAJA</div>
+                  <div className="separator-dashed"></div>
+                  <div className="flex justify-between">
+                    <span>FONDO DE APERTURA:</span>
+                    <span className="value">{formatBs(((data.fondoAperturaUSD || 0) * state.tasa))}</span>
                   </div>
-                  <div className="border-t border-dashed border-black mt-3 mb-3"></div>
+                  <div className="flex justify-between">
+                    <span>ENTRADAS DE EFECTIVO:</span>
+                    <span className="value">{formatBs(((data.entradasCajaUSD || data.manualEntradas || 0) * state.tasa))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>SALIDAS DE EFECTIVO:</span>
+                    <span className="value">{formatBs(((data.salidasCajaUSD || data.manualSalidas || 0) * state.tasa))}</span>
+                  </div>
+                  <div className="separator-dashed"></div>
+                  <div className="flex justify-between font-bold">
+                    <span>{type === 'REPORT_Z' ? 'EFECTIVO REAL EN CAJA:' : 'EFECTIVO ESTIMADO EN CAJA:'}</span>
+                    <span className="value">{formatBs(((data.efectivoRealCaja || data.efectivoEstimadoCaja || data.ventaNetaUSD || data.netUSD || 0) * state.tasa))}</span>
+                  </div>
+                  <div className="separator-dashed"></div>
 
                   {/* ESTADÍSTICAS DE VENTA - Solo para REPORTE X */}
                   {type === 'REPORT_X' && (
                     <>
-                      <div className="text-center font-bold text-[11px] mb-2">ESTADÍSTICAS DE VENTA</div>
-                      <div className="border-t border-dashed border-black mb-2"></div>
-                      <div className="space-y-1 text-[10px]">
-                        <div className="flex justify-between">
-                          <span>CANT. FACTURAS EMITIDAS:</span>
-                          <span>{String(data.stats?.facturas || 0).padStart(6, ' ')}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>CANT. TRANSACCIONES ANULADAS:</span>
-                          <span>{String(data.stats?.anulaciones || 0).padStart(6, ' ')}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>TICKET PROMEDIO:</span>
-                          <span>{formatBs((data.stats?.ticketPromedio || 0) * state.tasa)}</span>
-                        </div>
+                      <div className="section-title">ESTADÍSTICAS DE VENTA</div>
+                      <div className="separator-dashed"></div>
+                      <div className="flex justify-between">
+                        <span>CANT. FACTURAS EMITIDAS:</span>
+                        <span className="value">{String(data.stats?.facturas || 0).padStart(6, ' ')}</span>
                       </div>
-                      <div className="border-t border-dashed border-black mt-3 mb-3"></div>
+                      <div className="flex justify-between">
+                        <span>CANT. TRANSACCIONES ANULADAS:</span>
+                        <span className="value">{String(data.stats?.anulaciones || 0).padStart(6, ' ')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>TICKET PROMEDIO:</span>
+                        <span className="value">{formatBs((data.stats?.ticketPromedio || 0) * state.tasa)}</span>
+                      </div>
+                      <div className="separator-dashed"></div>
                     </>
                   )}
 
                   {/* TOTALES HISTÓRICOS - Solo para REPORTE Z */}
                   {type === 'REPORT_Z' && (
                     <>
-                      <div className="text-center font-bold text-[11px] mb-2">TOTALES HISTÓRICOS</div>
+                      <div className="section-title">TOTALES HISTÓRICOS</div>
                       <div className="text-center text-[9px]">(ACUMULADO NO REINICIABLE)</div>
-                      <div className="border-t border-dashed border-black mb-2"></div>
-                      <div className="space-y-1 text-[10px]">
-                        <div className="flex justify-between">
-                          <span>GRAN TOTAL VENTAS:</span>
-                          <span>{formatBs(((data.acumuladoHistoricoUSD || 0) * state.tasa))}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>GRAN TOTAL IVA:</span>
-                          <span>{formatBs(((data.acumuladoIvaUSD || 0) * state.tasa))}</span>
-                        </div>
+                      <div className="separator-dashed"></div>
+                      <div className="flex justify-between">
+                        <span>GRAN TOTAL VENTAS:</span>
+                        <span className="value">{formatBs(((data.acumuladoHistoricoUSD || 0) * state.tasa))}</span>
                       </div>
-                      <div className="border-t border-black mt-3 mb-3"></div>
+                      <div className="flex justify-between">
+                        <span>GRAN TOTAL IVA:</span>
+                        <span className="value">{formatBs(((data.acumuladoIvaUSD || 0) * state.tasa))}</span>
+                      </div>
+                      <div className="separator-solid"></div>
                       <div className="text-center font-bold text-[11px]">CIERRE DE JORNADA EXITOSO</div>
-                      <div className="border-t border-black mt-3"></div>
+                      <div className="separator-solid"></div>
                     </>
                   )}
 
                   {/* PIE DE PÁGINA PARA REPORTE X */}
                   {type === 'REPORT_X' && (
                     <>
-                      <div className="border-t border-black mt-3 mb-3"></div>
+                      <div className="separator-solid"></div>
                       <div className="text-center text-[10px]">DOCUMENTO NO VÁLIDO COMO</div>
                       <div className="text-center text-[10px]">CIERRE FISCAL</div>
-                      <div className="border-t border-black mt-3"></div>
+                      <div className="separator-solid"></div>
                     </>
                   )}
                 </div>
@@ -785,7 +676,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                         <span className="w-12 text-right">TOTAL</span>
                       </div>
                     </div>
-                    <div className="border-t border-dashed border-black mb-2"></div>
+                    <div className="separator-dashed"></div>
 
                     {getItems().map((item: any, idx: number) => {
                       const cantidad = item.cantidad || item.qty || 1;
@@ -807,108 +698,105 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                       );
                     })}
 
-                    <div className="border-t border-black pt-2 mt-2">
-                      <div className="flex justify-between font-bold text-[11px]">
-                        <span>SUBTOTAL:</span>
-                        <span>${formatUsd(totalUsd)}</span>
-                      </div>
-                      {montoExento > 0 && (
-                        <div className="flex justify-between text-[10px]">
-                          <span>EXENTO:</span>
-                          <span>${formatUsd(montoExento)}</span>
-                        </div>
-                      )}
-                      {baseImponible > 0 && (
-                        <>
-                          <div className="flex justify-between text-[10px]">
-                            <span>BASE IMPONIBLE (16%):</span>
-                            <span>${formatUsd(baseImponible)}</span>
-                          </div>
-                          <div className="flex justify-between text-[10px]">
-                            <span>IVA (16%):</span>
-                            <span>${formatUsd(iva)}</span>
-                          </div>
-                        </>
-                      )}
-                      {igtf > 0 && (
-                        <div className="flex justify-between text-[10px]">
-                          <span>IGTF (3%):</span>
-                          <span>${formatUsd(igtf)}</span>
-                        </div>
-                      )}
+                    <div className="separator-solid"></div>
+                    <div className="flex justify-between font-bold text-[11px]">
+                      <span>SUBTOTAL:</span>
+                      <span>${formatUsd(totalUsd)}</span>
                     </div>
+                    {montoExento > 0 && (
+                      <div className="flex justify-between text-[10px]">
+                        <span>EXENTO:</span>
+                        <span>${formatUsd(montoExento)}</span>
+                      </div>
+                    )}
+                    {baseImponible > 0 && (
+                      <>
+                        <div className="flex justify-between text-[10px]">
+                          <span>BASE IMPONIBLE (16%):</span>
+                          <span>${formatUsd(baseImponible)}</span>
+                        </div>
+                        <div className="flex justify-between text-[10px]">
+                          <span>IVA (16%):</span>
+                          <span>${formatUsd(iva)}</span>
+                        </div>
+                      </>
+                    )}
+                    {igtf > 0 && (
+                      <div className="flex justify-between text-[10px]">
+                        <span>IGTF (3%):</span>
+                        <span>${formatUsd(igtf)}</span>
+                      </div>
+                    )}
 
-                    <div className="border-t-2 border-black pt-2 mt-2">
-                      <div className="flex justify-between font-bold text-[14px]">
-                        <span>TOTAL A PAGAR:</span>
-                        <span>${formatUsd(totalUsd)}</span>
-                      </div>
-                      <div className="flex justify-between text-[11px]">
-                        <span>Total Bs:</span>
-                        <span>{formatBs(totalBs)}</span>
-                      </div>
+                    <div className="separator-solid"></div>
+                    <div className="flex justify-between font-bold text-[14px]">
+                      <span>TOTAL A PAGAR:</span>
+                      <span>${formatUsd(totalUsd)}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span>Total Bs:</span>
+                      <span>{formatBs(totalBs)}</span>
                     </div>
 
                     {/* FORMAS DE PAGO - RECIBO DE VENTA */}
-                    <div className="border-t border-dashed border-black pt-3 mt-3">
-                      <div className="font-bold text-[10px] mb-2">FORMA DE PAGO:</div>
+                    <div className="separator-dashed"></div>
+                    <div className="font-bold text-[10px] mb-2">FORMA DE PAGO:</div>
+                    
+                    {(() => {
+                      const paymentData = getPaymentMethods();
+                      const hasPayments = paymentData && Object.keys(paymentData).length > 0;
                       
-                      {(() => {
-                        const paymentData = getPaymentMethods();
-                        const hasPayments = paymentData && Object.keys(paymentData).length > 0;
-                        
-                        if (hasPayments) {
-                          if (Array.isArray(paymentData)) {
-                            return paymentData.map((p: any, idx: number) => {
-                              const method = p.metodo || p.method || 'efectivo';
-                              const amount = p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
-                              const isUsd = isUsdPayment(method);
-                              return (
-                                <div key={idx} className="flex justify-between text-[10px]">
-                                  <span>{formatPaymentMethod(method)}:</span>
-                                  <span>{isUsd ? `$${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
-                                </div>
-                              );
-                            });
-                          } else {
-                            return Object.entries(paymentData).map(([method, amount], idx) => {
-                              const amountNum = typeof amount === 'number' ? amount : 0;
-                              const isUsd = isUsdPayment(method);
-                              return (
-                                <div key={idx} className="flex justify-between text-[10px]">
-                                  <span>{formatPaymentMethod(method)}:</span>
-                                  <span>{isUsd ? `$${formatUsd(amountNum)}` : formatBs(amountNum * state.tasa)}</span>
-                                </div>
-                              );
-                            });
-                          }
-                        } else if (data.metodoPago) {
-                          const method = data.metodoPago;
-                          const amount = data.totalUSD || totalUsd;
-                          const isUsd = isUsdPayment(method);
-                          return (
-                            <div className="flex justify-between text-[10px]">
-                              <span>{formatPaymentMethod(method)}:</span>
-                              <span>{isUsd ? `$${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
-                            </div>
-                          );
+                      if (hasPayments) {
+                        if (Array.isArray(paymentData)) {
+                          return paymentData.map((p: any, idx: number) => {
+                            const method = p.metodo || p.method || 'efectivo';
+                            const amount = p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
+                            const isUsd = isUsdPayment(method);
+                            return (
+                              <div key={idx} className="flex justify-between text-[10px]">
+                                <span>{formatPaymentMethod(method)}:</span>
+                                <span className="value">{isUsd ? `$${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
+                              </div>
+                            );
+                          });
                         } else {
-                          return (
-                            <div className="flex justify-between text-[10px]">
-                              <span>EFECTIVO:</span>
-                              <span>${formatUsd(totalUsd)}</span>
-                            </div>
-                          );
+                          return Object.entries(paymentData).map(([method, amount], idx) => {
+                            const amountNum = typeof amount === 'number' ? amount : 0;
+                            const isUsd = isUsdPayment(method);
+                            return (
+                              <div key={idx} className="flex justify-between text-[10px]">
+                                <span>{formatPaymentMethod(method)}:</span>
+                                <span className="value">{isUsd ? `$${formatUsd(amountNum)}` : formatBs(amountNum * state.tasa)}</span>
+                              </div>
+                            );
+                          });
                         }
-                      })()}
+                      } else if (data.metodoPago) {
+                        const method = data.metodoPago;
+                        const amount = data.totalUSD || totalUsd;
+                        const isUsd = isUsdPayment(method);
+                        return (
+                          <div className="flex justify-between text-[10px]">
+                            <span>{formatPaymentMethod(method)}:</span>
+                            <span className="value">{isUsd ? `$${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="flex justify-between text-[10px]">
+                            <span>EFECTIVO:</span>
+                            <span className="value">${formatUsd(totalUsd)}</span>
+                          </div>
+                        );
+                      }
+                    })()}
 
-                      {/* Tasa de cambio */}
-                      {state.tasa && (
-                        <div className="text-[8px] text-gray-600 mt-1">
-                          (Tasa de cambio ref: 1 USD = Bs. {state.tasa.toFixed(2)})
-                        </div>
-                      )}
-                    </div>
+                    {/* Tasa de cambio */}
+                    {state.tasa && (
+                      <div className="text-[8px] text-gray-600 mt-1">
+                        (Tasa de cambio ref: 1 USD = Bs. {state.tasa.toFixed(2)})
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -918,9 +806,9 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
               {/* ========================================== */}
               <div className="text-center mt-4 pt-4 border-t border-dashed border-black/30">
                 {!isReport && (
-                  <p className="font-bold text-[11px] mb-1">¡Gracias por su preferencia!</p>
+                  <div className="font-bold text-[11px] mb-1">¡Gracias por su preferencia!</div>
                 )}
-                <p className="opacity-60 text-[8px]">Desarrollado por EFAS Freelancer</p>
+                <div className="opacity-60 text-[8px]">Desarrollado por EFAS Freelancer</div>
               </div>
             </div>
           </div>
