@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   X, Plus, Check, DollarSign, RefreshCw, Printer, Scan,
   Hash, Box, Tag, Barcode, Eye, EyeOff, Trash2, Save, FilePlus, Wrench, Fuel
@@ -39,15 +39,15 @@ CleanInput.displayName = 'CleanInput';
 export const ProductForm: React.FC<ProductFormProps> = ({ 
   isOpen, onClose, store, updateStore, editingProduct 
 }) => {
-  const exchangeRate = store?.config?.exchangeRate || 1;
   const [scanning, setScanning] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [showPricesWithIVA, setShowPricesWithIVA] = useState([false, false, false, false, false]);
   
-  const unidades = store?.productUnits || ['unidad', 'litro', 'galón', 'kit', 'juego'];
-  const tiposArticulo = store?.productCategories || ['Repuesto', 'Lubricante', 'Filtro'];
-  const colores = store?.productColors || ['No Aplica', 'Negro', 'Gris'];
-  const tallas = store?.productSizes || ['N/A', 'Estándar', '0.10', '0.20'];
+  // Listas editables localmente
+  const [unidades, setUnidades] = useState(['unidad', 'litro', 'galón', 'cuarto', 'paila', 'kit', 'juego', 'par', 'metro', 'kilogramo', 'gramo', 'tambor']);
+  const [tiposArticulo, setTiposArticulo] = useState(['Repuesto', 'Lubricante', 'Filtro', 'Químico', 'Accesorio', 'Batería', 'Caucho', 'Freno', 'Suspensión', 'Motor', 'Eléctrico', 'Transmisión', 'Servicio']);
+  const [colores, setColores] = useState(['No Aplica', 'Negro', 'Gris', 'Cromo', 'Rojo', 'Azul', 'Blanco', 'Ámbar']);
+  const [tallas, setTallas] = useState(['N/A', 'Estándar', '0.10', '0.20', '0.30', '0.40', '0.50', '20', '30', '40', '50', '60']);
   
   const [modalMarca, setModalMarca] = useState({ open: false, name: '' });
   const [modalGrupo, setModalGrupo] = useState({ open: false, name: '' });
@@ -104,9 +104,6 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     active: true
   });
 
-  // Referencia para evitar que el dialog se cierre
-  const dialogRef = useRef<HTMLDivElement>(null);
-
   const round2 = (num: number) => Math.round(num * 100) / 100;
   const round4 = (num: number) => Math.round(num * 10000) / 10000;
 
@@ -123,7 +120,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       if (tierMargin >= 100) return { ...p, usd: '', bs: '' };
       
       const tierPriceUSD = round4(cost / (1 - (tierMargin / 100)));
-      const tierPriceBS = round2(tierPriceUSD * exchangeRate);
+      const tierPriceBS = round2(tierPriceUSD * store.config.exchangeRate);
       
       return {
         ...p,
@@ -133,7 +130,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     });
     
     setPrices(newPrices);
-  }, [prices, exchangeRate]);
+  }, [prices, store.config.exchangeRate]);
 
   const recalcMarginFromPrice = useCallback((priceUSDStr: string, costStr: string) => {
     const priceUSD = parseFloat(priceUSDStr);
@@ -170,7 +167,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     
     const usd = parseFloat(value);
     if (!isNaN(usd) && usd > 0) {
-      const bs = round2(usd * exchangeRate);
+      const bs = round2(usd * store.config.exchangeRate);
       newPrices[index].bs = bs.toString();
     } else {
       newPrices[index].bs = '';
@@ -191,7 +188,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     
     const bs = parseFloat(value);
     if (!isNaN(bs) && bs > 0) {
-      const usd = round4(bs / exchangeRate);
+      const usd = round4(bs / store.config.exchangeRate);
       newPrices[index].usd = usd.toString();
     } else {
       newPrices[index].usd = '';
@@ -314,50 +311,43 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     };
     modalMap[type]({ open: false, name: '', code: '' });
   };
-  
-  const handleSimpleListCreate = (listKey: string, newValue: string) => {
-    if (!newValue || !newValue.trim()) return;
-    updateStore((prev: any) => ({
-      ...prev,
-      [listKey]: [...(prev[listKey] || []), newValue.trim()]
-    }));
-  };
 
   const handleDelete = (type: string, idOrValue: any) => {
     if (!idOrValue || idOrValue === '0' || idOrValue === '') return;
     
-    if (!confirm(`¿Está seguro de eliminar "${idOrValue}"? Esta acción no se puede deshacer.`)) return;
+    if (!confirm('¿Está seguro de eliminar este elemento?')) return;
 
     const collections: any = {
-      marca: 'brands', grupo: 'groups', subgrupo: 'subgroups', linea: 'lines', proveedor: 'suppliers',
-      categoria: 'productCategories', unidad: 'productUnits', color: 'productColors', talla: 'productSizes'
+      marca: 'brands', grupo: 'groups', subgrupo: 'subgroups', linea: 'lines', proveedor: 'suppliers'
     };
     
-    const collectionKey = collections[type];
-    if (collectionKey) {
-      updateStore((prev: any) => {
-        const oldList = prev[collectionKey] || [];
-        const isObjectList = oldList.some((item: any) => typeof item === 'object');
-        const newList = isObjectList
-          ? oldList.filter((item: any) => item.id.toString() !== idOrValue.toString())
-          : oldList.filter((item: any) => item !== idOrValue);
-        return { ...prev, [collectionKey]: newList };
-      });
+    const collection = collections[type];
+    if (collection) {
+      updateStore((prev: any) => ({
+        ...prev,
+        [collection]: (prev[collection] || []).filter((item: any) => item.id.toString() !== idOrValue.toString())
+      }));
       
       const fieldMap: any = {
-        marca: 'brandId', grupo: 'groupId', subgrupo: 'subgroupId', linea: 'lineId', proveedor: 'supplierId',
+        marca: 'brandId', grupo: 'groupId', subgrupo: 'subgroupId', linea: 'lineId', proveedor: 'supplierId'
+      };
+      setFormData(prev => ({ ...prev, [fieldMap[type]]: 0 }));
+    } else {
+      // Para arrays locales estáticos
+      if (type === 'categoria') setTiposArticulo(prev => prev.filter(t => t !== idOrValue));
+      if (type === 'color') setColores(prev => prev.filter(c => c !== idOrValue));
+      if (type === 'talla') setTallas(prev => prev.filter(t => t !== idOrValue));
+      if (type === 'unidad') setUnidades(prev => prev.filter(u => u !== idOrValue));
+      
+      const fieldMap: any = {
         categoria: 'type', color: 'color', talla: 'size', unidad: 'mainUnit'
       };
-
-      const fieldToUpdate = fieldMap[type];
-      if (fieldToUpdate && formData[fieldToUpdate as keyof typeof formData] == idOrValue) {
-        const resetValue = ['brandId', 'groupId', 'subgroupId', 'lineId', 'supplierId'].includes(fieldToUpdate) ? 0 : '';
-        setFormData(prev => ({ ...prev, [fieldToUpdate]: resetValue }));
-      }
+      setFormData(prev => ({ ...prev, [fieldMap[type]]: '' }));
     }
   };
 
   const buildProduct = () => {
+    // Ya no hay campos obligatorios como descripción o código interno
     return {
       id: editingProduct?.id || Date.now(),
       code: formData.internalCode || 'SIN-CODIGO',
@@ -451,45 +441,21 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     </div>
   );
 
-  // SelectWithAdd corregido - ahora maneja eventos correctamente
-  const SelectWithAdd = React.memo((props: any) => (
-    <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+  const SelectWithAdd = (props: any) => (
+    <div className="space-y-1">
       <Label className="text-[10px] font-black uppercase text-black">{props.label}</Label>
       <div className="flex gap-1">
-        <Select 
-          value={props.value} 
-          onValueChange={props.onChange}
-          onOpenChange={(open) => {
-            // Prevenir que el dialog se cierre cuando el select se abre
-            if (open) {
-              // No hacemos nada, solo permitimos que el select se abra
-            }
-          }}
-        >
-          <SelectTrigger 
-            className="h-9 bg-white rounded-lg text-sm flex-1 border-gray-200"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Select value={props.value} onValueChange={props.onChange}>
+          <SelectTrigger className="h-9 bg-white rounded-lg text-sm flex-1 border-gray-200">
             <SelectValue placeholder={props.placeholder || "Seleccione"} />
           </SelectTrigger>
-          <SelectContent 
-            className="bg-white z-[100]"
-            onPointerDownOutside={(e) => {
-              // Prevenir que el clic fuera del select cierre el dialog principal
-              e.preventDefault();
-            }}
-          >
-            {props.options}
-          </SelectContent>
+          <SelectContent>{props.options}</SelectContent>
         </Select>
         <div className="flex gap-1 shrink-0">
           <Button 
             size="icon" 
             variant="outline" 
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onAdd();
-            }} 
+            onClick={props.onAdd} 
             className="h-9 w-9 bg-white border-gray-300"
             title="Agregar nuevo"
           >
@@ -499,10 +465,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             size="icon" 
             variant="outline" 
             disabled={!props.value || props.value === '0' || props.value === ''}
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onDelete && props.onDelete(props.value);
-            }} 
+            onClick={() => props.onDelete && props.onDelete(props.value)} 
             className="h-9 w-9 bg-white border-gray-300 hover:text-red-500 transition-colors"
             title="Eliminar seleccionado"
           >
@@ -511,27 +474,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         </div>
       </div>
     </div>
-  ));
+  );
 
   return (
     <>
-      <Dialog 
-        open={isOpen} 
-        onOpenChange={(open) => {
-          if (!open) onClose();
-        }}
-      >
-        <DialogContent 
-          className="max-w-6xl p-0 rounded-xl overflow-hidden bg-[#d4d4d4] border-gray-400 max-h-[95vh]"
-          ref={dialogRef}
-          onPointerDownOutside={(e) => {
-            // Prevenir cierre al hacer clic fuera si es un select
-            const target = e.target as HTMLElement;
-            if (target.closest('[role="listbox"]') || target.closest('[role="option"]')) {
-              e.preventDefault();
-            }
-          }}
-        >
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-6xl p-0 rounded-xl overflow-hidden bg-[#d4d4d4] border-gray-400 max-h-[95vh]">
           <DialogTitle className="sr-only">{editingProduct ? 'Editar Repuesto/Lubricante' : 'Nuevo Repuesto/Lubricante'}</DialogTitle>
           
           <div className="bg-[#0a1628] px-4 py-3 flex items-center justify-between shrink-0">
@@ -632,10 +580,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     label="Categoría de Artículo"
                     value={formData.type}
                     onChange={(v: any) => setFormData(prev => ({ ...prev, type: v }))}
-                    options={tiposArticulo.map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    options={tiposArticulo.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     onAdd={() => {
                         const n = prompt("Nueva Categoría:");
-                        if(n) handleSimpleListCreate('productCategories', n);
+                        if(n) setTiposArticulo(prev => [...prev, n]);
                     }}
                     onDelete={(v: any) => handleDelete('categoria', v)}
                   />
@@ -694,10 +642,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     label="Color / Acabado"
                     value={formData.color}
                     onChange={(v: any) => setFormData(prev => ({ ...prev, color: v }))}
-                    options={colores.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    options={colores.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     onAdd={() => {
                         const n = prompt("Nuevo Color:");
-                        if(n) handleSimpleListCreate('productColors', n);
+                        if(n) setColores(prev => [...prev, n]);
                     }}
                     onDelete={(v: any) => handleDelete('color', v)}
                   />
@@ -706,10 +654,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     label="Medida / Talla / Grado"
                     value={formData.size}
                     onChange={(v: any) => setFormData(prev => ({ ...prev, size: v }))}
-                    options={tallas.map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    options={tallas.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     onAdd={() => {
                         const n = prompt("Nueva Talla/Medida:");
-                        if(n) handleSimpleListCreate('productSizes', n);
+                        if(n) setTallas(prev => [...prev, n]);
                     }}
                     onDelete={(v: any) => handleDelete('talla', v)}
                   />
@@ -745,10 +693,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                     label="Unidad de Despacho"
                     value={formData.mainUnit}
                     onChange={(v: any) => setFormData(prev => ({ ...prev, mainUnit: v }))}
-                    options={unidades.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    options={unidades.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                     onAdd={() => {
                         const n = prompt("Nueva Unidad:");
-                        if(n) handleSimpleListCreate('productUnits', n);
+                        if(n) setUnidades(prev => [...prev, n]);
                     }}
                     onDelete={(v: any) => handleDelete('unidad', v)}
                   />
@@ -759,7 +707,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                       <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
                         <SelectValue placeholder="Opcional" />
                       </SelectTrigger>
-                      <SelectContent>{unidades.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                      <SelectContent>{unidades.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   
@@ -1004,7 +952,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
                   <span className="text-[10px] text-black font-black uppercase">
                     Fórmula Automática: PV = Costo / (1 - Margen%)
                   </span>
-                  <Badge variant="outline" className="text-[10px] text-black font-black border-black">TASA VIGENTE: {exchangeRate} Bs/USD</Badge>
+                  <Badge variant="outline" className="text-[10px] text-black font-black border-black">TASA VIGENTE: {store.config.exchangeRate} Bs/USD</Badge>
                 </div>
               </div>
 
@@ -1245,7 +1193,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
       {/* Mini Modales de Creación Rápida */}
       <Dialog open={modalMarca.open} onOpenChange={(open) => !open && setModalMarca({ open: false, name: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Marca de Vehículo/Repuesto</DialogTitle>
           <CleanInput 
             value={modalMarca.name} 
@@ -1263,7 +1211,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       </Dialog>
 
       <Dialog open={modalGrupo.open} onOpenChange={(open) => !open && setModalGrupo({ open: false, name: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Familia / Grupo</DialogTitle>
           <CleanInput 
             value={modalGrupo.name} 
@@ -1281,7 +1229,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       </Dialog>
 
       <Dialog open={modalSubGrupo.open} onOpenChange={(open) => !open && setModalSubGrupo({ open: false, name: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Sub-Familia</DialogTitle>
           <CleanInput 
             value={modalSubGrupo.name} 
@@ -1299,7 +1247,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       </Dialog>
 
       <Dialog open={modalLinea.open} onOpenChange={(open) => !open && setModalLinea({ open: false, name: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Línea de Producto</DialogTitle>
           <CleanInput 
             value={modalLinea.name} 
@@ -1317,7 +1265,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       </Dialog>
 
       <Dialog open={modalProveedor.open} onOpenChange={(open) => !open && setModalProveedor({ open: false, name: '', code: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nuevo Proveedor / Mayorista</DialogTitle>
           <CleanInput 
             value={modalProveedor.name} 

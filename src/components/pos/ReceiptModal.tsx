@@ -92,19 +92,6 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     return [];
   };
 
-  const separatorLine = (char: string = '─') => {
-    return char.repeat(48);
-  };
-
-  const alignLeftRight = (left: string, right: string) => {
-    const totalWidth = 48;
-    const leftStr = String(left || '');
-    const rightStr = String(right || '');
-    const dots = totalWidth - leftStr.length - rightStr.length;
-    if (dots < 1) return leftStr.substring(0, totalWidth - rightStr.length - 1) + ' ' + rightStr;
-    return leftStr + ' '.repeat(dots) + rightStr;
-  };
-
   const receiptNumber = React.useMemo(() => {
     if (isReport) {
       if (type === 'REPORT_Z') return `Z-${String(data.numeroZ || 0).padStart(6, '0')}`;
@@ -214,6 +201,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
       'credito': 'CRÉDITO',
       'zelle': 'ZELLE',
       'mixto': 'MIXTO',
+      'biopago': 'BIOPAGO',
     };
     return methods[method.toLowerCase()] || method.toUpperCase();
   };
@@ -257,6 +245,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
             .value { font-weight: bold; text-align: right; }
             .label { text-align: left; }
             .spacer { height: 4px; }
+            .line-item { display: flex; justify-content: space-between; width: 100%; padding: 1px 0; }
           </style>
         </head>
         <body>
@@ -315,6 +304,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
               .value { font-weight: bold; text-align: right; }
               .label { text-align: left; }
               .spacer { height: 4px; }
+              .line-item { display: flex; justify-content: space-between; width: 100%; padding: 1px 0; }
             </style>
           </head>
           <body>
@@ -390,28 +380,28 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
               <div className="text-[10px] font-bold space-y-1">
                 {isReport ? (
                   <>
-                    <div className="flex justify-between">
+                    <div className="line-item">
                       <span className="label">FECHA: {transactionDate.split(',')[0] || '19/07/2026'}</span>
                       <span className="value">HORA: {transactionDate.split(',')[1]?.trim() || '08:52 AM'}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="line-item">
                       <span className="label">Nº REPORTE {type === 'REPORT_Z' ? 'Z' : 'X'}: {receiptNumber}</span>
                       <span className="value">CAJA: {terminalId}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="line-item">
                       <span className="label">CAJERO: {cajeroNombre}</span>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="flex justify-between">
+                    <div className="line-item">
                       <span className="label">RECIBO DE VENTA: {receiptNumber}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="line-item">
                       <span className="label">FECHA: {transactionDate.split(',')[0] || '19/07/2026'}</span>
                       <span className="value">HORA: {transactionDate.split(',')[1]?.trim() || '10:30 AM'}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="line-item">
                       <span className="label">CAJA: {terminalId}</span>
                       <span className="value">CAJERO: {cajeroNombre}</span>
                     </div>
@@ -434,24 +424,24 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                       <div className="section-title">CONTROL DE DOCUMENTOS</div>
                       <div className="separator-dashed"></div>
                       <div className="font-bold">FACTURAS EMITIDAS:</div>
-                      <div className="flex justify-between">
+                      <div className="line-item">
                         <span className="label">DESDE: {data.desdeFactura || 'N/A'}</span>
                         <span className="value">HASTA: {data.hastaFactura || 'N/A'}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="line-item">
                         <span className="label">TOTAL FACTURAS:</span>
                         <span className="value">{String(data.stats?.facturas || 0).padStart(6, ' ')}</span>
                       </div>
                       <div className="mt-2 font-bold">NOTAS DE CRÉDITO EMITIDAS:</div>
-                      <div className="flex justify-between">
+                      <div className="line-item">
                         <span className="label">DESDE: {data.desdeNC || 'N/A'}</span>
                         <span className="value">HASTA: {data.hastaNC || 'N/A'}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="line-item">
                         <span className="label">TOTAL NOTAS CRÉDITO:</span>
                         <span className="value">{String(data.stats?.devoluciones || 0).padStart(6, ' ')}</span>
                       </div>
-                      <div className="flex justify-between mt-1">
+                      <div className="line-item mt-1">
                         <span className="label">CANT. DOCUMENTOS ANULADOS:</span>
                         <span className="value">{String(data.stats?.anulaciones || 0).padStart(6, ' ')}</span>
                       </div>
@@ -462,20 +452,20 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                   {/* RESUMEN DE OPERACIONES */}
                   <div className="section-title">RESUMEN DE OPERACIONES</div>
                   <div className="separator-dashed"></div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">VENTAS BRUTAS:</span>
                     <span className="value">{formatBs(((data.ventaBrutaUSD || data.brUSD || 0) * state.tasa))}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">DESCUENTOS APLICADOS:</span>
                     <span className="value">{formatBs(((data.descuentoUSD || data.descUSD || 0) * state.tasa))}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">DEVOLUCIONES (N. CRÉDITO):</span>
                     <span className="value">{formatBs(((data.devolucionesUSD || data.devUSD || 0) * state.tasa))}</span>
                   </div>
                   <div className="separator-dashed"></div>
-                  <div className="flex justify-between font-bold">
+                  <div className="line-item font-bold">
                     <span className="label">VENTAS NETAS:</span>
                     <span className="value">{formatBs(((data.ventaNetaUSD || data.netUSD || 0) * state.tasa))}</span>
                   </div>
@@ -484,19 +474,19 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                   {/* DESGLOSE DE IMPUESTOS */}
                   <div className="section-title">DESGLOSE DE IMPUESTOS</div>
                   <div className="separator-dashed"></div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">VENTAS EXENTAS (E):</span>
                     <span className="value">{formatBs(((data.exentoUSD || 0) * state.tasa))}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">BASE IMPONIBLE (G 16%):</span>
                     <span className="value">{formatBs(((data.baseImponibleUSD || 0) * state.tasa))}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">IVA RECAUDADO (16%):</span>
                     <span className="value">{formatBs(((data.ivaUSD || 0) * state.tasa))}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">RECAUDACIÓN IGTF (3%):</span>
                     <span className="value">{formatBs(((data.igtfUSD || 0) * state.tasa))}</span>
                   </div>
@@ -514,7 +504,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                           const amount = p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
                           const isUsd = isUsdPayment(method);
                           return (
-                            <div key={idx} className="flex justify-between">
+                            <div key={idx} className="line-item">
                               <span className="label">{formatPaymentMethod(method)}:</span>
                               <span className="value">{isUsd ? `$ ${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
                             </div>
@@ -525,7 +515,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                           const amountNum = typeof amount === 'number' ? amount : 0;
                           const isUsd = isUsdPayment(method);
                           return (
-                            <div key={idx} className="flex justify-between">
+                            <div key={idx} className="line-item">
                               <span className="label">{formatPaymentMethod(method)}:</span>
                               <span className="value">{isUsd ? `$ ${formatUsd(amountNum)}` : formatBs(amountNum * state.tasa)}</span>
                             </div>
@@ -540,20 +530,20 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                   {/* MOVIMIENTO DE CAJA */}
                   <div className="section-title">MOVIMIENTO DE CAJA</div>
                   <div className="separator-dashed"></div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">FONDO DE APERTURA:</span>
                     <span className="value">{formatBs(((data.fondoAperturaUSD || 0) * state.tasa))}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">ENTRADAS DE EFECTIVO:</span>
                     <span className="value">{formatBs(((data.entradasCajaUSD || data.manualEntradas || 0) * state.tasa))}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="line-item">
                     <span className="label">SALIDAS DE EFECTIVO:</span>
                     <span className="value">{formatBs(((data.salidasCajaUSD || data.manualSalidas || 0) * state.tasa))}</span>
                   </div>
                   <div className="separator-dashed"></div>
-                  <div className="flex justify-between font-bold">
+                  <div className="line-item font-bold">
                     <span className="label">{type === 'REPORT_Z' ? 'EFECTIVO REAL EN CAJA:' : 'EFECTIVO ESTIMADO EN CAJA:'}</span>
                     <span className="value">{formatBs(((data.efectivoRealCaja || data.efectivoEstimadoCaja || data.ventaNetaUSD || data.netUSD || 0) * state.tasa))}</span>
                   </div>
@@ -564,15 +554,15 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                     <>
                       <div className="section-title">ESTADÍSTICAS DE VENTA</div>
                       <div className="separator-dashed"></div>
-                      <div className="flex justify-between">
+                      <div className="line-item">
                         <span className="label">CANT. FACTURAS EMITIDAS:</span>
                         <span className="value">{String(data.stats?.facturas || 0).padStart(6, ' ')}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="line-item">
                         <span className="label">CANT. TRANSACCIONES ANULADAS:</span>
                         <span className="value">{String(data.stats?.anulaciones || 0).padStart(6, ' ')}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="line-item">
                         <span className="label">TICKET PROMEDIO:</span>
                         <span className="value">{formatBs((data.stats?.ticketPromedio || 0) * state.tasa)}</span>
                       </div>
@@ -586,11 +576,11 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                       <div className="section-title">TOTALES HISTÓRICOS</div>
                       <div className="text-center text-[9px]">(ACUMULADO NO REINICIABLE)</div>
                       <div className="separator-dashed"></div>
-                      <div className="flex justify-between">
+                      <div className="line-item">
                         <span className="label">GRAN TOTAL VENTAS:</span>
                         <span className="value">{formatBs(((data.acumuladoHistoricoUSD || 0) * state.tasa))}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="line-item">
                         <span className="label">GRAN TOTAL IVA:</span>
                         <span className="value">{formatBs(((data.acumuladoIvaUSD || 0) * state.tasa))}</span>
                       </div>
@@ -649,43 +639,43 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                     })}
 
                     <div className="separator-solid"></div>
-                    <div className="flex justify-between font-bold text-[11px]">
-                      <span className="text-left">SUBTOTAL:</span>
-                      <span className="text-right">${formatUsd(totalUsd)}</span>
+                    <div className="line-item font-bold text-[11px]">
+                      <span className="label">SUBTOTAL:</span>
+                      <span className="value">${formatUsd(totalUsd)}</span>
                     </div>
                     {montoExento > 0 && (
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-left">EXENTO:</span>
-                        <span className="text-right">${formatUsd(montoExento)}</span>
+                      <div className="line-item text-[10px]">
+                        <span className="label">EXENTO:</span>
+                        <span className="value">${formatUsd(montoExento)}</span>
                       </div>
                     )}
                     {baseImponible > 0 && (
                       <>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-left">BASE IMPONIBLE (16%):</span>
-                          <span className="text-right">${formatUsd(baseImponible)}</span>
+                        <div className="line-item text-[10px]">
+                          <span className="label">BASE IMPONIBLE (16%):</span>
+                          <span className="value">${formatUsd(baseImponible)}</span>
                         </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-left">IVA (16%):</span>
-                          <span className="text-right">${formatUsd(iva)}</span>
+                        <div className="line-item text-[10px]">
+                          <span className="label">IVA (16%):</span>
+                          <span className="value">${formatUsd(iva)}</span>
                         </div>
                       </>
                     )}
                     {igtf > 0 && (
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-left">IGTF (3%):</span>
-                        <span className="text-right">${formatUsd(igtf)}</span>
+                      <div className="line-item text-[10px]">
+                        <span className="label">IGTF (3%):</span>
+                        <span className="value">${formatUsd(igtf)}</span>
                       </div>
                     )}
 
                     <div className="separator-solid"></div>
-                    <div className="flex justify-between font-bold text-[14px]">
-                      <span className="text-left">TOTAL A PAGAR:</span>
-                      <span className="text-right">${formatUsd(totalUsd)}</span>
+                    <div className="line-item font-bold text-[14px]">
+                      <span className="label">TOTAL A PAGAR:</span>
+                      <span className="value">${formatUsd(totalUsd)}</span>
                     </div>
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-left">Total Bs:</span>
-                      <span className="text-right">{formatBs(totalBs)}</span>
+                    <div className="line-item text-[11px]">
+                      <span className="label">Total Bs:</span>
+                      <span className="value">{formatBs(totalBs)}</span>
                     </div>
 
                     <div className="separator-dashed"></div>
@@ -702,9 +692,9 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                             const amount = p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
                             const isUsd = isUsdPayment(method);
                             return (
-                              <div key={idx} className="flex justify-between text-[10px]">
-                                <span className="text-left">{formatPaymentMethod(method)}:</span>
-                                <span className="text-right value">{isUsd ? `$${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
+                              <div key={idx} className="line-item text-[10px]">
+                                <span className="label">{formatPaymentMethod(method)}:</span>
+                                <span className="value">{isUsd ? `$${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
                               </div>
                             );
                           });
@@ -713,9 +703,9 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                             const amountNum = typeof amount === 'number' ? amount : 0;
                             const isUsd = isUsdPayment(method);
                             return (
-                              <div key={idx} className="flex justify-between text-[10px]">
-                                <span className="text-left">{formatPaymentMethod(method)}:</span>
-                                <span className="text-right value">{isUsd ? `$${formatUsd(amountNum)}` : formatBs(amountNum * state.tasa)}</span>
+                              <div key={idx} className="line-item text-[10px]">
+                                <span className="label">{formatPaymentMethod(method)}:</span>
+                                <span className="value">{isUsd ? `$${formatUsd(amountNum)}` : formatBs(amountNum * state.tasa)}</span>
                               </div>
                             );
                           });
@@ -725,16 +715,16 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                         const amount = data.totalUSD || totalUsd;
                         const isUsd = isUsdPayment(method);
                         return (
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-left">{formatPaymentMethod(method)}:</span>
-                            <span className="text-right value">{isUsd ? `$${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
+                          <div className="line-item text-[10px]">
+                            <span className="label">{formatPaymentMethod(method)}:</span>
+                            <span className="value">{isUsd ? `$${formatUsd(amount)}` : formatBs(amount * state.tasa)}</span>
                           </div>
                         );
                       } else {
                         return (
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-left">EFECTIVO:</span>
-                            <span className="text-right value">${formatUsd(totalUsd)}</span>
+                          <div className="line-item text-[10px]">
+                            <span className="label">EFECTIVO:</span>
+                            <span className="value">${formatUsd(totalUsd)}</span>
                           </div>
                         );
                       }
@@ -756,7 +746,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                 {!isReport && (
                   <div className="font-bold text-[11px] mb-1">¡Gracias por su preferencia!</div>
                 )}
-                <div className="opacity-60 text-[8px]">Desarrollado por EFAS Freelancer</div>
+                <div className="opacity-60 text-[8px]">Generado por PosVEN pro v2.5.7</div>
               </div>
             </div>
           </div>
