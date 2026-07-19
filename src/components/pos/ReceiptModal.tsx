@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import React, { useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -924,7 +924,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                 {!isReport && (
                   <p className="font-bold text-[11px] mb-1">¡Gracias por su preferencia!</p>
                 )}
-                <p className="opacity-60 text-[8px]">Desarrollado por EFAS Freelancer</p>
+                <p className="opacity-60 text-[8px]">Generado por PosVEN pro v2.5.7</p>
               </div>
             </div>
           </div>
@@ -937,7 +937,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
             <div className="grid grid-cols-2 gap-3">
               <button onClick={handlePrint} className="py-3 bg-black text-white font-black text-xs rounded-xl hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-widest shadow-md"><Printer size={14} /> Estándar</button>
               <button onClick={handleNativePrint} className="py-3 bg-[#C8952E] text-black font-black text-xs rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg">
-                <Zap size={16} className="fill-current" /> Impresión Roccia
+                <Zap size={16} className="fill-current" /> Impresión Termica
               </button>
             </div>
           </div>
