@@ -789,7 +789,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                 {!isReport && (
                   <div className="font-bold text-[11px] mb-1">¡Gracias por su preferencia!</div>
                 )}
-                <div className="opacity-60 text-[8px]">Desarrollado por EFAS Freelancer</div>
+                <div className="opacity-60 text-[8px]">Generado por PosVEN pro v2.5.7</div>
               </div>
             </div>
           </div>
