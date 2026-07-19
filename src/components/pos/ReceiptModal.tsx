@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Printer, X, Zap, Share2, Monitor } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
@@ -18,10 +18,10 @@ declare global {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  saleData?: any;  // ✅ CAMBIADO: sale → saleData
-  reportData?: any; 
+  saleData?: any;
+  reportData?: any;
   type?: 'SALE' | 'REPORT_X' | 'REPORT_Z';
-  storeInfo?: any; // ✅ AGREGADO: storeInfo para consistencia
+  storeInfo?: any;
 }
 
 export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SALE', storeInfo }: Props) {
@@ -31,12 +31,30 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
   const isReport = type === 'REPORT_X' || type === 'REPORT_Z';
   const data = isReport ? reportData : saleData;
   
-  if (!data) return null;
+  // ✅ Si no hay datos, no renderizar nada
+  if (!data) {
+    return null;
+  }
 
+  // ✅ Función para formatear fecha/hora correctamente
   const transactionDate = React.useMemo(() => {
     try {
-      const rawDate = data.fecha || data.date || Utils.ahora();
+      const rawDate = data.fecha || data.date || data.createdAt || Utils.ahora();
       const dateObj = new Date(rawDate);
+      
+      // Verificar si la fecha es válida
+      if (isNaN(dateObj.getTime())) {
+        return new Date().toLocaleString('es-VE', { 
+          timeZone: 'America/Caracas',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true 
+        });
+      }
+      
       return dateObj.toLocaleString('es-VE', {
         timeZone: 'America/Caracas',
         day: '2-digit',
@@ -44,120 +62,162 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit',
         hour12: true
       });
     } catch (e) {
       return new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' });
     }
-  }, [data.fecha, data.date]);
+  }, [data.fecha, data.date, data.createdAt]);
 
-  const customerName = (data.cliente || 'CONSUMIDOR FINAL').toUpperCase();
-  const terminalIdLabel = (data.terminalName || 'SISTEMA GLOBAL').toUpperCase();
-  
+  // ✅ Función para obtener el cliente
+  const customerName = React.useMemo(() => {
+    if (data.cliente) return data.cliente.toUpperCase();
+    if (data.customer?.name) return data.customer.name.toUpperCase();
+    if (data.customerName) return data.customerName.toUpperCase();
+    return 'CONSUMIDOR FINAL';
+  }, [data.cliente, data.customer, data.customerName]);
+
+  // ✅ Función para obtener el título del recibo
   const getReportTitle = () => {
-    if (type === 'REPORT_Z') return `REPORTE Z - CIERRE DIARIO`;
-    if (type === 'REPORT_X') return `REPORTE X - LECTURA PARCIAL`;
-    return (data.type || 'RECIBO DE VENTA').toUpperCase();
+    if (type === 'REPORT_Z') return 'REPORTE Z - CIERRE DIARIO';
+    if (type === 'REPORT_X') return 'REPORTE X - LECTURA PARCIAL';
+    return data.type || 'RECIBO DE VENTA';
   };
 
-  const padRight = (label: string, value: string, width = 48) => {
-    const dots = width - label.length - value.length;
-    return label + (dots > 0 ? '.'.repeat(dots) : ' ') + value;
+  // ✅ Función para obtener los items correctamente
+  const getItems = () => {
+    if (data.items) return data.items;
+    if (data.products) return data.products;
+    if (data.detalles) return data.detalles;
+    return [];
   };
 
-  const handleNativePrint = async () => {
-    if (!window.electronAPI) {
-      handlePrint();
-      return;
-    }
-
-    const SEPARATOR = '------------------------------------------------';
-    const DOTS = '................................................';
-    
-    let printData: any[] = [
-      { type: 'text', value: state.empresa.nombre.toUpperCase(), style: { fontWeight: "800", textAlign: 'center', fontSize: "20px" } },
-      { type: 'text', value: state.empresa.direccion.toUpperCase(), style: { textAlign: 'center', fontSize: "11px" } },
-      { type: 'text', value: `RIF: ${state.empresa.rif} | TEL: ${state.empresa.telefono}`, style: { textAlign: 'center', fontSize: "11px" } },
-      { type: 'text', value: SEPARATOR, style: { textAlign: 'center' } }
-    ];
-
-    if (isReport) {
-      printData.push({ type: 'text', value: getReportTitle(), style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
-      printData.push({ type: 'text', value: `TERMINAL: ${terminalIdLabel}`, style: { textAlign: 'center', fontWeight: "700", fontSize: "12px" } });
-      printData.push({ type: 'text', value: `FECHA/HORA: ${transactionDate}`, style: { fontSize: "11px", textAlign: 'center' } });
-      printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
-      
-      if (type === 'REPORT_Z') {
-        printData.push({ type: 'text', value: 'DATOS DE CONTROL Y AUDITORÍA', style: { textAlign: 'center', fontWeight: "800" } });
-        printData.push({ type: 'text', value: `REPORTE Z N°: ${String(data.numeroZ || 0).padStart(6, '0')}`, style: { fontSize: "11px" } });
-        printData.push({ type: 'text', value: padRight('RANGO FACTURAS', `${data.desdeFactura} - ${data.hastaFactura}`), style: { fontSize: "10px" } });
-        printData.push({ type: 'text', value: padRight('RANGO NOTAS CRED', `${data.desdeNC} - ${data.hastaNC}`), style: { fontSize: "10px" } });
-        printData.push({ type: 'text', value: DOTS, style: { fontSize: "11px" } });
-      }
-
-      printData.push({ type: 'text', value: 'RESUMEN DE FACTURACIÓN', style: { textAlign: 'center', fontWeight: "800" } });
-      printData.push({ type: 'text', value: padRight('VENTA BRUTA', formatBs(data.brUSD * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: padRight('DESCUENTOS', '-' + formatBs(data.descUSD * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: padRight('DEVOLUCIONES', '-' + formatBs(data.devUSD * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: padRight('VENTA NETA', formatBs(data.netUSD * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "12px", fontWeight: "700" } });
-      printData.push({ type: 'text', value: DOTS, style: { fontSize: "11px" } });
-
-      printData.push({ type: 'text', value: 'DESGLOSE FISCAL', style: { textAlign: 'center', fontWeight: "800" } });
-      printData.push({ type: 'text', value: padRight('Monto Exento', formatBs((data.exentoUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: padRight('Base Imponible', formatBs((data.baseImponibleUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: padRight('IVA Recaudado (16%)', formatBs((data.ivaUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: padRight('Total IGTF (3%)', formatBs((data.igtfUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: DOTS, style: { fontSize: "11px" } });
-
-      printData.push({ type: 'text', value: 'CONCILIACIÓN DE PAGOS', style: { textAlign: 'center', fontWeight: "800" } });
-      Object.entries(data.paymentMethods || {}).forEach(([method, val]) => {
-        printData.push({ type: 'text', value: padRight(Utils.metodoLabel(method).toUpperCase(), formatBs((val as number) * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "11px" } });
-      });
-      printData.push({ type: 'text', value: padRight('SALIDAS / GASTOS CAJA', '-' + formatBs((data.manualSalidas || 0) * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "11px" } });
-      
-      if (type === 'REPORT_Z') {
-        printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
-        printData.push({ type: 'text', value: 'ACUMULADOS HISTÓRICOS', style: { textAlign: 'center', fontWeight: "800" } });
-        printData.push({ type: 'text', value: padRight('GRAN TOTAL (BS)', formatBs(data.acumuladoHistoricoUSD * state.tasa).replace('Bs. ', 'Bs.')), style: { fontSize: "12px", fontWeight: "800" } });
-      }
-
-    } else {
-      printData.push({ type: 'text', value: getReportTitle(), style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
-      printData.push({ type: 'text', value: `N° CONTROL: ${data.id}`, style: { fontSize: "11px", fontWeight: "700" } });
-      printData.push({ type: 'text', value: `FECHA/HORA: ${transactionDate}`, style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: `CLIENTE: ${customerName}`, style: { fontSize: "11px" } });
-      printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
-
-      data.items.forEach((item: any) => {
-        printData.push({ 
-          type: 'text', 
-          value: `${item.cantidad || item.qty}x ${(item.nombre || item.name).toUpperCase().slice(0, 30)}`, 
-          style: { fontWeight: "700", fontSize: "11px" } 
-        });
-        printData.push({ 
-          type: 'text', 
-          value: `      Total: ${formatBs((item.subtotalUSD || (item.price * item.qty)) * state.tasa).replace('Bs. ', 'Bs.')}`, 
-          style: { fontSize: "10px", textAlign: 'left' } 
-        });
-      });
-
-      printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
-      printData.push({ type: 'text', value: padRight('TOTAL A PAGAR', formatBs(data.totalBS).replace('Bs. ', 'Bs.')), style: { textAlign: 'right', fontWeight: "800", fontSize: "18px" } });
-    }
-
-    printData.push({ type: 'text', value: SEPARATOR, style: { textAlign: 'center' } });
-    printData.push({ type: 'text', value: '¡Gracias por su preferencia!', style: { textAlign: 'center', fontSize: "10px" } });
-    printData.push({ type: 'text', value: 'PosVEN Pro v2.5 - RC-8002 optimized\n\n\n', style: { textAlign: 'center', fontSize: "8px" } });
-
-    try {
-      await window.electronAPI.printTicket(printData);
-      setTimeout(onClose, 500);
-    } catch (e) {
-      handlePrint();
-    }
+  // ✅ Función para formatear la línea de separación
+  const separatorLine = (char: string = '─') => {
+    return char.repeat(48);
   };
 
+  // ✅ Función para alinear texto a la izquierda y derecha
+  const alignLeftRight = (left: string, right: string) => {
+    const totalWidth = 48;
+    const leftStr = String(left || '');
+    const rightStr = String(right || '');
+    const dots = totalWidth - leftStr.length - rightStr.length;
+    if (dots < 1) return leftStr.substring(0, totalWidth - rightStr.length - 1) + ' ' + rightStr;
+    return leftStr + ' '.repeat(dots) + rightStr;
+  };
+
+  // ✅ Función para centrar texto
+  const centerText = (text: string) => {
+    const totalWidth = 48;
+    const textStr = String(text || '');
+    if (textStr.length >= totalWidth) return textStr.substring(0, totalWidth);
+    const leftPadding = Math.floor((totalWidth - textStr.length) / 2);
+    const rightPadding = totalWidth - textStr.length - leftPadding;
+    return ' '.repeat(leftPadding) + textStr + ' '.repeat(rightPadding);
+  };
+
+  // ✅ Obtener el número de recibo
+  const receiptNumber = React.useMemo(() => {
+    if (data.id) return String(data.id);
+    if (data.numero) return String(data.numero);
+    if (data.controlNumber) return String(data.controlNumber);
+    return 'N/A';
+  }, [data.id, data.numero, data.controlNumber]);
+
+  // ✅ Obtener el número de caja
+  const terminalId = React.useMemo(() => {
+    if (data.terminalId) return String(data.terminalId);
+    if (data.caja) return String(data.caja);
+    if (data.terminal) return String(data.terminal);
+    return '01';
+  }, [data.terminalId, data.caja, data.terminal]);
+
+  // ✅ Obtener el nombre del cajero - CORREGIDO
+  const cajeroNombre = React.useMemo(() => {
+    if (data.cajeroNombre) return data.cajeroNombre;
+    if (data.cajero) return data.cajero;
+    if (data.cashier) return data.cashier;
+    // ✅ Cambiar de state.usuario a state.user o usar auth directamente
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      return currentUser.displayName || currentUser.email || 'Administrador';
+    }
+    return 'Administrador';
+  }, [data.cajeroNombre, data.cajero, data.cashier]);
+
+  // ✅ Obtener el total en Bs
+  const totalBs = React.useMemo(() => {
+    if (data.totalBS) return data.totalBS;
+    if (data.totalBs) return data.totalBs;
+    if (data.total) return data.total;
+    return 0;
+  }, [data.totalBS, data.totalBs, data.total]);
+
+  // ✅ Obtener el total en USD
+  const totalUsd = React.useMemo(() => {
+    if (data.totalUSD) return data.totalUSD;
+    if (data.totalUsd) return data.totalUsd;
+    if (data.total) return data.total / (state.tasa || 1);
+    return 0;
+  }, [data.totalUSD, data.totalUsd, data.total, state.tasa]);
+
+  // ✅ Obtener el monto exento
+  const montoExento = React.useMemo(() => {
+    if (data.exentoUSD) return data.exentoUSD;
+    if (data.exento) return data.exento;
+    return 0;
+  }, [data.exentoUSD, data.exento]);
+
+  // ✅ Obtener la base imponible
+  const baseImponible = React.useMemo(() => {
+    if (data.baseImponibleUSD) return data.baseImponibleUSD;
+    if (data.baseImponible) return data.baseImponible;
+    if (data.baseGeneral) return data.baseGeneral;
+    return 0;
+  }, [data.baseImponibleUSD, data.baseImponible, data.baseGeneral]);
+
+  // ✅ Obtener el IVA
+  const iva = React.useMemo(() => {
+    if (data.ivaUSD) return data.ivaUSD;
+    if (data.iva) return data.iva;
+    if (data.ivaGeneral) return data.ivaGeneral;
+    return 0;
+  }, [data.ivaUSD, data.iva, data.ivaGeneral]);
+
+  // ✅ Obtener el IGTF
+  const igtf = React.useMemo(() => {
+    if (data.igtfUSD) return data.igtfUSD;
+    if (data.igtf) return data.igtf;
+    return 0;
+  }, [data.igtfUSD, data.igtf]);
+
+  // ✅ Obtener métodos de pago
+  const getPaymentMethods = () => {
+    if (data.payments) return data.payments;
+    if (data.paymentMethods) return data.paymentMethods;
+    if (data.formasPago) return data.formasPago;
+    return {};
+  };
+
+  // ✅ Formatear método de pago
+  const formatPaymentMethod = (method: string) => {
+    const methods: {[key: string]: string} = {
+      'efectivo': 'EFECTIVO',
+      'efectivo_bs': 'EFECTIVO (Bs.)',
+      'efectivo_usd': 'EFECTIVO (USD)',
+      'pago_movil': 'PAGO MÓVIL',
+      'pagomovil': 'PAGO MÓVIL',
+      'punto_venta': 'PUNTO DE VENTA',
+      'tarjeta': 'TARJETA',
+      'credito': 'CRÉDITO',
+      'zelle': 'ZELLE',
+      'mixto': 'MIXTO',
+    };
+    return methods[method.toLowerCase()] || method.toUpperCase();
+  };
+
+  // ✅ Función para imprimir
   const handlePrint = () => {
     const printContent = printRef.current?.innerHTML;
     if (!printContent) return;
@@ -175,24 +235,24 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
             body {
               font-family: 'Courier New', Courier, monospace;
               width: 72mm;
-              margin: 0;
+              margin: 0 auto;
               padding: 4mm;
               font-size: 11px;
               color: #000;
               background: #fff;
-              line-height: 1.2;
+              line-height: 1.3;
             }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
             .bold { font-weight: bold; }
             .dashed-line { border-top: 1px dashed #000; margin: 5px 0; }
             .solid-line { border-top: 1px solid #000; margin: 5px 0; }
-            .title { font-size: 18px; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; }
-            .subtitle { font-size: 10px; margin-bottom: 2px; text-transform: uppercase; }
+            .title { font-size: 20px; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; }
+            .subtitle { font-size: 12px; margin-bottom: 2px; text-transform: uppercase; }
             table { width: 100%; border-collapse: collapse; }
             th, td { padding: 2px 0; }
             .flex-row { display: flex; justify-content: space-between; }
-            .total-box { border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 6px 0; margin: 8px 0; font-size: 16px; font-weight: bold; }
+            .total-box { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin: 8px 0; font-size: 16px; font-weight: bold; }
           </style>
         </head>
         <body>
@@ -209,6 +269,136 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     `);
     printWindow.document.close();
     setTimeout(onClose, 1000);
+  };
+
+  // ✅ Función para imprimir con Electron
+  const handleNativePrint = async () => {
+    if (!window.electronAPI) {
+      handlePrint();
+      return;
+    }
+
+    try {
+      // Construir datos para impresión nativa
+      const printData = buildNativePrintData();
+      await window.electronAPI.printTicket(printData);
+      setTimeout(onClose, 500);
+    } catch (e) {
+      handlePrint();
+    }
+  };
+
+  // ✅ Construir datos para impresión nativa
+  const buildNativePrintData = () => {
+    const printData: any[] = [];
+    const items = getItems();
+    const payments = getPaymentMethods();
+
+    // Encabezado
+    printData.push({ type: 'text', value: state.empresa.nombre.toUpperCase(), style: { fontWeight: "800", textAlign: 'center', fontSize: "20px" } });
+    printData.push({ type: 'text', value: `RIF: ${state.empresa.rif}`, style: { textAlign: 'center', fontSize: "11px" } });
+    printData.push({ type: 'text', value: state.empresa.direccion.toUpperCase(), style: { textAlign: 'center', fontSize: "11px" } });
+    printData.push({ type: 'text', value: separatorLine('═'), style: { textAlign: 'center' } });
+
+    // Título del documento
+    printData.push({ type: 'text', value: getReportTitle(), style: { textAlign: 'center', fontWeight: "800", fontSize: "16px" } });
+    printData.push({ type: 'text', value: separatorLine('═'), style: { textAlign: 'center' } });
+
+    // Información del documento
+    printData.push({ type: 'text', value: alignLeftRight(`RECIBO N°: ${receiptNumber}`, `CAJA: ${terminalId}`), style: { fontSize: "11px" } });
+    printData.push({ type: 'text', value: alignLeftRight(`CAJERO: ${cajeroNombre}`, ''), style: { fontSize: "11px" } });
+    printData.push({ type: 'text', value: alignLeftRight(`FECHA: ${transactionDate.split(',')[0]}`, `HORA: ${transactionDate.split(',')[1]?.trim() || ''}`), style: { fontSize: "11px" } });
+    printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
+
+    // Cliente
+    printData.push({ type: 'text', value: `CLIENTE: ${customerName}`, style: { fontSize: "11px", fontWeight: "700" } });
+    printData.push({ type: 'text', value: separatorLine('═'), style: { textAlign: 'center' } });
+
+    // Items (para recibos de venta)
+    if (!isReport && items.length > 0) {
+      printData.push({ type: 'text', value: alignLeftRight('CANT', 'DESCRIPCIÓN'), style: { fontWeight: "800", fontSize: "11px" } });
+      printData.push({ type: 'text', value: alignLeftRight('', 'P.UNIT    TOTAL'), style: { fontWeight: "800", fontSize: "11px" } });
+      printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
+
+      items.forEach((item: any) => {
+        const cantidad = item.cantidad || item.qty || 1;
+        const nombre = (item.nombre || item.name || 'Producto').toUpperCase();
+        const precioUnit = item.precioUSD || item.price || 0;
+        const subtotal = item.subtotalUSD || (precioUnit * cantidad);
+        const alicuota = item.alicuota || item.ivaType || 'G';
+        
+        printData.push({ 
+          type: 'text', 
+          value: alignLeftRight(`${String(cantidad).padStart(2)}  ${nombre.substring(0, 30)}`, formatUsd(subtotal)),
+          style: { fontSize: "10px" }
+        });
+        printData.push({ 
+          type: 'text', 
+          value: alignLeftRight(`   ${formatUsd(precioUnit)}`, `(${alicuota})`),
+          style: { fontSize: "9px" }
+        });
+      });
+      
+      printData.push({ type: 'text', value: separatorLine('═'), style: { textAlign: 'center' } });
+
+      // Subtotal
+      printData.push({ type: 'text', value: alignLeftRight('SUBTOTAL:', formatUsd(totalUsd)), style: { fontWeight: "700", fontSize: "11px" } });
+      
+      // Impuestos
+      if (montoExento > 0) {
+        printData.push({ type: 'text', value: alignLeftRight('EXENTO:', formatUsd(montoExento)), style: { fontSize: "11px" } });
+      }
+      if (baseImponible > 0) {
+        printData.push({ type: 'text', value: alignLeftRight('BASE IMPONIBLE (16%):', formatUsd(baseImponible)), style: { fontSize: "11px" } });
+        printData.push({ type: 'text', value: alignLeftRight('IVA (16%):', formatUsd(iva)), style: { fontSize: "11px" } });
+      }
+      if (igtf > 0) {
+        printData.push({ type: 'text', value: alignLeftRight('IGTF (3%):', formatUsd(igtf)), style: { fontSize: "11px" } });
+      }
+      
+      printData.push({ type: 'text', value: separatorLine('═'), style: { textAlign: 'center' } });
+
+      // Total
+      printData.push({ type: 'text', value: alignLeftRight('TOTAL A PAGAR:', formatUsd(totalUsd)), style: { fontWeight: "800", fontSize: "16px" } });
+      printData.push({ type: 'text', value: alignLeftRight('TOTAL Bs:', formatBs(totalBs)), style: { fontSize: "11px" } });
+      printData.push({ type: 'text', value: separatorLine('═'), style: { textAlign: 'center' } });
+
+      // Formas de pago
+      printData.push({ type: 'text', value: 'FORMA DE PAGO:', style: { fontWeight: "700", fontSize: "11px" } });
+      if (Object.keys(payments).length > 0) {
+        Object.entries(payments).forEach(([method, amount]) => {
+          const amountNum = typeof amount === 'number' ? amount : 0;
+          const isUsd = method.toLowerCase().includes('usd') || method.toLowerCase().includes('dolar');
+          printData.push({ 
+            type: 'text', 
+            value: alignLeftRight(`${formatPaymentMethod(method)}:`, isUsd ? formatUsd(amountNum) : formatBs(amountNum)),
+            style: { fontSize: "10px" }
+          });
+        });
+      } else if (data.paymentMethod) {
+        // Si hay un solo método de pago
+        const method = data.paymentMethod;
+        const amount = data.paymentAmount || totalBs;
+        printData.push({ 
+          type: 'text', 
+          value: alignLeftRight(`${formatPaymentMethod(method)}:`, formatBs(amount)),
+          style: { fontSize: "10px" }
+        });
+      }
+
+      // Tasa de cambio
+      if (state.tasa) {
+        printData.push({ type: 'text', value: `TASA: 1 USD = Bs. ${state.tasa.toFixed(2)}`, style: { fontSize: "9px" } });
+      }
+    }
+
+    // Pie de página
+    printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
+    printData.push({ type: 'text', value: '¡Gracias por su preferencia!', style: { textAlign: 'center', fontSize: "11px", fontWeight: "700" } });
+    printData.push({ type: 'text', value: 'Desarrollado por EFAS Freelancer', style: { textAlign: 'center', fontSize: "8px" } });
+    printData.push({ type: 'text', value: '\n\n\n', style: { textAlign: 'center' } });
+
+    return printData;
   };
 
   return (
@@ -230,119 +420,157 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
               className="thermal-80mm bg-white p-6 shadow-sm text-black font-mono select-none"
               style={{ width: '72mm', boxSizing: 'border-box', color: '#000', fontSize: '11px', lineHeight: '1.3' }}
             >
-              {/* ENCABEZADO IDÉNTICO IMAGEN 2 */}
-              <div className="text-center pb-3 mb-3">
+              {/* ========================================== */}
+              {/* ENCABEZADO - IDÉNTICO AL EJEMPLO */}
+              {/* ========================================== */}
+              <div className="text-center pb-3">
                 <h1 className="text-[20px] font-bold uppercase mb-2 leading-tight" style={{ fontFamily: 'Courier New, Courier, monospace' }}>
-                  {state.empresa.nombre}
+                  {state.empresa.nombre || 'EFAS SOLUCIONES DIGITALES C.A.'}
                 </h1>
-                <p className="text-[10px] mb-2 leading-snug uppercase">
-                  {state.empresa.direccion}
+                <p className="text-[11px] font-bold uppercase">
+                  RIF: {state.empresa.rif || 'J-12345678-9'}
                 </p>
-                <p className="text-[10px] font-bold uppercase">
-                  RIF: {state.empresa.rif} | TEL: {state.empresa.telefono}
+                <p className="text-[10px] leading-snug uppercase">
+                  {state.empresa.direccion || 'Av. Principal, San Felipe, Yaracuy'}
+                </p>
+                <p className="text-[10px]">
+                  Telf: {state.empresa.telefono || '0254-XXXXXXX'}
                 </p>
               </div>
 
-              <div className="text-center mb-4 space-y-1">
-                <div className="text-[12px] font-bold uppercase">
-                  {getReportTitle()}
-                </div>
-                {isReport && (
-                  <div className="text-[10px] font-bold uppercase flex items-center justify-center gap-1">
-                    <Monitor size={10} /> TERMINAL: {terminalIdLabel}
-                  </div>
-                )}
-                <div className="text-[10px] font-bold uppercase">
-                  FECHA/HORA: {transactionDate}
+              <div className="text-center mb-4">
+                <div className="text-[11px] font-bold uppercase">
+                  {isReport ? getReportTitle() : 'RECIBO DE VENTA'}
                 </div>
               </div>
 
-              {isReport && type === 'REPORT_Z' && (
-                <div className="border-t border-dashed border-black py-2 mb-2 space-y-1 text-[9px] text-center uppercase">
-                  <p className="font-bold">DATOS DE CONTROL Y AUDITORÍA</p>
-                  <div className="flex justify-between"><span>REPORTE Z N°:</span><span className="font-bold">{String(data.numeroZ || 0).padStart(6, '0')}</span></div>
-                  <div className="flex justify-between"><span>RANGO FACTURAS:</span><span>{data.desdeFactura} - {data.hastaFactura}</span></div>
-                  <div className="flex justify-between"><span>RANGO NOTAS CRED:</span><span>{data.desdeNC} - {data.hastaNC}</span></div>
+              {/* ========================================== */}
+              {/* INFORMACIÓN DEL DOCUMENTO */}
+              {/* ========================================== */}
+              <div className="text-[10px] font-bold mb-4">
+                <div className="flex justify-between">
+                  <span>RECIBO DE VENTA: {receiptNumber}</span>
                 </div>
-              )}
+                <div className="flex justify-between">
+                  <span>FECHA: {transactionDate.split(',')[0] || '19/07/2026'}</span>
+                  <span>HORA: {transactionDate.split(',')[1]?.trim() || '10:30 AM'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CAJA: {terminalId}</span>
+                  <span>CAJERO: {cajeroNombre}</span>
+                </div>
+              </div>
 
-              {isReport ? (
-                <div className="border-t border-dashed border-black pt-3 mt-3 space-y-4">
-                  <div className="space-y-1">
-                    <p className="font-bold text-center mb-2 uppercase">RESUMEN DE FACTURACIÓN</p>
-                    <div className="flex justify-between"><span>VENTA BRUTA:</span><span>{formatBs(data.brUSD * state.tasa).replace('Bs. ', 'Bs.')}</span></div>
-                    <div className="flex justify-between"><span>DESCUENTOS:</span><span>-{formatBs(data.descUSD * state.tasa).replace('Bs. ', 'Bs.')}</span></div>
-                    <div className="flex justify-between"><span>DEVOLUCIONES:</span><span>-{formatBs(data.devUSD * state.tasa).replace('Bs. ', 'Bs.')}</span></div>
-                    <div className="flex justify-between font-bold border-t border-black pt-1"><span>VENTA NETA:</span><span>{formatBs(data.netUSD * state.tasa).replace('Bs. ', 'Bs.')}</span></div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="font-bold text-center mb-2 uppercase">DESGLOSE FISCAL</p>
-                    <div className="flex justify-between"><span>Monto Exento:</span><span>{formatBs((data.exentoUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')}</span></div>
-                    <div className="flex justify-between"><span>Base Imponible:</span><span>{formatBs((data.baseImponibleUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')}</span></div>
-                    <div className="flex justify-between"><span>IVA Recaudado (16%):</span><span>{formatBs((data.ivaUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')}</span></div>
-                    <div className="flex justify-between"><span>Total IGTF (3%):</span><span>{formatBs((data.igtfUSD || 0) * state.tasa).replace('Bs. ', 'Bs.')}</span></div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="font-bold text-center mb-2 uppercase">CONCILIACIÓN DE PAGOS</p>
-                    {Object.entries(data.paymentMethods || {}).map(([method, val]) => (
-                      <div key={method} className="flex justify-between">
-                        <span className="uppercase">{Utils.metodoLabel(method)}:</span>
-                        <span>{formatBs((val as number) * state.tasa).replace('Bs. ', 'Bs.')}</span>
+              {!isReport && (
+                <>
+                  <div className="border-t border-dashed border-black pt-3 mb-3">
+                    <div className="text-[10px] font-bold mb-2">
+                      <div className="flex justify-between">
+                        <span>CANT</span>
+                        <span>DESCRIPCIÓN</span>
+                        <span>P.UNIT</span>
+                        <span>TOTAL</span>
                       </div>
-                    ))}
-                    <div className="flex justify-between"><span>SALIDAS / GASTOS:</span><span>-{formatBs((data.manualSalidas || 0) * state.tasa).replace('Bs. ', 'Bs.')}</span></div>
-                  </div>
-                </div>
-              ) : (
-                <div className="border-t border-dashed border-black pt-3">
-                  <div className="flex justify-between text-[10px] mb-2 font-bold">
-                    <span>N° CONTROL: {data.id}</span>
-                  </div>
-                  <div className="text-[10px] mb-4 uppercase font-bold">
-                    CLIENTE: {customerName}
-                  </div>
-                  <table className="w-full mb-3">
-                    <thead>
-                      <tr className="text-[10px] border-b border-dashed border-black">
-                        <th className="text-left py-1">PRODUCTO</th>
-                        <th className="text-right py-1">TOTAL</th>
-                      </tr>
-                    </thead>
-                    <tbody className="uppercase">
-                      {data.items.map((item: any, idx: number) => (
-                        <tr key={idx} className="text-[10px]">
-                          <td className="py-1">
-                            {item.cantidad || item.qty}x {(item.nombre || item.name).slice(0, 25)}
-                          </td>
-                          <td className="text-right py-1 font-bold">
-                            {formatBs((item.subtotalUSD || (item.price * item.qty)) * state.tasa).replace('Bs. ', 'Bs.')}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="border-t border-black pt-2 space-y-1">
-                    <div className="flex justify-between font-bold text-[14px]">
-                      <span>TOTAL A PAGAR:</span>
-                      <span>{formatBs(data.totalBS).replace('Bs. ', 'Bs.')}</span>
                     </div>
-                    <div className="flex justify-between text-[11px]">
-                      <span>REF. USD:</span>
-                      <span>{formatUsd(data.totalUSD)}</span>
+                    <div className="border-t border-dashed border-black mb-2"></div>
+
+                    {getItems().map((item: any, idx: number) => {
+                      const cantidad = item.cantidad || item.qty || 1;
+                      const nombre = (item.nombre || item.name || 'Producto').toUpperCase();
+                      const precioUnit = item.precioUSD || item.price || 0;
+                      const subtotal = item.subtotalUSD || (precioUnit * cantidad);
+                      const alicuota = item.alicuota || item.ivaType || 'G';
+                      
+                      return (
+                        <div key={idx} className="text-[9px] mb-1">
+                          <div className="flex justify-between font-mono">
+                            <span className="w-8">{String(cantidad).padStart(2)}</span>
+                            <span className="flex-1 px-2">{nombre.substring(0, 30)}</span>
+                            <span className="w-12 text-right">{formatUsd(precioUnit)}</span>
+                            <span className="w-12 text-right font-bold">{formatUsd(subtotal)}</span>
+                          </div>
+                          <div className="text-right text-[8px] text-gray-600">({alicuota})</div>
+                        </div>
+                      );
+                    })}
+
+                    <div className="border-t border-black pt-2 mt-2">
+                      <div className="flex justify-between font-bold text-[11px]">
+                        <span>SUBTOTAL:</span>
+                        <span>{formatUsd(totalUsd)}</span>
+                      </div>
+                      {montoExento > 0 && (
+                        <div className="flex justify-between text-[10px]">
+                          <span>EXENTO:</span>
+                          <span>{formatUsd(montoExento)}</span>
+                        </div>
+                      )}
+                      {baseImponible > 0 && (
+                        <>
+                          <div className="flex justify-between text-[10px]">
+                            <span>BASE IMPONIBLE (16%):</span>
+                            <span>{formatUsd(baseImponible)}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px]">
+                            <span>IVA (16%):</span>
+                            <span>{formatUsd(iva)}</span>
+                          </div>
+                        </>
+                      )}
+                      {igtf > 0 && (
+                        <div className="flex justify-between text-[10px]">
+                          <span>IGTF (3%):</span>
+                          <span>{formatUsd(igtf)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t-2 border-black pt-2 mt-2">
+                      <div className="flex justify-between font-bold text-[14px]">
+                        <span>TOTAL A PAGAR:</span>
+                        <span>{formatUsd(totalUsd)}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span>Total Bs:</span>
+                        <span>{formatBs(totalBs)}</span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-dashed border-black pt-3 mt-3">
+                      <div className="font-bold text-[10px] mb-2">FORMA DE PAGO:</div>
+                      {Object.entries(getPaymentMethods()).map(([method, amount]) => {
+                        const amountNum = typeof amount === 'number' ? amount : 0;
+                        const isUsd = method.toLowerCase().includes('usd') || method.toLowerCase().includes('dolar');
+                        return (
+                          <div key={method} className="flex justify-between text-[10px]">
+                            <span>{formatPaymentMethod(method)}:</span>
+                            <span>{isUsd ? formatUsd(amountNum) : formatBs(amountNum)}</span>
+                          </div>
+                        );
+                      })}
+                      {state.tasa && (
+                        <div className="text-[8px] text-gray-600 mt-1">
+                          (Tasa de cambio ref: 1 USD = Bs. {state.tasa.toFixed(2)})
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
+                </>
               )}
 
-              <div className="text-center mt-6 pt-4 border-t border-dotted border-black/30">
-                <p className="font-bold mb-2">¡Gracias por su preferencia!</p>
-                <p className="opacity-60 text-[8px]">PosVEN Pro v2.5 - RC-8002 optimized</p>
+              {/* ========================================== */}
+              {/* PIE DE PÁGINA - IDÉNTICO AL EJEMPLO */}
+              {/* ========================================== */}
+              <div className="text-center mt-4 pt-4 border-t border-dashed border-black/30">
+                <p className="font-bold text-[11px] mb-1">¡Gracias por su preferencia!</p>
+                <p className="opacity-60 text-[8px]">Desarrollado por EFAS Freelancer</p>
               </div>
             </div>
           </div>
 
+          {/* ========================================== */}
+          {/* BOTONES DE ACCIÓN */}
+          {/* ========================================== */}
           <div className="p-4 bg-white border-t border-gray-100 flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
               <button onClick={onClose} className="py-3 bg-[#E5E7EB] text-[#374151] font-black text-xs rounded-xl hover:bg-gray-300 transition-all uppercase tracking-widest">Cerrar</button>

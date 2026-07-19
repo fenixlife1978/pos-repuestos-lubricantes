@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { AppState } from './types';
 import { db } from './firebase';
@@ -8,14 +8,12 @@ const STORAGE_KEY = 'posven_pro_session_data_cache';
 const COLLECTION = 'pos_system_data';
 const DOC_ID = 'state';
 
-/**
- * Estado inicial del sistema.
- * Al resetear, el sistema volverá exactamente a estos valores.
- */
 export const initialState: AppState = {
+  user: null,
+  isAuthenticated: false,
   tasa: 36.50,
   pinDevolucion: '000000',
-  isInitialized: false, // Flag crucial para detectar primer uso
+  isInitialized: false,
   productos: [],
   ventas: [],
   cxc: [],
@@ -162,7 +160,8 @@ export const Utils = {
     return isNaN(n) ? 0 : Math.round((n + Number.EPSILON) * 100) / 100;
   },
   fmtUSD: (v: number) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-  fmtBS: (v: number) => 'Bs. ' + Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+  fmtBS: (v: number, symbol = true) => (symbol ? 'Bs. ' : '') + Number(v).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+  fmtMono: (v: number, prefix = false) => (prefix ? '$' : '') + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   fmtFecha: (f: string) => {
     if (!f) return '-';
     const datePart = f.includes('T') ? f.split('T')[0] : f;

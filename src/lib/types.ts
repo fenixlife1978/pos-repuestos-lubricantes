@@ -5,6 +5,7 @@ export interface User {
   rol: 'administrador' | 'cajero';
   accesoBloqueado: boolean;
   fechaCreacion?: string;
+  isAuthenticated?: boolean;
 }
 
 export interface Product {
@@ -83,12 +84,13 @@ export interface Sale {
   terminalId?: string;
   terminalName?: string;
   cajeroId?: string;
+  cajeroNombre?: string;
   payments?: PagoRealizado[];
-  // Fiscal fields
   baseImponibleUSD?: number;
   ivaUSD?: number;
   exentoUSD?: number;
   igtfUSD?: number;
+  tasa: number;
 }
 
 export interface Customer {
