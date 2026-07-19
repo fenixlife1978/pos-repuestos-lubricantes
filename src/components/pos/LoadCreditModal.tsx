@@ -1,16 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useState, useEffect } from 'react';
+import { Search, UserPlus, X, AlertCircle, User, Phone, MapPin, CreditCard } from 'lucide-react';
 import { Customer } from '@/lib/types';
 import { Store } from '@/lib/db-store';
-import { toast } from '../../hooks/use-toast';
-import { formatBs, formatUsd } from '@/lib/currency-formatter';
-import { Search, UserPlus, CreditCard, X, Save, Phone, MapPin } from 'lucide-react';
+import { formatBs } from '@/lib/currency-formatter';
 
 interface LoadCreditModalProps {
   isOpen: boolean;
@@ -19,198 +13,307 @@ interface LoadCreditModalProps {
   totalAmount: number;
 }
 
-export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClose, onConfirm, totalAmount }) => {
-  const [step, setStep] = useState(1); // 1: Search, 2: Found, 3: Register
-  const [docPrefix, setDocPrefix] = useState('V');
-  const [docNumber, setDocNumber] = useState('');
+type DocumentType = 'V-' | 'J-' | 'G-' | 'E-' | 'P-';
+
+export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: LoadCreditModalProps) {
+  const [step, setStep] = useState<'search' | 'existing' | 'create'>('search');
+  const [documentType, setDocumentType] = useState<DocumentType>('V-');
+  const [documentNumber, setDocumentNumber] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState('');
   const [foundCustomer, setFoundCustomer] = useState<Customer | null>(null);
+  const [store, setStore] = useState<any>(Store.get());
+  const [showNotFoundDialog, setShowNotFoundDialog] = useState(false);
 
-  // Campos para nuevo cliente
-  const [newCustomerName, setNewCustomerName] = useState('');
-  const [newCustomerPhone, setNewCustomerPhone] = useState('');
-  const [newCustomerAddress, setNewCustomerAddress] = useState('');
+  useEffect(() => {
+    const unsubscribe = Store.subscribe(setStore);
+    return () => unsubscribe();
+  }, []);
 
-  const resetState = () => {
-    setStep(1);
-    setDocPrefix('V');
-    setDocNumber('');
-    setFoundCustomer(null);
-    setNewCustomerName('');
-    setNewCustomerPhone('');
-    setNewCustomerAddress('');
-  };
-
-  const handleClose = () => {
-    resetState();
-    onClose();
-  };
+  // Resetear estado cuando se cierra el modal
+  useEffect(() => {
+    if (!isOpen) {
+      setStep('search');
+      setDocumentNumber('');
+      setCustomerName('');
+      setAddress('');
+      setPhone('');
+      setFoundCustomer(null);
+      setShowNotFoundDialog(false);
+      setDocumentType('V-');
+    }
+  }, [isOpen]);
 
   const handleSearch = () => {
-    if (!docNumber.trim()) {
-      toast({ title: "Error", description: "Por favor, ingrese un número de documento.", variant: "destructive" });
+    if (!documentNumber.trim()) {
+      alert('Por favor, ingrese un número de documento');
       return;
     }
-    const fullId = `${docPrefix}-${docNumber.replace(/\./g, '')}`.toUpperCase();
-    const customers = Store.get()?.clientes || [];
-    const customer = customers.find((c: Customer) => c.id.toUpperCase() === fullId);
 
+    const fullDocument = `${documentType}${documentNumber}`;
+    const customers: Customer[] = store?.clientes || [];
+    
+    // Buscar cliente por cédula
+    const customer = customers.find(c => c.cedula === fullDocument);
+    
     if (customer) {
       setFoundCustomer(customer);
-      setStep(2);
+      setStep('existing');
     } else {
-      setStep(3);
+      setShowNotFoundDialog(true);
     }
   };
 
-  const handleRegisterAndLoad = () => {
-    if (totalAmount <= 0) {
-      toast({ title: "Error", description: "El monto del carrito debe ser mayor a cero para cargarlo a crédito.", variant: "destructive" });
-      return;
-    }
-    if (!newCustomerName.trim()) {
-      toast({ title: "Error", description: "El nombre del cliente es obligatorio.", variant: "destructive" });
+  const handleCreateNew = () => {
+    setShowNotFoundDialog(false);
+    setStep('create');
+  };
+
+  const handleSaveNewCustomer = () => {
+    if (!customerName.trim()) {
+      alert('Por favor, ingrese el nombre del cliente');
       return;
     }
 
-    const fullId = `${docPrefix}-${docNumber.replace(/\./g, '')}`.toUpperCase();
-    const currentState = Store.get() || {};
-    const currentCustomers = currentState.clientes || [];
-    
-    if (currentCustomers.some((c: Customer) => c.id.toUpperCase() === fullId)) {
-        toast({ title: "Error de Duplicidad", description: "Ya existe un cliente con este documento.", variant: "destructive" });
-        setStep(1);
-        return;
-    }
-
+    const fullDocument = `${documentType}${documentNumber}`;
     const newCustomer: Customer = {
-      id: fullId,
-      cedula: fullId,
-      name: newCustomerName.toUpperCase(),
-      phone: newCustomerPhone,
-      address: newCustomerAddress,
+      id: `CUS-${Date.now()}`,
+      cedula: fullDocument,
+      name: customerName,
+      address: address || 'Sin dirección',
+      phone: phone || 'Sin teléfono',
       debt: 0,
     };
 
-    Store.set({ ...currentState, clientes: [...currentCustomers, newCustomer] });
-    toast({ title: "Éxito", description: `Cliente ${newCustomer.name} registrado.` });
-    onConfirm(newCustomer, totalAmount);
-    handleClose();
+    // Guardar nuevo cliente
+    const updatedCustomers = [...(store.clientes || []), newCustomer];
+    Store.set({ ...store, clientes: updatedCustomers });
+
+    setFoundCustomer(newCustomer);
+    setStep('existing');
   };
 
-  const handleLoadCredit = () => {
-    if (totalAmount <= 0) {
-      toast({ title: "Error", description: "No hay un monto en el carrito para cargar a crédito.", variant: "destructive" });
-      return;
-    }
+  const handleConfirmLoad = () => {
     if (foundCustomer) {
       onConfirm(foundCustomer, totalAmount);
-      handleClose();
     }
   };
 
-  const formatCedula = (val: string) => {
-    const digits = val.replace(/\D/g, '');
-    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  };
+  if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="bg-white rounded-xl shadow-2xl border-gray-300 sm:max-w-md">
-        <DialogHeader className="text-center pt-4">
-          <DialogTitle className="text-lg font-black text-gray-800 flex items-center justify-center gap-2">
-            <CreditCard className="w-5 h-5 text-blue-600" />
-            CARGAR CRÉDITO A CLIENTE
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="px-6 text-center bg-gray-800 py-3 rounded-lg mx-4 border border-gray-700">
-          <Label className="text-xs font-bold text-gray-400">MONTO A CARGAR</Label>
-          <p className="text-3xl font-mono font-black text-white">{formatUsd(totalAmount)}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <CreditCard className="w-6 h-6 text-white" />
+            <h2 className="text-xl font-bold text-white">Cargar Crédito</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/80 hover:text-white transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
 
-        {step === 1 && (
-          <div className="py-4 animate-in fade-in-50 space-y-4">
-            <DialogDescription className="text-sm text-center text-gray-600 font-semibold px-4">Introduzca el documento para buscar o registrar un cliente.</DialogDescription>
-            <div className="flex items-center gap-2 px-4">
-              <Select value={docPrefix} onValueChange={setDocPrefix}>
-                <SelectTrigger className="w-[100px] h-11 bg-gray-50 border-gray-300 font-bold"><SelectValue /></SelectTrigger>
-                <SelectContent>{['V', 'E', 'J', 'G', 'P'].map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-              </Select>
-              <Input
-                autoFocus
-                value={docNumber}
-                onChange={(e) => setDocNumber(formatCedula(e.target.value))}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Ej: 12.345.678"
-                className="h-11 text-center font-mono text-lg tracking-wider border-gray-300"
-              />
-            </div>
-            <div className="px-4">
-                <Button onClick={handleSearch} className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base">
-                    <Search className="w-4 h-4 mr-2" />
-                    BUSCAR / CREAR
-                </Button>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && foundCustomer && (
-          <div className="py-4 animate-in fade-in-50 space-y-4">
-            <div className="px-6 text-center">
-              <Label className="text-xs font-bold text-gray-500">CLIENTE ENCONTRADO</Label>
-              <p className="text-xl font-bold text-gray-800">{foundCustomer.name}</p>
-            </div>
-            <div className="px-6 text-center bg-gray-50 py-3 rounded-lg mx-4 border border-gray-200">
-              <Label className="text-xs font-bold text-gray-500">SALDO ACTUAL</Label>
-              <p className="text-2xl font-mono font-black text-blue-700">{formatBs(foundCustomer.debt || 0)}</p>
-            </div>
-            <div className="px-4 pt-2">
-                <Button onClick={handleLoadCredit} className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold text-base">
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    CARGAR CRÉDITO
-                </Button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="py-4 animate-in fade-in-50 space-y-4">
-             <DialogDescription className="text-sm text-center text-gray-600 font-semibold px-4">Cliente no encontrado con C.I. {docPrefix}-{docNumber}.<br/>Complete los datos para registrarlo.</DialogDescription>
-            <div className="px-4 space-y-3">
-                <div className="space-y-1">
-                    <Label className="font-bold text-gray-700">Nombre Completo o Razón Social</Label>
-                    <Input autoFocus value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} placeholder="Ej: John Doe C.A." className="h-10 border-gray-300" />
+        <div className="p-6">
+          {/* PASO 1: Búsqueda de cliente */}
+          {step === 'search' && (
+            <div className="space-y-4">
+              <p className="text-center text-sm text-gray-600 font-medium">
+                Buscar Cliente
+              </p>
+              
+              <div className="flex items-center gap-2">
+                <div className="flex-shrink-0">
+                  <select
+                    value={documentType}
+                    onChange={(e) => setDocumentType(e.target.value as DocumentType)}
+                    className="h-12 px-3 bg-gray-100 border border-gray-300 rounded-lg font-bold text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="V-">V-</option>
+                    <option value="J-">J-</option>
+                    <option value="G-">G-</option>
+                    <option value="E-">E-</option>
+                    <option value="P-">P-</option>
+                  </select>
                 </div>
-                 <div className="space-y-1">
-                    <Label className="font-bold text-gray-700 flex items-center gap-1"><Phone className="w-3 h-3"/>Teléfono (Opcional)</Label>
-                    <Input value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} placeholder="Ej: 0412-1234567" className="h-10 border-gray-300" />
+                
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    value={documentNumber}
+                    onChange={(e) => setDocumentNumber(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Número de documento"
+                    className="w-full h-12 px-4 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  />
                 </div>
-                <div className="space-y-1">
-                    <Label className="font-bold text-gray-700 flex items-center gap-1"><MapPin className="w-3 h-3"/>Dirección (Opcional)</Label>
-                    <Input value={newCustomerAddress} onChange={(e) => setNewCustomerAddress(e.target.value)} placeholder="Ej: Av. Principal, Edif. ABC" className="h-10 border-gray-300" />
-                </div>
-            </div>
-            <div className="px-4 pt-2">
-                <Button onClick={handleRegisterAndLoad} className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base">
-                    <Save className="w-4 h-4 mr-2" />
-                    REGISTRAR Y CARGAR
-                </Button>
-            </div>
-          </div>
-        )}
+                
+                <button
+                  onClick={handleSearch}
+                  className="h-12 px-6 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <Search className="w-5 h-5" />
+                  Buscar
+                </button>
+              </div>
 
-        <DialogFooter className="p-3 bg-gray-50 border-t border-gray-200">
-            {step > 1 && (
-                 <Button variant="outline" onClick={() => setStep(1)} className="font-bold text-gray-600 hover:text-gray-800">
-                    Atrás
-                </Button>
-            )}
-            <Button variant="ghost" onClick={handleClose} className="font-bold text-gray-600 hover:text-gray-800 ml-auto">
-                <X className="w-4 h-4 mr-1"/>
-                Cancelar
-            </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+              <p className="text-xs text-center text-gray-400">
+                Presione Enter para buscar o haga clic en el botón Buscar
+              </p>
+            </div>
+          )}
+
+          {/* Diálogo: Cliente no encontrado */}
+          {showNotFoundDialog && (
+            <div className="space-y-4 animate-in fade-in-50">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-2" />
+                <p className="font-bold text-amber-700">Cliente no encontrado</p>
+                <p className="text-sm text-amber-600 mt-1">
+                  No existe un cliente con el documento {documentType}{documentNumber}
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowNotFoundDialog(false)}
+                  className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
+                >
+                  No
+                </button>
+                <button
+                  onClick={handleCreateNew}
+                  className="flex-1 h-12 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  Sí, Crear Cliente
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* PASO 2: Cliente existente */}
+          {step === 'existing' && foundCustomer && (
+            <div className="space-y-4 animate-in fade-in-50">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <User className="w-5 h-5 text-gray-500" />
+                  <span className="text-sm text-gray-500">Nombre:</span>
+                  <span className="font-bold text-gray-800">{foundCustomer.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500 w-12">Cédula:</span>
+                  <span className="font-mono text-gray-800">{foundCustomer.cedula}</span>
+                </div>
+                <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                  <span className="text-sm text-gray-500">Saldo Actual:</span>
+                  <span className="font-bold text-lg text-red-600">{formatBs(foundCustomer.debt || 0)}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setStep('search');
+                    setFoundCustomer(null);
+                  }}
+                  className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
+                >
+                  Buscar Otro
+                </button>
+                <button
+                  onClick={handleConfirmLoad}
+                  className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <CreditCard className="w-5 h-5" />
+                  Cargar Crédito
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* PASO 3: Crear nuevo cliente */}
+          {step === 'create' && (
+            <div className="space-y-4 animate-in fade-in-50">
+              <p className="text-center text-sm font-bold text-gray-700">
+                Nuevo Cliente
+              </p>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">
+                    NOMBRE COMPLETO *
+                  </label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Ej: Juan Pérez"
+                    className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveNewCustomer()}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">
+                    DIRECCIÓN
+                  </label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder="Ej: Av. Principal #123"
+                      className="w-full h-12 pl-10 pr-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">
+                    TELÉFONO
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Ej: 0412-1234567"
+                      className="w-full h-12 pl-10 pr-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setStep('search');
+                    setShowNotFoundDialog(false);
+                  }}
+                  className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveNewCustomer}
+                  className="flex-1 h-12 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  Crear y Cargar Crédito
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
-};
+}

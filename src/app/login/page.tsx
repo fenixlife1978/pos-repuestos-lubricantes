@@ -13,7 +13,8 @@ import {
   signOut 
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
-import { toast } from '@/hooks/use-toast';
+// ✅ CORREGIDO: Usar ruta relativa en lugar de @/hooks/use-toast
+import { toast } from '../../hooks/use-toast';
 import { Store } from '@/lib/db-store';
 
 export default function LoginPage() {
@@ -227,7 +228,7 @@ export default function LoginPage() {
             <label className="text-[10px] font-black uppercase text-black/40 tracking-widest block ml-1">Perfil de Usuario</label>
             <select 
               className="form-select h-[52px] bg-[#F9FAFB] border border-[#E5E7EB] rounded-2xl pl-4 pr-10 text-black font-semibold focus:border-[#C8952E] outline-none transition-all cursor-pointer w-full disabled:bg-gray-200 disabled:cursor-not-allowed"
-              value={role} // Simplificado: El estado ahora siempre tiene el valor correcto
+              value={role}
               onChange={e => setRole(e.target.value)} 
               required
               disabled={systemEmpty && isRegistering}
