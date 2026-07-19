@@ -1,8 +1,8 @@
 /**
  * thermal-printer.ts
  *
- * Módulo universal para la generación de tickets de texto plano compatibles con ESC/POS.
- * Configurado exclusivamente para impresoras térmicas de 80mm.
+ * Módulo para la generación de tickets de texto plano compatibles con ESC/POS.
+ * Configurado EXCLUSIVAMENTE para impresoras térmicas de 80mm.
  */
 
 // --- Constantes de Configuración ---
@@ -50,13 +50,16 @@ function formatCurrency(value: number): string {
   return 'Bs. ' + num.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function cleanText(text: string): string {
-  // Eliminar caracteres de control ESC/POS
-  return text
-    .replace(/[\x1B\x40\x1B\x69\x1B\x45\x01\x1B\x45\x00\x1B\x21\x30\x1B\x21\x00]/g, '')
-    .replace(/\x1B/g, '')
-    .replace(/\[0m/g, '')
-    .replace(/\[1m/g, '');
+function padRight(text: string, width: number): string {
+  const str = String(text || '');
+  if (str.length >= width) return str.substring(0, width);
+  return str + ' '.repeat(width - str.length);
+}
+
+function padLeft(text: string, width: number): string {
+  const str = String(text || '');
+  if (str.length >= width) return str.substring(0, width);
+  return ' '.repeat(width - str.length) + str;
 }
 
 // --- Generadores de Tickets ---
@@ -118,7 +121,6 @@ export function generateSaleTicket(saleData: any, storeInfo: StoreInfo = {}): st
   ticket.push(center('¡GRACIAS POR SU COMPRA!'));
   ticket.push(center('Vuelva pronto'));
 
-  // Unir todo con saltos de línea y agregar comandos ESC/POS
   return CMD.INIT + ticket.join('\n') + '\n\n\n\n' + CMD.CUT + CMD.DRAWER_KICK;
 }
 
@@ -192,6 +194,5 @@ export function generateReport(reportData: any, storeInfo: StoreInfo = {}, type:
   // Pie de página
   report.push(center('¡GRACIAS POR SU PREFERENCIA!'));
 
-  // Unir todo con saltos de línea
   return CMD.INIT + report.join('\n') + '\n\n\n\n' + CMD.CUT;
 }
