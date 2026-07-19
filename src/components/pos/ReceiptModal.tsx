@@ -527,26 +527,69 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                   })()}
                   <div className="separator-dashed"></div>
 
-                  {/* MOVIMIENTO DE CAJA */}
+                  {/* MOVIMIENTO DE CAJA - CORREGIDO */}
                   <div className="section-title">MOVIMIENTO DE CAJA</div>
                   <div className="separator-dashed"></div>
-                  <div className="line-item">
-                    <span className="label">FONDO DE APERTURA:</span>
-                    <span className="value">{formatBs(((data.fondoAperturaUSD || 0) * state.tasa))}</span>
-                  </div>
-                  <div className="line-item">
-                    <span className="label">ENTRADAS DE EFECTIVO:</span>
-                    <span className="value">{formatBs(((data.entradasCajaUSD || data.manualEntradas || 0) * state.tasa))}</span>
-                  </div>
-                  <div className="line-item">
-                    <span className="label">SALIDAS DE EFECTIVO:</span>
-                    <span className="value">{formatBs(((data.salidasCajaUSD || data.manualSalidas || 0) * state.tasa))}</span>
-                  </div>
-                  <div className="separator-dashed"></div>
-                  <div className="line-item font-bold">
-                    <span className="label">{type === 'REPORT_Z' ? 'EFECTIVO REAL EN CAJA:' : 'EFECTIVO ESTIMADO EN CAJA:'}</span>
-                    <span className="value">{formatBs(((data.efectivoRealCaja || data.efectivoEstimadoCaja || data.ventaNetaUSD || data.netUSD || 0) * state.tasa))}</span>
-                  </div>
+                  
+                  {(() => {
+                    const fondoAperturaUSD = data.fondoAperturaUSD || 0;
+                    
+                    // Calcular el total de efectivo en USD de los pagos
+                    let efectivoUsdPaymentAmount = 0;
+                    const paymentData = getPaymentMethods();
+                    if (paymentData && Object.keys(paymentData).length > 0) {
+                      if (Array.isArray(paymentData)) {
+                        paymentData.forEach((p: any) => {
+                          const method = p.metodo || p.method || 'efectivo';
+                          if (method === 'efectivo_usd') {
+                            efectivoUsdPaymentAmount += p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
+                          }
+                        });
+                      } else {
+                        Object.entries(paymentData).forEach(([method, amount]) => {
+                          if (method === 'efectivo_usd') {
+                            efectivoUsdPaymentAmount += typeof amount === 'number' ? amount : 0;
+                          }
+                        });
+                      }
+                    } else if (data.metodoPago === 'efectivo_usd') {
+                      efectivoUsdPaymentAmount = data.totalUSD || totalUsd;
+                    }
+                    
+                    const efectivoEstimadoEnCajaUSD = fondoAperturaUSD + efectivoUsdPaymentAmount;
+                    const efectivoCajaBs = (data.efectivoRealCaja || data.efectivoEstimadoCaja || data.ventaNetaUSD || data.netUSD || 0) * state.tasa;
+                    
+                    return (
+                      <>
+                        <div className="line-item">
+                          <span className="label">FONDO DE APERTURA Bs.:</span>
+                          <span className="value">{formatBs(fondoAperturaUSD * state.tasa)}</span>
+                        </div>
+                        <div className="line-item">
+                          <span className="label">FONDO DE APERTURA USD:</span>
+                          <span className="value">${formatUsd(fondoAperturaUSD)}</span>
+                        </div>
+                        <div className="line-item">
+                          <span className="label">ENTRADAS DE EFECTIVO:</span>
+                          <span className="value">{formatBs(((data.entradasCajaUSD || data.manualEntradas || 0) * state.tasa))}</span>
+                        </div>
+                        <div className="line-item">
+                          <span className="label">SALIDAS DE EFECTIVO:</span>
+                          <span className="value">{formatBs(((data.salidasCajaUSD || data.manualSalidas || 0) * state.tasa))}</span>
+                        </div>
+                        <div className="separator-dashed"></div>
+                        <div className="line-item font-bold">
+                          <span className="label">{type === 'REPORT_Z' ? 'EFECTIVO REAL EN CAJA:' : 'EFECTIVO ESTIMADO EN CAJA:'}</span>
+                          <span className="value">{formatBs(efectivoCajaBs)}</span>
+                        </div>
+                        <div className="line-item font-bold">
+                          <span className="label">EFECTIVO ESTIMADO EN CAJA USD:</span>
+                          <span className="value">${formatUsd(efectivoEstimadoEnCajaUSD)}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                  
                   <div className="separator-dashed"></div>
 
                   {/* ESTADÍSTICAS - Solo REPORTE X */}
@@ -746,7 +789,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                 {!isReport && (
                   <div className="font-bold text-[11px] mb-1">¡Gracias por su preferencia!</div>
                 )}
-                <div className="opacity-60 text-[8px]">Generado por PosVEN pro v2.5.7</div>
+                <div className="opacity-60 text-[8px]">Desarrollado por EFAS Freelancer</div>
               </div>
             </div>
           </div>
