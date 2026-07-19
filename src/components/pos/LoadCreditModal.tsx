@@ -123,9 +123,14 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
           </DialogTitle>
         </DialogHeader>
 
+        <div className="px-6 text-center bg-gray-800 py-3 rounded-lg mx-4 border border-gray-700">
+          <Label className="text-xs font-bold text-gray-400">MONTO A CARGAR</Label>
+          <p className="text-3xl font-mono font-black text-white">{formatUsd(totalAmount)}</p>
+        </div>
+
         {step === 1 && (
           <div className="py-4 animate-in fade-in-50 space-y-4">
-            <DialogDescription className="text-sm text-center text-gray-600 font-semibold px-4">Introduzca el documento de identidad para buscar o registrar un cliente.</DialogDescription>
+            <DialogDescription className="text-sm text-center text-gray-600 font-semibold px-4">Introduzca el documento para buscar o registrar un cliente.</DialogDescription>
             <div className="flex items-center gap-2 px-4">
               <Select value={docPrefix} onValueChange={setDocPrefix}>
                 <SelectTrigger className="w-[100px] h-11 bg-gray-50 border-gray-300 font-bold"><SelectValue /></SelectTrigger>
@@ -162,7 +167,7 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
             <div className="px-4 pt-2">
                 <Button onClick={handleLoadCredit} className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold text-base">
                     <CreditCard className="w-4 h-4 mr-2" />
-                    CARGAR CRÉDITO POR {formatUsd(totalAmount)}
+                    CARGAR CRÉDITO
                 </Button>
             </div>
           </div>
@@ -170,7 +175,7 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
 
         {step === 3 && (
           <div className="py-4 animate-in fade-in-50 space-y-4">
-             <DialogDescription className="text-sm text-center text-gray-600 font-semibold px-4">Cliente no encontrado con C.I. {docPrefix}-{docNumber}.<br/>Complete los datos para registrarlo y cargar crédito.</DialogDescription>
+             <DialogDescription className="text-sm text-center text-gray-600 font-semibold px-4">Cliente no encontrado con C.I. {docPrefix}-{docNumber}.<br/>Complete los datos para registrarlo.</DialogDescription>
             <div className="px-4 space-y-3">
                 <div className="space-y-1">
                     <Label className="font-bold text-gray-700">Nombre Completo o Razón Social</Label>
@@ -188,7 +193,7 @@ export const LoadCreditModal: React.FC<LoadCreditModalProps> = ({ isOpen, onClos
             <div className="px-4 pt-2">
                 <Button onClick={handleRegisterAndLoad} className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base">
                     <Save className="w-4 h-4 mr-2" />
-                    REGISTRAR Y CARGAR {formatUsd(totalAmount)}
+                    REGISTRAR Y CARGAR
                 </Button>
             </div>
           </div>

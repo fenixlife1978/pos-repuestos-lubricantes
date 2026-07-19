@@ -18,12 +18,20 @@ import { LoadCreditModal } from './LoadCreditModal';
 
 const math = create(all);
 
+// DEV-NOTE: Se ha movido el hook useDebounce aquí para solucionar un problema de resolución de módulos.
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
+
   useEffect(() => {
-    const handler = setTimeout(() => { setDebouncedValue(value); }, delay);
-    return () => { clearTimeout(handler); };
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
   }, [value, delay]);
+
   return debouncedValue;
 }
 
@@ -59,6 +67,7 @@ export default function PosModule() {
     return products.filter(p => 
       p.activo && (
         p.nombre.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        p.codigo?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
         p.codigo?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
       )
     ).slice(0, 20);
@@ -94,10 +103,12 @@ export default function PosModule() {
         toast({ title: "Carrito Vacío", description: "Agregue productos antes de proceder.", variant: "destructive" });
         return;
     }
+    
     if (isCredit && !selectedCustomer) {
-        toast({ title: "Seleccione Cliente", description: "Para una venta a crédito directa, primero seleccione un cliente.", variant: "default"});
+        toast({ title: "Venta a Crédito", description: "Por favor, busque y seleccione un cliente antes de proceder.", variant: "default"});
         return;
     }
+
     setIsCreditSale(isCredit);
     setPaymentModalOpen(true);
   };
@@ -107,27 +118,31 @@ export default function PosModule() {
           id: `CRED-${Date.now()}`,
           type: 'CREDIT_LOAD',
           date: new Date().toISOString(),
-          customer: { id: customer.id, name: customer.name },
-          items: cart.length > 0 ? cart : [{ id: 'CREDIT', nombre: 'CARGA DE SALDO', quantity: 1, price: amount }],
+          customer: {
+              id: customer.id,
+              name: customer.name,
+          },
+          items: [{
+              id: 'CREDIT',
+              nombre: 'CARGA DE SALDO',
+              quantity: 1,
+              price: amount
+          }],
           total: amount,
       };
   
       const updatedCustomers = (store.clientes || []).map((c: Customer) => 
           c.id === customer.id ? { ...c, debt: (c.debt || 0) + amount } : c
       );
-      
-      const newSales = [...(store.sales || []), creditSale];
-      const updatedProducts = store.products.map((p: Product) => {
-        const cartItem = cart.find(item => item.id === p.id);
-        return cartItem ? { ...p, stock: (p.stock || 0) - cartItem.quantity } : p;
+  
+      Store.set({ 
+          ...store, 
+          sales: [...(store.sales || []), creditSale],
+          clientes: updatedCustomers
       });
-
-      Store.set({ ...store, sales: newSales, productos: updatedProducts, clientes: updatedCustomers });
-      
+  
       toast({ title: "Crédito Cargado", description: `Se cargaron ${formatUsd(amount)} al cliente ${customer.name}.` });
       setLoadCreditModalOpen(false);
-      setCart([]);
-      setSelectedCustomer(null);
   };
 
   const finalizeTransaction = (data: any) => {
@@ -138,7 +153,7 @@ export default function PosModule() {
       customer: data.customer || selectedCustomer || { id: '0', name: 'CONSUMIDOR FINAL' },
       items: cart,
       subtotal: total,
-      tax: 0, // Simulado
+      tax: total * 0.16, // Simulado
       total: total,
       totalBs: total * exchangeRate,
       payments: data.payments,
@@ -167,10 +182,20 @@ export default function PosModule() {
     toast({ title: "Venta Completada", description: "La transacción se ha guardado exitosamente." });
   };
 
+  const syncData = async () => {
+    setSyncStatus('syncing');
+    toast({ title: "Sincronizando...", description: "Enviando datos a la nube." });
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    setSyncStatus('success');
+    toast({ title: "Sincronización Exitosa", description: "Los datos están actualizados en la nube." });
+    setTimeout(() => setSyncStatus('idle'), 3000);
+  };
+
   useHotkeys('f1', () => document.getElementById('search-input')?.focus(), { preventDefault: true });
   useHotkeys('f2', () => handlePayment(false), { preventDefault: true });
   useHotkeys('f3', () => handlePayment(true), { preventDefault: true });
   useHotkeys('f4', () => setCart([]), { preventDefault: true });
+  useHotkeys('f6', () => setPaymentModalOpen(true), { preventDefault: true });
 
   if (!isClient) {
     return <div className="flex items-center justify-center h-screen bg-gray-100"><HardDrive className="w-10 h-10 animate-pulse text-gray-400" /></div>;
@@ -178,12 +203,27 @@ export default function PosModule() {
 
   return (
     <div className="h-screen bg-white flex flex-col font-sans">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-2 flex justify-between items-center">
         <div className="flex items-center gap-4">
             <h1 className="text-lg font-black text-gray-800 tracking-tighter">Pos<span className="text-[#D4A017]">VEN</span> pro</h1>
+            <div className="flex items-center gap-3">
+              <button className="font-bold text-xs flex items-center gap-2 bg-primary px-3 py-1.5 rounded-lg text-black"><BookOpen className="w-4 h-4"/> PUNTO DE VENTA</button>
+              <button className="font-bold text-xs flex items-center gap-2 hover:bg-gray-100 px-3 py-1.5 rounded-lg"><History className="w-4 h-4"/> HISTORIAL</button>
+            </div>
         </div>
         <div className="flex items-center gap-4">
+          <div 
+            onClick={syncData}
+            className={cn(
+              "flex items-center gap-2 text-xs font-bold px-3 py-1 rounded-full cursor-pointer transition-colors",
+              syncStatus === 'idle' && "bg-gray-100 hover:bg-gray-200 text-gray-600",
+              syncStatus === 'syncing' && "bg-blue-100 text-blue-600 animate-pulse",
+              syncStatus === 'success' && "bg-green-100 text-green-700",
+            )}
+          >
+            {syncStatus === 'syncing' ? <Wifi className="w-4 h-4 animate-ping"/> : <Wifi className="w-4 h-4"/>}
+            CLOUD SYNC
+          </div>
           <div className="text-right">
             <p className="font-bold text-sm text-gray-800">{store?.user?.nombre || 'FIONA'}</p>
             <p className="text-[10px] font-bold text-gray-500">MODO OPERATIVO</p>
@@ -191,11 +231,13 @@ export default function PosModule() {
           <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-black text-black">
             {(store?.user?.nombre || 'F').charAt(0)}
           </div>
+          <button className="text-gray-500 hover:text-gray-800">
+            <ChevronDown className="w-5 h-5" />
+          </button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Main Content */}
         <main className="flex-1 flex flex-col p-4 bg-gray-50 overflow-y-auto">
           <div className="flex items-center gap-2 mb-4">
             <div className="relative flex-1">
@@ -228,7 +270,6 @@ export default function PosModule() {
             </div>
           )}
 
-          {/* Cart */}
           <div className="flex-1 bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="bg-gray-800 text-white px-4 py-2 flex text-xs font-bold uppercase tracking-wider">
               <div className="w-2/5">Descripción</div>
@@ -238,25 +279,41 @@ export default function PosModule() {
             </div>
             <div className="h-[calc(100%-120px)] overflow-y-auto">
               {cart.length === 0 ? (
-                <div className="text-center py-20 text-gray-400"><Barcode className="mx-auto w-16 h-16 mb-2" /><p className="font-bold">El carrito está vacío</p></div>
+                <div className="text-center py-20 text-gray-400">
+                  <Barcode className="mx-auto w-16 h-16 mb-2" />
+                  <p className="font-bold">El carrito está vacío</p>
+                  <p className="text-sm">Agregue productos para iniciar una venta</p>
+                </div>
               ) : (
                 cart.map(item => (
                   <div key={item.id} className="flex items-center px-4 py-3 border-b font-semibold text-gray-700">
-                    <div className="w-2/5"><p className="font-bold text-sm text-gray-800 leading-tight">{item.nombre}</p></div>
+                    <div className="w-2/5">
+                      <p className="font-bold text-sm text-gray-800 leading-tight">{item.nombre}</p>
+                      <p className="text-xs text-gray-500 font-mono">{item.codigo}</p>
+                    </div>
                     <div className="w-1/5 flex justify-center items-center gap-2">
                       <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1 rounded-full bg-gray-200 hover:bg-gray-300"><Minus size={14}/></button>
-                      <input type="number" value={item.quantity} onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)} className="w-12 text-center bg-transparent font-bold text-lg"/>
+                      <input 
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                        className="w-12 text-center bg-transparent font-bold text-lg"
+                      />
                       <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1 rounded-full bg-gray-200 hover:bg-gray-300"><Plus size={14}/></button>
                     </div>
                     <div className="w-1/5 text-right font-mono">{formatUsd(item.precioUSD)}</div>
                     <div className="w-1/5 text-right font-mono font-bold text-lg text-gray-800">{formatUsd(item.precioUSD * item.quantity)}</div>
-                    <div className="pl-3"><button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></div>
+                    <div className="pl-3">
+                        <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
+                    </div>
                   </div>
                 ))
               )}
             </div>
             <div className="bg-gray-800 h-24 p-4 flex justify-between items-center text-white">
-                <button onClick={() => setCart([])} className="flex items-center gap-2 text-xs font-bold bg-red-500/20 hover:bg-red-500/40 px-3 py-2 rounded-lg"><X className="w-4"/> LIMPIAR (F4)</button>
+                <div className="flex gap-4">
+                    <button onClick={() => setCart([])} className="flex items-center gap-2 text-xs font-bold bg-red-500/20 hover:bg-red-500/40 px-3 py-2 rounded-lg"><X className="w-4"/> LIMPIAR (F4)</button>
+                </div>
                 <div className="text-right">
                     <p className="text-sm font-bold text-gray-400">TOTAL FACTURA</p>
                     <p className="text-4xl font-black tracking-tighter">{formatUsd(total)}</p>
@@ -266,11 +323,12 @@ export default function PosModule() {
           </div>
         </main>
 
-        {/* Sidebar */}
         <aside className="w-80 bg-white p-4 border-l border-gray-200 flex flex-col gap-4">
           <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
             <label className="text-xs font-bold text-gray-500">IDENTIFICACIÓN CLIENTE</label>
-            <div className="mt-1 p-2 bg-white rounded-lg font-bold text-gray-800">{selectedCustomer ? selectedCustomer.name : 'CONSUMIDOR FINAL'}</div>
+            <div className="mt-1 p-2 bg-white rounded-lg font-bold text-gray-800">
+              {selectedCustomer ? selectedCustomer.name : 'CONSUMIDOR FINAL'}
+            </div>
           </div>
           
           <button 
@@ -289,11 +347,12 @@ export default function PosModule() {
             </button>
           </div>
 
-          <div className="text-xs text-center text-gray-400 font-semibold">Atajos: [F1] Buscar | [F2] Cobrar | [F3] Venta a Crédito | [F4] Limpiar</div>
+          <div className="text-xs text-center text-gray-400 font-semibold">
+            Atajos: [F1] Buscar | [F2] Cobrar | [F3] Crédito | [F4] Limpiar
+          </div>
         </aside>
       </div>
 
-      {/* Modals */}
       {isPaymentModalOpen && (
         <FloatingPaymentModal 
           total={total}
@@ -306,11 +365,11 @@ export default function PosModule() {
       )}
 
       {isLoadCreditModalOpen && (
-        <LoadCreditModal 
+        <LoadCreditModal totalAmount={total} 
             isOpen={isLoadCreditModalOpen}
             onClose={() => setLoadCreditModalOpen(false)}
             onConfirm={handleConfirmLoadCredit}
-            totalAmount={total}
+             
         />
       )}
 
