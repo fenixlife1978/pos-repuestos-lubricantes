@@ -31,7 +31,6 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
   const isReport = type === 'REPORT_X' || type === 'REPORT_Z';
   const data = isReport ? reportData : saleData;
   
-  // ✅ Si no hay datos, no renderizar nada
   if (!data) {
     return null;
   }
@@ -102,26 +101,6 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     return char.repeat(48);
   };
 
-  // ✅ Función para alinear texto a la izquierda y derecha
-  const alignLeftRight = (left: string, right: string) => {
-    const totalWidth = 48;
-    const leftStr = String(left || '');
-    const rightStr = String(right || '');
-    const dots = totalWidth - leftStr.length - rightStr.length;
-    if (dots < 1) return leftStr.substring(0, totalWidth - rightStr.length - 1) + ' ' + rightStr;
-    return leftStr + ' '.repeat(dots) + rightStr;
-  };
-
-  // ✅ Función para centrar texto
-  const centerText = (text: string) => {
-    const totalWidth = 48;
-    const textStr = String(text || '');
-    if (textStr.length >= totalWidth) return textStr.substring(0, totalWidth);
-    const leftPadding = Math.floor((totalWidth - textStr.length) / 2);
-    const rightPadding = totalWidth - textStr.length - leftPadding;
-    return ' '.repeat(leftPadding) + textStr + ' '.repeat(rightPadding);
-  };
-
   // ✅ Obtener el número de recibo
   const receiptNumber = React.useMemo(() => {
     if (isReport) {
@@ -134,12 +113,14 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     return 'N/A';
   }, [data.id, data.numero, data.controlNumber, data.numeroZ, data.numeroX, isReport, type]);
 
-  // ✅ Obtener el nombre del terminal (CAJA) desde la configuración
+  // ✅ Obtener el nombre del terminal (CAJA) desde terminales.nombre
   const terminalName = React.useMemo(() => {
+    // Si el dato tiene terminalName, usarlo
     if (data.terminalName) return data.terminalName;
     if (data.terminal) return data.terminal;
     if (data.caja) return data.caja;
     
+    // Buscar el terminal en la lista de terminales del estado
     const terminalId = data.terminalId || data.terminal || data.caja;
     if (terminalId && state.terminales) {
       const terminal = state.terminales.find((t: any) => t.id === terminalId);
@@ -149,19 +130,26 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     return terminalId || 'CAJA-01';
   }, [data.terminalName, data.terminal, data.caja, data.terminalId, state.terminales]);
 
-  // ✅ Obtener el nombre del cajero
+  // ✅ Obtener el nombre del cajero desde state.user (Usuario autenticado)
   const cajeroNombre = React.useMemo(() => {
+    // Si el dato tiene cajeroNombre, usarlo
     if (data.cajeroNombre) return data.cajeroNombre;
     if (data.cajero) return data.cajero;
     if (data.cashier) return data.cashier;
     
+    // Usar el usuario autenticado del estado
+    if (state.user) {
+      return state.user.nombre || state.user.email || 'Administrador';
+    }
+    
+    // Si el usuario actual está autenticado en Firebase, usar su nombre
     const currentUser = auth.currentUser;
     if (currentUser) {
       return currentUser.displayName || currentUser.email || 'Administrador';
     }
     
     return 'Administrador';
-  }, [data.cajeroNombre, data.cajero, data.cashier]);
+  }, [data.cajeroNombre, data.cajero, data.cashier, state.user]);
 
   // ✅ Obtener el total en Bs
   const totalBs = React.useMemo(() => {
@@ -280,7 +268,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
               font-size: 11px;
               color: #000;
               background: #fff;
-              line-height: 1.3;
+              line-height: 1.5;
             }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
@@ -295,12 +283,13 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
             .flex-row { display: flex; justify-content: space-between; }
             .total-box { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin: 8px 0; font-size: 16px; font-weight: bold; }
             .report-content { font-size: 10px; }
-            .report-content .row { display: flex; justify-content: space-between; padding: 1px 0; }
-            .section-title { font-weight: bold; text-align: center; font-size: 12px; margin: 6px 0 4px 0; }
-            .separator-dashed { border-top: 1px dashed #000; margin: 4px 0; }
-            .separator-solid { border-top: 1px solid #000; margin: 4px 0; }
+            .report-content .row { display: flex; justify-content: space-between; padding: 2px 0; }
+            .section-title { font-weight: bold; text-align: center; font-size: 12px; margin: 8px 0 4px 0; }
+            .separator-dashed { border-top: 1px dashed #000; margin: 6px 0; }
+            .separator-solid { border-top: 1px solid #000; margin: 6px 0; }
             .value { font-weight: bold; text-align: right; }
             .label { text-align: left; }
+            .spacer { height: 4px; }
           </style>
         </head>
         <body>
@@ -319,7 +308,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
     setTimeout(onClose, 1000);
   };
 
-  // ✅ Función para imprimir con Electron (usa el mismo HTML)
+  // ✅ Función para imprimir con Electron
   const handleNativePrint = async () => {
     if (!window.electronAPI) {
       handlePrint();
@@ -351,7 +340,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                 font-size: 11px;
                 color: #000;
                 background: #fff;
-                line-height: 1.3;
+                line-height: 1.5;
               }
               .text-center { text-align: center; }
               .text-right { text-align: right; }
@@ -366,12 +355,13 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
               .flex-row { display: flex; justify-content: space-between; }
               .total-box { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; margin: 8px 0; font-size: 16px; font-weight: bold; }
               .report-content { font-size: 10px; }
-              .report-content .row { display: flex; justify-content: space-between; padding: 1px 0; }
-              .section-title { font-weight: bold; text-align: center; font-size: 12px; margin: 6px 0 4px 0; }
-              .separator-dashed { border-top: 1px dashed #000; margin: 4px 0; }
-              .separator-solid { border-top: 1px solid #000; margin: 4px 0; }
+              .report-content .row { display: flex; justify-content: space-between; padding: 2px 0; }
+              .section-title { font-weight: bold; text-align: center; font-size: 12px; margin: 8px 0 4px 0; }
+              .separator-dashed { border-top: 1px dashed #000; margin: 6px 0; }
+              .separator-solid { border-top: 1px solid #000; margin: 6px 0; }
               .value { font-weight: bold; text-align: right; }
               .label { text-align: left; }
+              .spacer { height: 4px; }
             </style>
           </head>
           <body>
@@ -407,7 +397,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
             <div 
               ref={printRef}
               className="thermal-80mm bg-white p-6 shadow-sm text-black font-mono select-none"
-              style={{ width: '72mm', boxSizing: 'border-box', color: '#000', fontSize: '11px', lineHeight: '1.3' }}
+              style={{ width: '72mm', boxSizing: 'border-box', color: '#000', fontSize: '11px', lineHeight: '1.5' }}
             >
               {/* ========================================== */}
               {/* ENCABEZADO */}
@@ -427,12 +417,21 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                 )}
               </div>
 
-              <div className="text-center mb-4">
+              {/* Espacio entre encabezado y título */}
+              <div className="spacer"></div>
+
+              {/* ========================================== */}
+              {/* TÍTULO DEL DOCUMENTO - EN NEGRITA */}
+              {/* ========================================== */}
+              <div className="text-center mb-2">
                 <div className="text-[16px] font-bold uppercase">{getReportTitle()}</div>
                 {isReport && <div className="text-[12px] font-bold">{getReportSubtitle()}</div>}
               </div>
 
+              {/* Espacio entre título y siguiente información */}
+              <div className="spacer"></div>
               <div className="separator-dashed"></div>
+              <div className="spacer"></div>
 
               {/* ========================================== */}
               {/* INFORMACIÓN DEL DOCUMENTO */}
@@ -468,6 +467,9 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                   </>
                 )}
               </div>
+
+              <div className="separator-dashed"></div>
+              <div className="spacer"></div>
 
               {/* ========================================== */}
               {/* CONTENIDO DEL REPORTE X O Z */}
@@ -804,7 +806,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                 {!isReport && (
                   <div className="font-bold text-[11px] mb-1">¡Gracias por su preferencia!</div>
                 )}
-                <div className="opacity-60 text-[8px]">Generado por VenPOS pro v2.5.7</div>
+                <div className="opacity-60 text-[8px]">Desarrollado por EFAS Freelancer</div>
               </div>
             </div>
           </div>
@@ -820,7 +822,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
             <div className="grid grid-cols-2 gap-3">
               <button onClick={handlePrint} className="py-3 bg-black text-white font-black text-xs rounded-xl hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-widest shadow-md"><Printer size={14} /> Estándar</button>
               <button onClick={handleNativePrint} className="py-3 bg-[#C8952E] text-black font-black text-xs rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg">
-                <Zap size={16} className="fill-current" /> Impresión Termica
+                <Zap size={16} className="fill-current" /> Impresión Roccia
               </button>
             </div>
           </div>
