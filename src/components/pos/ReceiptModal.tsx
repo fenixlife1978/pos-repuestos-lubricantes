@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -409,11 +409,37 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
       const salidas = data.salidasCajaUSD || data.manualSalidas || 0;
       const efectivoCaja = data.efectivoRealCaja || data.efectivoEstimadoCaja || ventaNeta;
       
-      printData.push({ type: 'text', value: alignLeftRight('FONDO DE APERTURA:', formatBs(fondoApertura * state.tasa)), style: { fontSize: "11px" } });
+      let efectivoUsdPaymentAmount = 0;
+      const paymentMethodsForCalc = getPaymentMethods();
+      if (paymentMethodsForCalc && Object.keys(paymentMethodsForCalc).length > 0) {
+        if (Array.isArray(paymentMethodsForCalc)) {
+            paymentMethodsForCalc.forEach((p: any) => {
+                const method = p.metodo || p.method || 'efectivo';
+                if (method === 'efectivo_usd') {
+                    efectivoUsdPaymentAmount += p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
+                }
+            });
+        } else { // Is object
+            Object.entries(paymentMethodsForCalc).forEach(([method, amount]) => {
+                if (method === 'efectivo_usd') {
+                    efectivoUsdPaymentAmount += typeof amount === 'number' ? amount : 0;
+                }
+            });
+        }
+      } else if (data.metodoPago === 'efectivo_usd') {
+        efectivoUsdPaymentAmount = data.totalUSD || totalUsd;
+      }
+      
+      const efectivoEstimadoEnCajaUSD = fondoApertura + efectivoUsdPaymentAmount;
+
+      printData.push({ type: 'text', value: alignLeftRight('FONDO DE APERTURA Bs.:', formatBs(fondoApertura * state.tasa)), style: { fontSize: "11px" } });
+      printData.push({ type: 'text', value: alignLeftRight('FONDO DE APERTURA USD:', `$ ${formatUsd(fondoApertura)}`), style: { fontSize: "11px" } });
       printData.push({ type: 'text', value: alignLeftRight('ENTRADAS DE EFECTIVO:', formatBs(entradas * state.tasa)), style: { fontSize: "11px" } });
       printData.push({ type: 'text', value: alignLeftRight('SALIDAS DE EFECTIVO:', formatBs(salidas * state.tasa)), style: { fontSize: "11px" } });
       const labelEfectivo = type === 'REPORT_Z' ? 'EFECTIVO REAL EN CAJA:' : 'EFECTIVO ESTIMADO EN CAJA:';
       printData.push({ type: 'text', value: alignLeftRight(labelEfectivo, formatBs(efectivoCaja * state.tasa)), style: { fontWeight: "700", fontSize: "12px" } });
+      printData.push({ type: 'text', value: alignLeftRight('EFECTIVO ESTIMADO EN CAJA USD:', `$ ${formatUsd(efectivoEstimadoEnCajaUSD)}`), style: { fontWeight: "700", fontSize: "12px" } });
+
       printData.push({ type: 'text', value: separatorLine('-'), style: { textAlign: 'center' } });
 
       if (type === 'REPORT_X') {
@@ -640,25 +666,66 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                   </div>
                   <div className="border-t border-dashed border-black mt-3 mb-3"></div>
 
+                  {/* MOVIMIENTO DE CAJA */}
                   <div className="text-center font-bold text-[11px] mb-2">MOVIMIENTO DE CAJA</div>
                   <div className="border-t border-dashed border-black mb-2"></div>
                   <div className="space-y-1 text-[10px]">
-                    <div className="flex justify-between">
-                      <span>FONDO DE APERTURA:</span>
-                      <span className="text-right">{formatBs(((data.fondoAperturaUSD || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>ENTRADAS DE EFECTIVO:</span>
-                      <span className="text-right">{formatBs(((data.entradasCajaUSD || data.manualEntradas || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>SALIDAS DE EFECTIVO:</span>
-                      <span className="text-right">{formatBs(((data.salidasCajaUSD || data.manualSalidas || 0) * state.tasa))}</span>
-                    </div>
-                    <div className="border-t border-black pt-1 mt-1 flex justify-between font-bold">
-                      <span>{type === 'REPORT_Z' ? 'EFECTIVO REAL EN CAJA:' : 'EFECTIVO ESTIMADO EN CAJA:'}</span>
-                      <span className="text-right">{formatBs(((data.efectivoRealCaja || data.efectivoEstimadoCaja || data.ventaNetaUSD || data.netUSD || 0) * state.tasa))}</span>
-                    </div>
+                    {(() => {
+                      const fondoAperturaUSD = data.fondoAperturaUSD || 0;
+                      
+                      let efectivoUsdPaymentAmount = 0;
+                      const paymentData = getPaymentMethods();
+                      if (paymentData && Object.keys(paymentData).length > 0) {
+                          if (Array.isArray(paymentData)) {
+                              paymentData.forEach((p: any) => {
+                                  const method = p.metodo || p.method || 'efectivo';
+                                  if (method === 'efectivo_usd') {
+                                      efectivoUsdPaymentAmount += p.montoUSD || p.amountUSD || p.monto || p.amount || 0;
+                                  }
+                              });
+                          } else { // Is object
+                              Object.entries(paymentData).forEach(([method, amount]) => {
+                                  if (method === 'efectivo_usd') {
+                                      efectivoUsdPaymentAmount += typeof amount === 'number' ? amount : 0;
+                                  }
+                              });
+                          }
+                      } else if (data.metodoPago === 'efectivo_usd') {
+                          efectivoUsdPaymentAmount = data.totalUSD || totalUsd;
+                      }
+
+                      const efectivoEstimadoEnCajaUSD = fondoAperturaUSD + efectivoUsdPaymentAmount;
+                      const efectivoCajaBs = (data.efectivoRealCaja || data.efectivoEstimadoCaja || data.ventaNetaUSD || data.netUSD || 0) * state.tasa;
+
+                      return (
+                        <>
+                          <div className="flex justify-between">
+                            <span>FONDO DE APERTURA Bs.:</span>
+                            <span className="text-right">{formatBs(fondoAperturaUSD * state.tasa)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                              <span>FONDO DE APERTURA USD:</span>
+                              <span className="text-right">${formatUsd(fondoAperturaUSD)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>ENTRADAS DE EFECTIVO:</span>
+                            <span className="text-right">{formatBs(((data.entradasCajaUSD || data.manualEntradas || 0) * state.tasa))}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>SALIDAS DE EFECTIVO:</span>
+                            <span className="text-right">{formatBs(((data.salidasCajaUSD || data.manualSalidas || 0) * state.tasa))}</span>
+                          </div>
+                          <div className="border-t border-black pt-1 mt-1 flex justify-between font-bold">
+                            <span>{type === 'REPORT_Z' ? 'EFECTIVO REAL EN CAJA:' : 'EFECTIVO ESTIMADO EN CAJA:'}</span>
+                            <span className="text-right">{formatBs(efectivoCajaBs)}</span>
+                          </div>
+                          <div className="flex justify-between font-bold">
+                              <span>EFECTIVO ESTIMADO EN CAJA USD:</span>
+                              <span className="text-right">${formatUsd(efectivoEstimadoEnCajaUSD)}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                   <div className="border-t border-dashed border-black mt-3 mb-3"></div>
 
