@@ -2,22 +2,27 @@
 
 import React, { useRef, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Printer, X, Zap, Share2 } from 'lucide-react';
-import { Store } from '@/lib/db-store';
+import { Printer, X, Zap } from 'lucide-react';
 import { generateSaleTicket, generateReport } from '@/lib/thermal-printer';
 import { toast } from '../../hooks/use-toast';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  saleData?: any; 
-  reportData?: any; 
+  saleData?: any;
+  reportData?: any;
   storeInfo?: any;
   type?: 'SALE' | 'REPORT_X' | 'REPORT_Z';
-  paperSize?: '80mm' | '56mm';
 }
 
-export function ReceiptModal({ isOpen, onClose, saleData, reportData, storeInfo, type = 'SALE', paperSize = '80mm' }: Props) {
+export function ReceiptModal({ 
+  isOpen, 
+  onClose, 
+  saleData, 
+  reportData, 
+  storeInfo, 
+  type = 'SALE' 
+}: Props) {
   const printRef = useRef<HTMLDivElement>(null);
 
   const isReport = type === 'REPORT_X' || type === 'REPORT_Z';
@@ -25,48 +30,89 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, storeInfo,
 
   if (!data) return null;
 
-  // Generar el ticket completo como string
+  // Generar el ticket completo como string (solo 80mm)
   const ticketString = useMemo(() => {
     try {
       if (isReport) {
-        return generateReport(data, storeInfo, type as 'X' | 'Z', paperSize);
+        return generateReport(data, storeInfo, type as 'X' | 'Z');
       } else {
-        return generateSaleTicket(data, storeInfo, paperSize);
+        return generateSaleTicket(data, storeInfo);
       }
     } catch (error) {
       console.error('Error generando ticket:', error);
       return 'Error al generar el ticket';
     }
-  }, [data, storeInfo, type, paperSize, isReport]);
+  }, [data, storeInfo, type, isReport]);
 
-  // Función para formatear el ticket con estilos más bonitos
-  const formatTicketWithStyles = (ticket: string) => {
-    const lines = ticket.split('\n');
-    return lines.map((line, index) => {
-      // Detectar líneas de separador
+  // Función para limpiar caracteres de control y formatear
+  const cleanAndFormatTicket = (ticket: string) => {
+    if (!ticket) return [];
+
+    // Eliminar caracteres de control ESC/POS
+    const clean = ticket
+      .replace(/[\x1B\x40\x1B\x69\x1B\x45\x01\x1B\x45\x00\x1B\x21\x30\x1B\x21\x00]/g, '')
+      .replace(/\x1B/g, '')
+      .replace(/\[0m/g, '')
+      .replace(/\[1m/g, '');
+
+    const lines = clean.split('\n');
+    const result = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Saltar líneas vacías al inicio y final
+      if (i === 0 && !line.trim()) continue;
+      if (i === lines.length - 1 && !line.trim()) continue;
+
+      // Detectar separadores
       if (/^[─═\-]+$/.test(line.trim())) {
-        return <div key={index} className="border-t border-gray-300 my-1"></div>;
+        result.push({
+          type: 'separator',
+          content: line,
+          key: i
+        });
+        continue;
       }
-      // Detectar líneas en negrita (con comandos ESC/POS) - limpiar caracteres de control
-      if (line.includes('BOLD_ON') || line.includes('DOUBLE_HW_ON')) {
-        const cleanLine = line
-          .replace(/[\x1B\x40\x1B\x69\x1B\x45\x01\x1B\x45\x00\x1B\x21\x30\x1B\x21\x00]/g, '')
-          .replace(/BOLD_ON|BOLD_OFF|DOUBLE_HW_ON|DOUBLE_HW_OFF/g, '');
-        return <div key={index} className="font-bold text-center">{cleanLine || ' '}</div>;
+
+      // Detectar líneas de título o negrita
+      if (line.includes('REPORTE') || 
+          line.includes('CIERRE') || 
+          line.includes('RESUMEN') || 
+          line.includes('DESGLOSE') || 
+          line.includes('CONCILIACIÓN') || 
+          line.includes('ESTADÍSTICAS') ||
+          line.includes('TOTAL A PAGAR') ||
+          line.includes('GRACIAS')) {
+        result.push({
+          type: 'bold',
+          content: line,
+          key: i
+        });
+        continue;
       }
-      // Líneas centradas (que no contengan montos)
-      if (line.trim() && !line.includes('Bs.') && !line.includes('TOTAL') && !line.includes('Bs')) {
-        return <div key={index} className="text-center whitespace-pre-wrap font-mono text-xs">{line}</div>;
+
+      // Líneas normales
+      if (line.trim()) {
+        result.push({
+          type: 'normal',
+          content: line,
+          key: i
+        });
       }
-      // Líneas normales (incluyendo montos)
-      return <div key={index} className="whitespace-pre-wrap font-mono text-xs" style={{ fontFamily: 'Courier New, monospace' }}>{line}</div>;
-    });
+    }
+
+    return result;
   };
 
+  const formattedTicket = useMemo(() => {
+    return cleanAndFormatTicket(ticketString);
+  }, [ticketString]);
+
   const getReportTitle = () => {
-    if (type === 'REPORT_Z') return `REPORTE Z - CIERRE DIARIO`;
-    if (type === 'REPORT_X') return `REPORTE X - LECTURA PARCIAL`;
-    return (data.type || 'RECIBO DE VENTA').toUpperCase();
+    if (type === 'REPORT_Z') return 'REPORTE Z - CIERRE DIARIO';
+    if (type === 'REPORT_X') return 'REPORTE X - LECTURA PARCIAL';
+    return 'RECIBO DE VENTA';
   };
 
   const handleNativePrint = async () => {
@@ -88,7 +134,6 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, storeInfo,
       } else {
         throw new Error(result.error || 'Error desconocido en el proceso principal.');
       }
-
     } catch (e: any) {
       console.error("Error en la generación o impresión del ticket:", e);
       toast({
@@ -98,7 +143,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, storeInfo,
       });
     }
   };
-  
+
   const handleHtmlPrint = () => {
     const printContent = printRef.current?.innerHTML;
     if (!printContent) return;
@@ -122,11 +167,22 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, storeInfo,
             }
             .text-center { text-align: center; }
             .font-bold { font-weight: bold; }
-            .border-t { border-top: 1px solid #ccc; }
-            .my-1 { margin-top: 4px; margin-bottom: 4px; }
-            .whitespace-pre-wrap { white-space: pre-wrap; }
-            .font-mono { font-family: 'Courier New', monospace; }
-            .text-xs { font-size: 12px; }
+            .separator { 
+              border-top: 1px solid #000;
+              margin: 4px 0;
+            }
+            .separator-double {
+              border-top: 2px solid #000;
+              margin: 4px 0;
+            }
+            .line { 
+              white-space: pre-wrap;
+              font-family: 'Courier New', monospace;
+              font-size: 11px;
+              line-height: 1.4;
+              padding: 1px 0;
+            }
+            .bold { font-weight: bold; }
           </style>
         </head>
         <body>
@@ -147,41 +203,63 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, storeInfo,
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-200">
           <div className="bg-black p-4 flex justify-between items-center">
             <h3 className="text-white font-black text-xs flex items-center gap-2 tracking-widest uppercase">
-              <Printer size={16} className="text-brand-gold" /> VISTA PREVIA
+              <Printer size={16} className="text-[#C8952E]" /> VISTA PREVIA
             </h3>
-            <button onClick={onClose} className="text-white/40 hover:text-white transition-colors"><X size={20} /></button>
+            <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
+              <X size={20} />
+            </button>
           </div>
 
           <div className="p-6 bg-gray-100 flex justify-center max-h-[70vh] overflow-y-auto custom-scrollbar">
             <div 
               ref={printRef}
-              className="thermal-80mm bg-white p-4 shadow-sm font-mono text-xs select-none"
-              style={{ width: '72mm', boxSizing: 'border-box', color: 'black' }}
+              className="bg-white p-4 shadow-sm select-none"
+              style={{ 
+                width: '72mm', 
+                boxSizing: 'border-box', 
+                color: 'black',
+                fontFamily: 'Courier New, monospace',
+                fontSize: '11px',
+                lineHeight: '1.5'
+              }}
             >
               <div className="text-center font-bold text-sm mb-2">{getReportTitle()}</div>
-              <div className="border-t border-gray-300 my-2"></div>
-              {/* Renderizar el contenido del ticket con estilos */}
+              <div className="border-t-2 border-gray-800 my-2"></div>
+              
               <div className="ticket-content">
-                {formatTicketWithStyles(ticketString)}
+                {formattedTicket.map((item) => {
+                  switch (item.type) {
+                    case 'separator':
+                      if (item.content.includes('═')) {
+                        return <div key={item.key} className="border-t-2 border-gray-800 my-1"></div>;
+                      }
+                      return <div key={item.key} className="border-t border-gray-400 my-1"></div>;
+                    case 'bold':
+                      return <div key={item.key} className="font-bold text-center">{item.content}</div>;
+                    default:
+                      return <div key={item.key} className="whitespace-pre-wrap" style={{ fontFamily: 'Courier New, monospace' }}>{item.content}</div>;
+                  }
+                })}
               </div>
-              <div className="border-t border-gray-300 my-2"></div>
-              <div className="text-center text-xs text-gray-500 mt-2">
-                {new Date().toLocaleString()}
+              
+              <div className="border-t-2 border-gray-800 my-2"></div>
+              <div className="text-center text-[8px] text-gray-400 mt-2">
+                {new Date().toLocaleString('es-VE')}
               </div>
             </div>
           </div>
 
           <div className="p-4 bg-white border-t border-gray-100 flex flex-col gap-3">
-            <div className="grid grid-cols-1 gap-3">
-              <button 
-                onClick={handleNativePrint} 
-                className="py-4 bg-[#C8952E] text-black font-black text-sm rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg"
-              >
-                <Zap size={18} className="fill-current" /> IMPRESIÓN RÁPIDA (ESC/POS)
-              </button>
-            </div>
+            <button 
+              onClick={handleNativePrint} 
+              className="w-full py-4 bg-[#C8952E] text-black font-black text-sm rounded-xl hover:bg-[#D9A540] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg"
+            >
+              <Zap size={18} className="fill-current" /> IMPRESIÓN RÁPIDA (ESC/POS)
+            </button>
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={onClose} className="py-3 bg-[#E5E7EB] text-[#374151] font-black text-xs rounded-xl hover:bg-gray-300 transition-all uppercase tracking-widest">Cerrar</button>
+              <button onClick={onClose} className="py-3 bg-[#E5E7EB] text-[#374151] font-black text-xs rounded-xl hover:bg-gray-300 transition-all uppercase tracking-widest">
+                Cerrar
+              </button>
               <button onClick={handleHtmlPrint} className="py-3 bg-gray-800 text-white font-black text-xs rounded-xl hover:opacity-90 flex items-center justify-center gap-2 uppercase tracking-widest shadow-md">
                 <Printer size={14} /> Estándar (HTML)
               </button>
