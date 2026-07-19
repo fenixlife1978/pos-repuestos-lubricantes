@@ -46,7 +46,6 @@ export default function PosModule() {
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [isCreditSale, setIsCreditSale] = useState(false);
   const [isLoadCreditModalOpen, setLoadCreditModalOpen] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [isReceiptModalOpen, setReceiptModalOpen] = useState(false);
@@ -104,13 +103,16 @@ export default function PosModule() {
         return;
     }
     
-    if (isCredit && !selectedCustomer) {
-        toast({ title: "Venta a Crédito", description: "Por favor, busque y seleccione un cliente antes de proceder.", variant: "default"});
-        return;
+    if (isCredit) {
+      if (!selectedCustomer) {
+          toast({ title: "Venta a Crédito", description: "Por favor, busque y seleccione un cliente antes de proceder.", variant: "default"});
+          return;
+      }
+      // Finalize credit sale directly
+      finalizeTransaction({ method: 'credito', customer: selectedCustomer, payments: [], change: 0 });
+    } else {
+      setPaymentModalOpen(true);
     }
-
-    setIsCreditSale(isCredit);
-    setPaymentModalOpen(true);
   };
   
   const handleConfirmLoadCredit = (customer: Customer, amount: number) => {
@@ -162,12 +164,12 @@ export default function PosModule() {
     };
 
     if (data.method === 'credito' && data.customer) {
-        const updatedCustomers = store.clientes.map((c: Customer) => c.id === data.customer.id ? {...c, debt: (c.debt || 0) + total} : c);
+        const updatedCustomers = (store.clientes || []).map((c: Customer) => c.id === data.customer.id ? {...c, debt: (c.debt || 0) + total} : c);
         Store.set({ ...store, clientes: updatedCustomers });
     }
 
     const newSales = [...(store.sales || []), sale];
-    const updatedProducts = store.products.map((p: Product) => {
+    const updatedProducts = (store.products || []).map((p: Product) => {
       const cartItem = cart.find(item => item.id === p.id);
       return cartItem ? { ...p, stock: (p.stock || 0) - cartItem.quantity } : p;
     });
@@ -356,11 +358,10 @@ export default function PosModule() {
       {isPaymentModalOpen && (
         <FloatingPaymentModal 
           total={total}
+          totalCents={Math.round(total * exchangeRate * 100)}
           exchangeRate={exchangeRate}
           onClose={() => setPaymentModalOpen(false)}
           onConfirm={finalizeTransaction}
-          isCredit={isCreditSale}
-          customer={selectedCustomer}
         />
       )}
 

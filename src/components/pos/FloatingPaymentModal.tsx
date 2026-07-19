@@ -1,71 +1,150 @@
-'use client';
+"use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, DollarSign, CreditCard, Banknote, Smartphone, Fingerprint, Plane, Plus, Trash2, Calculator } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Customer } from '@/lib/types';
-import { formatBs, formatUsd, formatUsdNumber } from '@/lib/currency-formatter';
+import { 
+  formatBs, 
+  formatUsd, 
+  formatUsdNumber,
+  toCentsBs,
+  toCentsUsd,
+  fromCentsBs,
+  fromCentsUsd,
+  parseCentsFromString,
+} from '@/lib/currency-formatter';
+
+// ✅ Función de redondeo local
+const roundTo2 = (num: number): number => Math.round(num * 100) / 100;
 
 interface PaymentItem {
   id: string;
   method: string;
-  amount: number; // Stored in Bs
-  usdAmount?: number; // Optional original USD amount
+  amount: number;      // ⚠️ DEPRECATED - usar amountCents
+  usdAmount?: number;  // ⚠️ DEPRECATED - usar usdAmountCents
+  amountCents: number; // ✅ MONTO EN CÉNTIMOS (según moneda del método)
+  usdAmountCents?: number; // ✅ MONTO USD EN CÉNTIMOS
 }
 
 interface FloatingPaymentModalProps {
-  total: number; // Total in USD
+  total: number;       // ⚠️ DEPRECATED - usar totalCents
+  totalCents: number;  // ✅ TOTAL EN CÉNTIMOS DE BS
   exchangeRate: number;
   onClose: () => void;
-  onConfirm: (data: { payments: PaymentItem[]; totalPaid: number; change: number; method: string; customer?: Customer | null }) => void;
-  isCredit?: boolean;
-  customer?: Customer | null; 
+  allowPartial?: boolean; // ✅ Permite abonar sin cubrir el 100%
+  onConfirm: (data: { 
+    payments: PaymentItem[]; 
+    totalPaid: number; 
+    totalPaidCents: number;
+    change: number; 
+    changeCents: number;
+    method: string; 
+    ajusteRedondeoBs?: number;
+    ajusteRedondeoBsCents?: number;
+  }) => void;
 }
 
 const methods = [
-  { id: 'efectivo_bs', label: 'EFECTIVO BS', icon: Banknote, currency: 'Bs' },
-  { id: 'efectivo_usd', label: 'EFECTIVO $', icon: DollarSign, currency: 'USD' },
-  { id: 'tarjeta', label: 'P. VENTA', icon: CreditCard, currency: 'Bs' },
+  { id: 'efectivo_bs', label: 'EFECTIVO Bs', icon: Banknote, currency: 'Bs' },
+  { id: 'efectivo_usd', label: 'EFECTIVO USD', icon: DollarSign, currency: 'USD' },
+  { id: 'tarjeta', label: 'TARJETA', icon: CreditCard, currency: 'Bs' },
   { id: 'biopago', label: 'BIOPAGO', icon: Fingerprint, currency: 'Bs' },
   { id: 'pagomovil', label: 'PAGO MÓVIL', icon: Smartphone, currency: 'Bs' },
   { id: 'zelle', label: 'ZELLE', icon: Plane, currency: 'USD' },
 ];
 
 export default function FloatingPaymentModal({ 
-  total, // This is total in USD
+  total, 
+  totalCents, 
   exchangeRate, 
   onClose, 
-  onConfirm, 
-  isCredit = false, 
-  customer = null 
+  allowPartial = false,
+  onConfirm 
 }: FloatingPaymentModalProps) {
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [currentMethod, setCurrentMethod] = useState('efectivo_bs');
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  
-  const totalBs = total * exchangeRate;
 
   const currentMethodObj = methods.find(m => m.id === currentMethod);
-  const isUsdInput = currentMethodObj?.currency === 'USD';
+  const isUsd = currentMethodObj?.currency === 'USD';
 
-  const totalPaidBs = payments.reduce((sum, p) => sum + p.amount, 0);
-  const remainingBs = Math.max(0, totalBs - totalPaidBs);
-  const changeBs = Math.max(0, totalPaidBs - totalBs);
-  const isFullyPaid = totalPaidBs >= totalBs;
+  // ✅ Total pagado en céntimos
+  const totalPaidCents = payments.reduce((sum, p) => sum + (p.amountCents || toCentsBs(p.amount)), 0);
+  const totalPaid = fromCentsBs(totalPaidCents);
+  
+  // ✅ RECONCILIACIÓN BIMONETARIA EXACTA EN CÉNTIMOS
+  const totalUsdCents = Math.round((totalCents * 100) / Math.round(exchangeRate * 100));
+  const totalUsd = fromCentsUsd(totalUsdCents);
+  
+  const totalPaidUsdCents = payments.reduce((sum, p) => {
+    if (p.usdAmountCents) return sum + p.usdAmountCents;
+    // Si no tiene usdAmountCents, calcular desde amountCents
+    const amountCents = p.amountCents || toCentsBs(p.amount);
+    return sum + Math.round((amountCents * 100) / Math.round(exchangeRate * 100));
+  }, 0);
+  const totalPaidUsd = fromCentsUsd(totalPaidUsdCents);
+
+  // ✅ Una factura se considera pagada si la suma en USD cubre el total en USD
+  // o si la suma en Bs cubre el total en Bs
+  const isPaidByUsd = totalPaidUsdCents >= (totalUsdCents - 1); // Tolerancia de 1 céntimo
+  const isFullyPaid = isPaidByUsd || (totalPaidCents >= totalCents - 1); // Tolerancia de 1 céntimo
+
+  // Lógica de confirmación: si es abono, basta con tener algo pagado.
+  const canConfirm = isFullyPaid || (allowPartial && totalPaidCents > 0);
+
+  const remainingCents = isFullyPaid ? 0 : Math.max(0, totalCents - totalPaidCents);
+  const remaining = fromCentsBs(remainingCents);
+  
+  // ✅ LÓGICA DE VUELTO RECONCILIADO EN CÉNTIMOS
+  let changeCents = Math.max(0, totalPaidCents - totalCents);
+  
+  // Si el pago en USD es IDÉNTICO al total en USD (margen de 1 céntimo), 
+  // forzamos el vuelto a 0 si la diferencia en Bs es despreciable (error de redondeo)
+  if (isPaidByUsd && Math.abs(totalPaidUsdCents - totalUsdCents) <= 1 && changeCents <= 5) {
+    changeCents = 0;
+  }
+  
+  const change = fromCentsBs(changeCents);
+  
+  // Si está pagado por USD pero faltan céntimos en Bs, calculamos el ajuste
+  const ajusteRedondeoBsCents = (isPaidByUsd && totalPaidCents < totalCents) ? (totalCents - totalPaidCents) : 0;
+  const ajusteRedondeoBs = fromCentsBs(ajusteRedondeoBsCents);
+
+  // BLINDAJE VISUAL: Si ya se pagó exacto en USD, forzamos a la interfaz a mostrar que se pagó el 100% en Bs
+  const displayedTotalPaidBsCents = (isPaidByUsd && (ajusteRedondeoBsCents > 0 || (totalPaidCents > totalCents && changeCents === 0))) ? totalCents : totalPaidCents;
+  const displayedTotalPaidBs = fromCentsBs(displayedTotalPaidBsCents);
 
   const addPayment = () => {
-    let amount = parseFloat(inputValue.replace(',', '.'));
-    if (isNaN(amount) || amount <= 0) return;
+    let rawAmount = parseFloat(inputValue);
+    if (isNaN(rawAmount) || rawAmount <= 0) return;
 
-    const newPayment: PaymentItem = {
-      id: crypto.randomUUID(),
-      method: currentMethod,
-      amount: isUsdInput ? amount * exchangeRate : amount,
-      ...(isUsdInput && { usdAmount: amount }),
-    };
-    setPayments([...payments, newPayment]);
+    if (isUsd) {
+      const usdAmount = rawAmount;
+      const usdAmountCents = toCentsUsd(usdAmount);
+      const bsAmountCents = Math.round((usdAmountCents * Math.round(exchangeRate * 100)) / 100);
+      const bsAmount = fromCentsBs(bsAmountCents);
+      const newPayment: PaymentItem = {
+        id: crypto.randomUUID(),
+        method: currentMethod,
+        amount: bsAmount,
+        usdAmount: usdAmount,
+        amountCents: bsAmountCents,
+        usdAmountCents: usdAmountCents,
+      };
+      setPayments([...payments, newPayment]);
+    } else {
+      const bsAmount = rawAmount;
+      const bsAmountCents = toCentsBs(bsAmount);
+      const newPayment: PaymentItem = {
+        id: crypto.randomUUID(),
+        method: currentMethod,
+        amount: bsAmount,
+        amountCents: bsAmountCents,
+      };
+      setPayments([...payments, newPayment]);
+    }
     setInputValue('');
     inputRef.current?.focus();
   };
@@ -75,148 +154,223 @@ export default function FloatingPaymentModal({
   };
 
   const setExactAmount = () => {
-    if (isUsdInput) {
-      setInputValue((remainingBs / exchangeRate).toFixed(2));
-    } else {
-      setInputValue(remainingBs.toFixed(2));
+    const currentRemainingCents = Math.max(0, totalCents - totalPaidCents);
+    if (currentRemainingCents <= 0) return;
+    
+    let amountToAdd = fromCentsBs(currentRemainingCents);
+    if (isUsd) {
+      // Si no hay pagos cargados, usamos directamente el total en USD calculado
+      if (payments.length === 0) {
+        amountToAdd = fromCentsUsd(totalUsdCents);
+      } else {
+        amountToAdd = fromCentsUsd(Math.round((currentRemainingCents * 100) / Math.round(exchangeRate * 100)));
+      }
     }
-    inputRef.current?.focus();
+    setInputValue(amountToAdd.toFixed(2));
   };
 
-  const confirmAction = useCallback(() => {
-    if (isCredit) {
-      if (!customer) return;
-      onConfirm({ payments: [], totalPaid: total, change: 0, method: 'credito', customer });
-    } else {
-      if (!isFullyPaid || payments.length === 0) return;
-      setIsProcessing(true);
-      const mainPayment = payments[0].method;
-      onConfirm({ payments, totalPaid: totalPaidBs / exchangeRate, change: changeBs / exchangeRate, method: mainPayment, customer });
-      setIsProcessing(false);
+  const confirmPayment = useCallback(() => {
+    if (!canConfirm) return;
+    setIsProcessing(true);
+    const mainPayment = payments[0] || { method: 'efectivo_bs' };
+    
+    // Aplicar la misma lógica de redondeo exacto al confirmar
+    let finalChangeCents = Math.max(0, totalPaidCents - totalCents);
+    if (isPaidByUsd && Math.abs(totalPaidUsdCents - totalUsdCents) <= 1 && finalChangeCents <= 5) {
+      finalChangeCents = 0;
     }
-  }, [payments, total, totalPaidBs, changeBs, isFullyPaid, isCredit, customer, onConfirm, exchangeRate]);
-  
+    
+    const finalChange = fromCentsBs(finalChangeCents);
+    const finalTotalPaid = fromCentsBs(totalPaidCents);
+
+    onConfirm({ 
+      payments, 
+      totalPaid: finalTotalPaid,
+      totalPaidCents: totalPaidCents,
+      change: finalChange,
+      changeCents: finalChangeCents,
+      method: mainPayment.method,
+      ajusteRedondeoBs,
+      ajusteRedondeoBsCents,
+    });
+    setIsProcessing(false);
+  }, [payments, totalPaidCents, totalCents, canConfirm, isPaidByUsd, totalPaidUsdCents, totalUsdCents, ajusteRedondeoBs, ajusteRedondeoBsCents, onConfirm]);
+
+  // Atajos de teclado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.code === 'Space' || e.key === 'F2') {
+      if (e.code === 'Space' && document.activeElement !== inputRef.current) {
         e.preventDefault();
-        if (isCredit || isFullyPaid) confirmAction();
+        if (canConfirm) confirmPayment();
       }
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && document.activeElement === inputRef.current) {
         e.preventDefault();
-        if (!isCredit) addPayment();
+        addPayment();
+      }
+      if (e.key === 'Escape') {
+        onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullyPaid, confirmAction, addPayment, onClose, isCredit]);
+  }, [canConfirm, confirmPayment, addPayment, onClose]);
 
   useEffect(() => {
-    if (!isCredit) inputRef.current?.focus();
-  }, [isCredit]);
-  
-  const isConfirmDisabled = isProcessing || (isCredit && !customer) || (!isCredit && (!isFullyPaid || payments.length === 0));
+    inputRef.current?.focus();
+  }, []);
+
+  const formatPaymentAmount = (payment: PaymentItem) => {
+    const methodInfo = methods.find(m => m.id === payment.method);
+    if (methodInfo?.currency === 'USD') {
+      const usdValue = payment.usdAmount ?? fromCentsUsd(payment.usdAmountCents || 0);
+      return formatUsd(usdValue);
+    }
+    return formatBs(payment.amount);
+  };
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center backdrop-blur-sm animate-in fade-in-50">
-      <div className={cn("bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden w-[550px]")}>
-        <div className={cn("p-2.5 text-white flex justify-between items-center select-none", isCredit ? "bg-blue-800" : "bg-gray-800")}>
-          <div className="flex items-center gap-2">
-            {isCredit ? <CreditCard size={18} /> : <Calculator size={18} />}
-            <h3 className="font-black text-sm uppercase tracking-wider">{isCredit ? 'Confirmar Venta a Crédito' : 'Proceso de Pago'}</h3>
+    <div
+      className="fixed z-[200] bg-white rounded-2xl shadow-2xl w-[500px] max-w-[90vw] border border-gray-200 overflow-hidden"
+      style={{
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        position: 'fixed'
+      }}
+    >
+      <div className="bg-black p-2 text-white flex justify-between items-center select-none">
+        <div className="flex items-center gap-2">
+          <Calculator size={18} />
+          <h3 className="font-black text-sm">Pago / Cobro</h3>
+        </div>
+        <button onClick={onClose} className="text-white/70 hover:text-white">
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="p-3 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-xl text-center shadow-sm">
+            <span className="text-[10px] font-black text-black/60 uppercase tracking-wider">Total a pagar</span>
+            <p className="text-3xl font-black mt-1 text-black">{formatBs(total)}</p>
+            <p className="text-xs font-bold text-black/60 mt-0.5">≈ {formatUsd(total / exchangeRate)}</p>
           </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white"><X size={18} /></button>
+          <div className="bg-gradient-to-br from-green-50 to-green-100 p-3 rounded-xl text-center shadow-sm">
+            <span className="text-[10px] font-black text-green-700 uppercase tracking-wider">Pagado</span>
+            <p className="text-3xl font-black mt-1 text-green-700">{formatBs(displayedTotalPaidBs)}</p>
+            {totalPaidUsd > 0 && <p className="text-xs font-bold text-green-600 mt-0.5">USD {formatUsdNumber(totalPaidUsd)}</p>}
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 p-4 gap-4">
-            {/* Columna Izquierda - Calculadora */}
-            <div className="flex flex-col gap-4">
-                <div className="grid grid-cols-3 gap-2">
-                    {methods.map(m => (
-                        <button key={m.id} onClick={() => setCurrentMethod(m.id)} className={cn(
-                            "rounded-lg border-2 flex flex-col items-center justify-center p-2.5 transition-all",
-                            currentMethod === m.id ? "bg-primary border-primary/50 text-black scale-105 shadow-lg" : "bg-gray-100 border-gray-200 text-gray-700 hover:border-gray-400"
-                        )}>
-                           <m.icon size={20} />
-                           <span className="text-[9px] font-black mt-1">{m.label}</span>
-                        </button>
-                    ))}
-                </div>
-                
-                <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xl text-gray-400">{isUsdInput ? '$' : 'Bs'}</span>
-                    <input 
-                        ref={inputRef}
-                        type="text"
-                        value={inputValue}
-                        onChange={e => setInputValue(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && addPayment()}
-                        placeholder="0.00"
-                        className="w-full h-16 bg-gray-50 border-2 border-gray-200 rounded-lg text-center font-mono font-black text-3xl focus:ring-primary focus:border-primary focus:bg-white"
-                    />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                    <button onClick={setExactAmount} className="h-12 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-lg">MONTO EXACTO</button>
-                    <button onClick={addPayment} className="h-12 bg-gray-800 hover:bg-black text-white font-bold rounded-lg flex items-center justify-center gap-2">
-                        <Plus size={16}/> AÑADIR PAGO
-                    </button>
-                </div>
-            </div>
-
-            {/* Columna Derecha - Resumen */}
-            <div className="bg-gray-50/70 rounded-xl p-3 flex flex-col border">
-                <div className="bg-white p-3 rounded-lg text-center shadow-sm border">
-                    <span className="text-[10px] font-black text-gray-500 uppercase">Total a Pagar</span>
-                    <p className="text-3xl font-black text-gray-800">{formatBs(totalBs)}</p>
-                    <p className="text-sm font-bold text-gray-500">≈ {formatUsd(total)}</p>
-                </div>
-
-                <div className="flex-1 mt-3 space-y-1.5 overflow-y-auto pr-1">
-                    {payments.length === 0 ? (
-                        <div className="text-center text-gray-400 pt-10">
-                            <p className="font-bold text-sm">Añada un pago...</p>
-                        </div>
-                    ) : (
-                        payments.map(p => (
-                           <div key={p.id} className="bg-white p-2 rounded-lg flex justify-between items-center text-xs font-bold shadow-sm border">
-                               <div>
-                                   <p className="text-gray-800">{methods.find(m => m.id === p.method)?.label}</p>
-                                   <p className="text-gray-500 font-mono text-[10px]">{formatBs(p.amount)} {p.usdAmount ? `(${formatUsd(p.usdAmount)})` : ''}</p>
-                                </div>
-                               <button onClick={() => removePayment(p.id)}><Trash2 className="w-4 h-4 text-red-400 hover:text-red-600"/></button>
-                           </div>
-                        ))
-                    )}
-                </div>
-
-                <div className="mt-auto pt-3 space-y-2 text-center font-black">
-                     <div className="bg-green-100/70 p-2 rounded-lg border border-green-200">
-                        <p className="text-xs text-green-800">PAGADO</p>
-                        <p className="text-2xl text-green-700">{formatBs(totalPaidBs)}</p>
+        <div className="max-h-32 overflow-y-auto border rounded-lg divide-y">
+          {payments.length === 0 ? (
+            <div className="text-center py-3 text-xs text-black/40">No hay pagos registrados</div>
+          ) : (
+            <div className="divide-y">
+              {payments.map(p => {
+                const methodInfo = methods.find(m => m.id === p.method);
+                return (
+                  <div key={p.id} className="flex justify-between items-center p-1.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      {methodInfo?.icon && <methodInfo.icon size={14} />}
+                      <span className="font-bold">{methodInfo?.label}</span>
                     </div>
-                    {isFullyPaid && (
-                        <div className="bg-blue-100/70 p-2 rounded-lg border border-blue-200 animate-in fade-in-50">
-                            <p className="text-xs text-blue-800">VUELTO</p>
-                            <p className="text-2xl text-blue-700">{formatBs(changeBs)}</p>
-                        </div>
-                    )}
-                </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono">{formatPaymentAmount(p)}</span>
+                      <button onClick={() => removePayment(p.id)} className="text-red-500 hover:text-red-700">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          )}
         </div>
 
-        <div className="p-3 bg-gray-100 border-t">
-            <button
-              onClick={confirmAction}
-              disabled={isConfirmDisabled}
-              className={cn("w-full py-4 rounded-xl text-white font-black text-lg uppercase tracking-wider transition-all shadow-lg",
-                !isConfirmDisabled
-                  ? (isCredit ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700") 
-                  : "bg-gray-400 cursor-not-allowed shadow-none")}>
-              {isProcessing ? "PROCESANDO..." : (isCredit ? "CONFIRMAR CRÉDITO" : `COMPLETAR PAGO (F2)`)}
-            </button>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[8px] font-black uppercase text-black/60 block mb-0.5">Método de pago</label>
+            <select
+              value={currentMethod}
+              onChange={(e) => setCurrentMethod(e.target.value)}
+              className="w-full border rounded-lg px-2 py-1.5 text-xs font-bold bg-white"
+            >
+              {methods.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[8px] font-black uppercase text-black/60 block mb-0.5">Monto</label>
+            <div className="flex gap-1">
+              <input
+                ref={inputRef}
+                type="text"
+                inputMode="decimal"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value.replace(/[^0-9.]/g, ''))}
+                className="flex-1 border rounded-lg px-2 py-1.5 text-xs font-mono text-right"
+                placeholder="0.00"
+              />
+              <button onClick={addPayment} className="bg-primary px-2.5 rounded-lg text-black font-bold text-[10px]">
+                <Plus size={12} />
+              </button>
+            </div>
+            <p className="text-[7px] text-black/40 mt-0.5 text-right">
+              {isUsd ? 'Monto en USD' : 'Monto en Bs'}
+            </p>
+          </div>
         </div>
+
+        <div className="flex justify-between gap-2">
+          <button
+            onClick={setExactAmount}
+            className="flex-1 py-1.5 bg-gray-100 text-black text-[10px] font-bold rounded-lg border hover:bg-gray-200 transition"
+          >
+            Monto Exacto
+          </button>
+          <button
+            onClick={addPayment}
+            className="flex-1 py-1.5 bg-[#D4A017] text-black text-[10px] font-bold rounded-lg hover:brightness-110 transition"
+          >
+            Agregar pago
+          </button>
+        </div>
+
+        {/* Banner de respuesta dinámica */}
+        <div className={cn(
+          "rounded-xl p-2.5 text-center border transition-colors",
+          remainingCents > 0 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"
+        )}>
+          {remainingCents > 0 ? (
+            <>
+              <p className="text-[9px] font-black text-red-700 uppercase tracking-wider">FALTANTE</p>
+              <p className="text-3xl font-black text-red-700 mt-0.5">{formatBs(remaining)}</p>
+              <p className="text-sm font-bold text-red-600 mt-0.5">≈ {formatUsd(remaining / exchangeRate)}</p>
+            </>
+          ) : changeCents > 0 ? (
+            <>
+              <p className="text-[9px] font-black text-green-700 uppercase tracking-wider">Vuelto en Bs</p>
+              <p className="text-3xl font-black text-green-700 mt-0.5">{formatBs(change)}</p>
+              <p className="text-sm font-bold text-green-600 mt-0.5">≈ {formatUsd(change / exchangeRate)}</p>
+            </>
+          ) : (
+            <p className="text-sm font-black text-green-700 py-1">✅ Pago exacto - Sin vuelto</p>
+          )}
+        </div>
+
+        <button
+          onClick={confirmPayment}
+          disabled={!canConfirm || isProcessing}
+          className={cn(
+            "w-full py-2 rounded-xl text-white font-black text-sm transition-all",
+            canConfirm ? "bg-[#2ECC71] hover:brightness-110 shadow-md" : "bg-gray-400 cursor-not-allowed"
+          )}
+        >
+          {isProcessing ? "Procesando..." : (isFullyPaid ? "COMPLETAR PAGO" : "CONFIRMAR ABONO")}
+        </button>
+        <p className="text-center text-[8px] text-black/40">
+          ␣ Espacio para finalizar | ESC para cerrar | Enter agrega monto
+        </p>
       </div>
     </div>
   );
