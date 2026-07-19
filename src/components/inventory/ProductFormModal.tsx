@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   X, Plus, Check, DollarSign, RefreshCw, Printer, Scan,
   Hash, Box, Tag, Barcode, Eye, EyeOff, Trash2, Save, FilePlus, Wrench, Fuel
@@ -44,7 +44,6 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   const [showPreview, setShowPreview] = useState(true);
   const [showPricesWithIVA, setShowPricesWithIVA] = useState([false, false, false, false, false]);
   
-  // Ahora las listas se leen del store, con un fallback por si no existen
   const unidades = store?.productUnits || ['unidad', 'litro', 'galón', 'kit', 'juego'];
   const tiposArticulo = store?.productCategories || ['Repuesto', 'Lubricante', 'Filtro'];
   const colores = store?.productColors || ['No Aplica', 'Negro', 'Gris'];
@@ -104,6 +103,9 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     observations: '',
     active: true
   });
+
+  // Referencia para evitar que el dialog se cierre
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const round2 = (num: number) => Math.round(num * 100) / 100;
   const round4 = (num: number) => Math.round(num * 10000) / 10000;
@@ -356,7 +358,6 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   };
 
   const buildProduct = () => {
-    // Ya no hay campos obligatorios como descripción o código interno
     return {
       id: editingProduct?.id || Date.now(),
       code: formData.internalCode || 'SIN-CODIGO',
@@ -450,22 +451,45 @@ export const ProductForm: React.FC<ProductFormProps> = ({
     </div>
   );
 
-  // El componente se memoiza para evitar re-renders innecesarios que cierran el select
+  // SelectWithAdd corregido - ahora maneja eventos correctamente
   const SelectWithAdd = React.memo((props: any) => (
-    <div className="space-y-1">
+    <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
       <Label className="text-[10px] font-black uppercase text-black">{props.label}</Label>
       <div className="flex gap-1">
-        <Select value={props.value} onValueChange={props.onChange}>
-          <SelectTrigger className="h-9 bg-white rounded-lg text-sm flex-1 border-gray-200">
+        <Select 
+          value={props.value} 
+          onValueChange={props.onChange}
+          onOpenChange={(open) => {
+            // Prevenir que el dialog se cierre cuando el select se abre
+            if (open) {
+              // No hacemos nada, solo permitimos que el select se abra
+            }
+          }}
+        >
+          <SelectTrigger 
+            className="h-9 bg-white rounded-lg text-sm flex-1 border-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <SelectValue placeholder={props.placeholder || "Seleccione"} />
           </SelectTrigger>
-          <SelectContent>{props.options}</SelectContent>
+          <SelectContent 
+            className="bg-white z-[100]"
+            onPointerDownOutside={(e) => {
+              // Prevenir que el clic fuera del select cierre el dialog principal
+              e.preventDefault();
+            }}
+          >
+            {props.options}
+          </SelectContent>
         </Select>
         <div className="flex gap-1 shrink-0">
           <Button 
             size="icon" 
             variant="outline" 
-            onClick={props.onAdd} 
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onAdd();
+            }} 
             className="h-9 w-9 bg-white border-gray-300"
             title="Agregar nuevo"
           >
@@ -475,7 +499,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({
             size="icon" 
             variant="outline" 
             disabled={!props.value || props.value === '0' || props.value === ''}
-            onClick={() => props.onDelete && props.onDelete(props.value)} 
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onDelete && props.onDelete(props.value);
+            }} 
             className="h-9 w-9 bg-white border-gray-300 hover:text-red-500 transition-colors"
             title="Eliminar seleccionado"
           >
@@ -488,8 +515,23 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-6xl p-0 rounded-xl overflow-hidden bg-[#d4d4d4] border-gray-400 max-h-[95vh]">
+      <Dialog 
+        open={isOpen} 
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
+        <DialogContent 
+          className="max-w-6xl p-0 rounded-xl overflow-hidden bg-[#d4d4d4] border-gray-400 max-h-[95vh]"
+          ref={dialogRef}
+          onPointerDownOutside={(e) => {
+            // Prevenir cierre al hacer clic fuera si es un select
+            const target = e.target as HTMLElement;
+            if (target.closest('[role="listbox"]') || target.closest('[role="option"]')) {
+              e.preventDefault();
+            }
+          }}
+        >
           <DialogTitle className="sr-only">{editingProduct ? 'Editar Repuesto/Lubricante' : 'Nuevo Repuesto/Lubricante'}</DialogTitle>
           
           <div className="bg-[#0a1628] px-4 py-3 flex items-center justify-between shrink-0">
@@ -1203,7 +1245,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
       {/* Mini Modales de Creación Rápida */}
       <Dialog open={modalMarca.open} onOpenChange={(open) => !open && setModalMarca({ open: false, name: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200">
+        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Marca de Vehículo/Repuesto</DialogTitle>
           <CleanInput 
             value={modalMarca.name} 
@@ -1221,7 +1263,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       </Dialog>
 
       <Dialog open={modalGrupo.open} onOpenChange={(open) => !open && setModalGrupo({ open: false, name: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200">
+        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Familia / Grupo</DialogTitle>
           <CleanInput 
             value={modalGrupo.name} 
@@ -1239,7 +1281,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       </Dialog>
 
       <Dialog open={modalSubGrupo.open} onOpenChange={(open) => !open && setModalSubGrupo({ open: false, name: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200">
+        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Sub-Familia</DialogTitle>
           <CleanInput 
             value={modalSubGrupo.name} 
@@ -1257,7 +1299,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       </Dialog>
 
       <Dialog open={modalLinea.open} onOpenChange={(open) => !open && setModalLinea({ open: false, name: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200">
+        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Línea de Producto</DialogTitle>
           <CleanInput 
             value={modalLinea.name} 
@@ -1275,7 +1317,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
       </Dialog>
 
       <Dialog open={modalProveedor.open} onOpenChange={(open) => !open && setModalProveedor({ open: false, name: '', code: '' })}>
-        <DialogContent className="max-w-sm bg-gray-200">
+        <DialogContent className="max-w-sm bg-gray-200" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogTitle className="text-black text-xs font-black uppercase">Nuevo Proveedor / Mayorista</DialogTitle>
           <CleanInput 
             value={modalProveedor.name} 
