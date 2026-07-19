@@ -61,9 +61,11 @@ export function ReceiptModal({
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
-      // Saltar líneas vacías al inicio y final
-      if (i === 0 && !line.trim()) continue;
-      if (i === lines.length - 1 && !line.trim()) continue;
+      // Saltar líneas vacías
+      if (!line.trim()) {
+        result.push({ type: 'empty', content: '', key: i });
+        continue;
+      }
 
       // Detectar separadores
       if (/^[─═\-]+$/.test(line.trim())) {
@@ -75,15 +77,8 @@ export function ReceiptModal({
         continue;
       }
 
-      // Detectar líneas de título o negrita
-      if (line.includes('REPORTE') || 
-          line.includes('CIERRE') || 
-          line.includes('RESUMEN') || 
-          line.includes('DESGLOSE') || 
-          line.includes('CONCILIACIÓN') || 
-          line.includes('ESTADÍSTICAS') ||
-          line.includes('TOTAL A PAGAR') ||
-          line.includes('GRACIAS')) {
+      // Detectar títulos y negritas
+      if (/^[A-ZÁÉÍÓÚÑ\s]+$/.test(line.trim()) && line.trim().length > 5) {
         result.push({
           type: 'bold',
           content: line,
@@ -93,13 +88,11 @@ export function ReceiptModal({
       }
 
       // Líneas normales
-      if (line.trim()) {
-        result.push({
-          type: 'normal',
-          content: line,
-          key: i
-        });
-      }
+      result.push({
+        type: 'normal',
+        content: line,
+        key: i
+      });
     }
 
     return result;
@@ -156,7 +149,7 @@ export function ReceiptModal({
           <style>
             body { 
               font-family: 'Courier New', monospace; 
-              font-size: 12px; 
+              font-size: 11px; 
               margin: 0; 
               padding: 16px;
               background: white;
@@ -169,11 +162,11 @@ export function ReceiptModal({
             .font-bold { font-weight: bold; }
             .separator { 
               border-top: 1px solid #000;
-              margin: 4px 0;
+              margin: 2px 0;
             }
             .separator-double {
               border-top: 2px solid #000;
-              margin: 4px 0;
+              margin: 2px 0;
             }
             .line { 
               white-space: pre-wrap;
@@ -182,7 +175,11 @@ export function ReceiptModal({
               line-height: 1.4;
               padding: 1px 0;
             }
-            .bold { font-weight: bold; }
+            .bold { 
+              font-weight: bold;
+              text-align: center;
+            }
+            .empty { height: 4px; }
           </style>
         </head>
         <body>
@@ -219,16 +216,18 @@ export function ReceiptModal({
                 boxSizing: 'border-box', 
                 color: 'black',
                 fontFamily: 'Courier New, monospace',
-                fontSize: '11px',
-                lineHeight: '1.5'
+                fontSize: '10px',
+                lineHeight: '1.4'
               }}
             >
-              <div className="text-center font-bold text-sm mb-2">{getReportTitle()}</div>
-              <div className="border-t-2 border-gray-800 my-2"></div>
+              <div className="text-center font-bold text-sm mb-1">{getReportTitle()}</div>
+              <div className="border-t-2 border-gray-800 my-1"></div>
               
               <div className="ticket-content">
                 {formattedTicket.map((item) => {
                   switch (item.type) {
+                    case 'empty':
+                      return <div key={item.key} className="h-1"></div>;
                     case 'separator':
                       if (item.content.includes('═')) {
                         return <div key={item.key} className="border-t-2 border-gray-800 my-1"></div>;
@@ -237,13 +236,13 @@ export function ReceiptModal({
                     case 'bold':
                       return <div key={item.key} className="font-bold text-center">{item.content}</div>;
                     default:
-                      return <div key={item.key} className="whitespace-pre-wrap" style={{ fontFamily: 'Courier New, monospace' }}>{item.content}</div>;
+                      return <div key={item.key} className="whitespace-pre-wrap" style={{ fontFamily: 'Courier New, monospace', fontSize: '10px' }}>{item.content}</div>;
                   }
                 })}
               </div>
               
-              <div className="border-t-2 border-gray-800 my-2"></div>
-              <div className="text-center text-[8px] text-gray-400 mt-2">
+              <div className="border-t-2 border-gray-800 my-1"></div>
+              <div className="text-center text-[8px] text-gray-400 mt-1">
                 {new Date().toLocaleString('es-VE')}
               </div>
             </div>
