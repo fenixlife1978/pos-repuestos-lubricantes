@@ -20,12 +20,20 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
+// ===== INTERFAZ UNIFICADA QUE SOPORTA AMBOS SISTEMAS =====
 interface ProductFormModalProps {
-  producto?: Product;
-  state: AppState;
+  // === Sistema original (InventoryModule) ===
+  isOpen?: boolean;
   onClose: () => void;
-  onSave: (p: any) => void;
-  onUpdateLists: (l: any) => void;
+  editingProduct?: Product | null;
+  store?: AppState;
+  updateStore?: (newState: Partial<AppState>) => void;
+  
+  // === Sistema alternativo (ProductFormModal directo) ===
+  producto?: Product;
+  state?: AppState;
+  onSave?: (p: any) => void;
+  onUpdateLists?: (l: any) => void;
 }
 
 // Input sin flechas de spinner
@@ -41,11 +49,79 @@ const CleanInput = React.forwardRef<any, any>(
 );
 CleanInput.displayName = 'CleanInput';
 
-export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLists }: ProductFormModalProps) {
-  const exchangeRate = state?.tasa || 36.50;
+export function ProductFormModalComponent({ 
+  // Props del sistema InventoryModule
+  isOpen = true,
+  onClose,
+  editingProduct,
+  store,
+  updateStore,
+  
+  // Props del sistema alternativo
+  producto,
+  state,
+  onSave,
+  onUpdateLists
+}: ProductFormModalProps) {
+  // ===== UNIFICACIÓN DE PROPS =====
+  // Usar store si está disponible, sino usar state
+  const effectiveState = (store || state || {}) as AppState;
+  const effectiveProduct = editingProduct || producto || null;
+  
+  // Crear funciones de callback unificadas
+  const handleSave = (productData: any) => {
+    if (onSave) {
+      onSave(productData);
+      return;
+    }
+    
+    if (updateStore) {
+      const currentProducts = effectiveState.productos || [];
+      if (effectiveProduct) {
+        // Edición
+        updateStore({
+          productos: currentProducts.map((p: any) => p.id === effectiveProduct.id ? productData : p)
+        });
+      } else {
+        // Nuevo producto
+        updateStore({
+          productos: [...currentProducts, productData]
+        });
+      }
+      onClose();
+      return;
+    }
+    
+    console.warn('No se encontró onSave ni updateStore');
+  };
+  
+  const handleUpdateLists = (listData: any) => {
+    if (onUpdateLists) {
+      onUpdateLists(listData);
+      return;
+    }
+    
+    if (updateStore) {
+      updateStore(listData);
+      return;
+    }
+    
+    console.warn('No se encontró onUpdateLists ni updateStore');
+  };
+  
+  // ===== VALIDACIONES DE SEGURIDAD =====
+  const safeState = effectiveState || ({} as AppState);
+  const exchangeRate = safeState?.tasa || 36.50;
+  
+  // Listas con valores por defecto seguros
+  const categorias = safeState?.categorias || ['Repuesto', 'Lubricante', 'Filtro', 'Químico', 'Accesorio', 'Batería', 'Caucho', 'Freno', 'Suspensión', 'Motor', 'Eléctrico', 'Transmisión', 'Servicio'];
+  const departamentos = safeState?.departamentos || ['Licores', 'Viveres', 'Otros'];
+  const marcas = safeState?.marcas || ['Genérica'];
+  const presentaciones = safeState?.presentaciones || ['750ml', '1L', 'Unidad', 'Caja'];
+  
   const [scanning, setScanning] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
-  const [showPricesWithIVA, setShowPricesWithIVA] = useState([false, false, false, false, false]);
+  const [showPricesWithIVA, setShowPricesWithIVA] = useState([false, false, false]);
   const [activeTab, setActiveTab] = useState<'general' | 'precios' | 'inventario' | 'kit'>('general');
   
   // Estados para modales de creación rápida
@@ -55,98 +131,125 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
   const [modalLinea, setModalLinea] = useState({ open: false, name: '' });
   const [modalProveedor, setModalProveedor] = useState({ open: false, name: '', code: '' });
   
-  // Obtener listas del state con fallbacks
-  const unidades = state?.productUnits || ['unidad', 'litro', 'galón', 'kit', 'juego'];
-  const tiposArticulo = state?.productCategories || ['Repuesto', 'Lubricante', 'Filtro', 'Químico', 'Accesorio', 'Batería', 'Caucho', 'Freno', 'Suspensión', 'Motor', 'Eléctrico', 'Transmisión', 'Servicio'];
-  const colores = state?.productColors || ['No Aplica', 'Negro', 'Gris', 'Cromo', 'Rojo', 'Azul', 'Blanco', 'Ámbar'];
-  const tallas = state?.productSizes || ['N/A', 'Estándar', '0.10', '0.20', '0.30', '0.40', '0.50', '20', '30', '40', '50', '60'];
+  // Obtener listas del state con fallbacks seguros
+  const unidades = safeState?.productUnits || ['unidad', 'litro', 'galón', 'kit', 'juego'];
+  const tiposArticulo = safeState?.productCategories || ['Repuesto', 'Lubricante', 'Filtro', 'Químico', 'Accesorio', 'Batería', 'Caucho', 'Freno', 'Suspensión', 'Motor', 'Eléctrico', 'Transmisión', 'Servicio'];
+  const colores = safeState?.productColors || ['No Aplica', 'Negro', 'Gris', 'Cromo', 'Rojo', 'Azul', 'Blanco', 'Ámbar'];
+  const tallas = safeState?.productSizes || ['N/A', 'Estándar', '0.10', '0.20', '0.30', '0.40', '0.50', '20', '30', '40', '50', '60'];
+  
+  // Obtener listas del store
+  const groups: any[] = safeState?.groups || [];
+  const subgroups: any[] = safeState?.subgroups || [];
+  const lines: any[] = safeState?.lines || [];
+  const brands: any[] = safeState?.brands || [];
+  const suppliers: any[] = safeState?.suppliers || [];
   
   const [datos, setDatos] = useState<any>({
     // Campos existentes
-    codigo: producto?.codigo || '',
-    nombre: producto?.nombre || '',
-    categoria: producto?.categoria || state.categorias?.[0] || '',
-    departamento: producto?.departamento || state.departamentos?.[0] || '',
-    marca: producto?.marca || state.marcas?.[0] || '',
-    costoUSD: producto?.costoUSD?.toString() ?? '0',
-    margen: producto?.margen?.toString() ?? '0',
-    precioUSD: producto?.precioUSD?.toString() ?? '0',
-    precioBS: producto ? (producto.precioUSD * state.tasa).toFixed(2) : '0',
-    precioMayorUSD: producto?.precioMayorUSD?.toString() ?? '0',
-    precioOfertaUSD: producto?.precioOfertaUSD?.toString() ?? '0',
-    precioPromoUSD: producto?.precioPromoUSD?.toString() ?? '0',
-    stock: producto?.stock?.toString() ?? '0',
-    stockMinimo: producto?.stockMinimo?.toString() ?? '3',
-    aplicaIVA: producto?.aplicaIVA ?? false,
-    isKit: producto?.isKit || false,
-    kitType: producto?.kitType || 'stock_propio',
-    kitItems: producto?.kitItems || [],
-    proveedor: producto?.proveedor || '',
-    cantidad: producto?.cantidad || 'Unidad',
+    codigo: effectiveProduct?.codigo || '',
+    nombre: effectiveProduct?.nombre || '',
+    categoria: effectiveProduct?.categoria || (categorias.length > 0 ? categorias[0] : ''),
+    departamento: effectiveProduct?.departamento || (departamentos.length > 0 ? departamentos[0] : ''),
+    marca: effectiveProduct?.marca || (marcas.length > 0 ? marcas[0] : ''),
+    costoUSD: effectiveProduct?.costoUSD?.toString() ?? '0',
+    margen: effectiveProduct?.margen?.toString() ?? '0',
+    precioUSD: effectiveProduct?.precioUSD?.toString() ?? '0',
+    precioBS: effectiveProduct ? (effectiveProduct.precioUSD * exchangeRate).toFixed(2) : '0',
+    stock: effectiveProduct?.stock?.toString() ?? '0',
+    stockMinimo: effectiveProduct?.stockMinimo?.toString() ?? '3',
+    aplicaIVA: effectiveProduct?.aplicaIVA ?? false,
+    isKit: effectiveProduct?.isKit || false,
+    kitType: effectiveProduct?.kitType || 'stock_propio',
+    kitItems: effectiveProduct?.kitItems || [],
+    proveedor: effectiveProduct?.proveedor || '',
+    cantidad: effectiveProduct?.cantidad || (presentaciones.length > 0 ? presentaciones[0] : 'Unidad'),
     
     // Nuevos campos de ProductForm
-    barcode: producto?.barcode || '',
-    internalCode: producto?.internalCode || producto?.codigo || '',
-    alternateCode: producto?.alternateCode || '',
-    description: producto?.description || producto?.nombre || '',
-    shortDescription: producto?.shortDescription || '',
-    type: producto?.type || 'Repuesto',
-    groupId: producto?.groupId || 0,
-    subgroupId: producto?.subgroupId || 0,
-    brandId: producto?.brandId || 0,
-    lineId: producto?.lineId || 0,
-    model: producto?.model || '',
-    color: producto?.color || 'No Aplica',
-    size: producto?.size || 'N/A',
-    supplierId: producto?.supplierId || 0,
-    supplierCode: producto?.supplierCode || '',
-    mainUnit: producto?.unit || 'unidad',
-    altUnit: producto?.altUnit || '',
-    conversionFactor: producto?.conversionFactor?.toString() || '',
-    maxStock: producto?.maxStock?.toString() || '',
-    reorderPoint: producto?.reorderPoint?.toString() || '',
-    warehouse: producto?.warehouse || '',
-    managesLots: producto?.managesLots || false,
-    managesSerials: producto?.managesSerials || false,
-    managesExpiration: producto?.managesExpiration || false,
-    taxType: producto?.taxType || 'Gravado',
-    ivaRate: producto?.ivaRate || 16,
-    igtfRate: producto?.igtfRate || 3,
-    maxDiscount: producto?.maxDiscount?.toString() || '',
-    netWeight: producto?.netWeight?.toString() || '',
-    grossWeight: producto?.grossWeight?.toString() || '',
-    volume: producto?.volume?.toString() || '',
-    barcodeLabel: producto?.barcodeLabel || '',
-    observations: producto?.observations || '',
-    active: producto?.activo ?? true
+    barcode: effectiveProduct?.barcode || '',
+    internalCode: effectiveProduct?.internalCode || effectiveProduct?.codigo || '',
+    alternateCode: effectiveProduct?.alternateCode || '',
+    description: effectiveProduct?.description || effectiveProduct?.nombre || '',
+    shortDescription: effectiveProduct?.shortDescription || '',
+    type: effectiveProduct?.type || (tiposArticulo.length > 0 ? tiposArticulo[0] : 'Repuesto'),
+    groupId: effectiveProduct?.groupId || 0,
+    subgroupId: effectiveProduct?.subgroupId || 0,
+    brandId: effectiveProduct?.brandId || 0,
+    lineId: effectiveProduct?.lineId || 0,
+    model: effectiveProduct?.model || '',
+    color: effectiveProduct?.color || (colores.length > 0 ? colores[0] : 'No Aplica'),
+    size: effectiveProduct?.size || (tallas.length > 0 ? tallas[0] : 'N/A'),
+    supplierId: effectiveProduct?.supplierId || 0,
+    supplierCode: effectiveProduct?.supplierCode || '',
+    mainUnit: effectiveProduct?.unit || (unidades.length > 0 ? unidades[0] : 'unidad'),
+    altUnit: effectiveProduct?.altUnit || '',
+    conversionFactor: effectiveProduct?.conversionFactor?.toString() || '',
+    maxStock: effectiveProduct?.maxStock?.toString() || '',
+    reorderPoint: effectiveProduct?.reorderPoint?.toString() || '',
+    warehouse: effectiveProduct?.warehouse || '',
+    managesLots: effectiveProduct?.managesLots || false,
+    managesSerials: effectiveProduct?.managesSerials || false,
+    managesExpiration: effectiveProduct?.managesExpiration || false,
+    taxType: effectiveProduct?.taxType || 'Gravado',
+    ivaRate: effectiveProduct?.ivaRate || 16,
+    igtfRate: effectiveProduct?.igtfRate || 3,
+    maxDiscount: effectiveProduct?.maxDiscount?.toString() || '',
+    netWeight: effectiveProduct?.netWeight?.toString() || '',
+    grossWeight: effectiveProduct?.grossWeight?.toString() || '',
+    volume: effectiveProduct?.volume?.toString() || '',
+    barcodeLabel: effectiveProduct?.barcodeLabel || '',
+    observations: effectiveProduct?.observations || '',
+    active: effectiveProduct?.activo ?? true
   });
 
   const [kitSearch, setKitSearch] = useState('');
   
-  // Precios escalonados - CORREGIDO: usando priceUSD directamente
-  const [prices, setPrices] = useState([
-    { name: 'Precio 1 - Detal', usd: producto?.precioUSD?.toString() || datos.precioUSD || '0', bs: producto?.precioUSD || datos.precioBS || '0' },
-    { name: 'Precio 2 - Mayor', usd: producto?.precioMayorUSD?.toString() || datos.precioMayorUSD || '0', bs: '' },
-    { name: 'Precio 3 - Oferta', usd: producto?.precioOfertaUSD?.toString() || datos.precioOfertaUSD || '0', bs: '' },
-    { name: 'Precio 4 - Promo', usd: producto?.precioPromoUSD?.toString() || datos.precioPromoUSD || '0', bs: '' },
-    { name: 'Precio 5 - Especial', usd: '', bs: '' },
-  ]);
+  // Precios escalonados - 3 niveles con márgenes predeterminados
+  const [prices, setPrices] = useState(() => {
+    if (effectiveProduct && effectiveProduct.prices && effectiveProduct.prices.length >= 3) {
+      return effectiveProduct.prices.map((p: any, i: number) => ({
+        name: p.name || `Precio ${i + 1}`,
+        usd: p.usd?.toString() || '',
+        bs: p.ves?.toString() || ''
+      }));
+    }
+    
+    const cost = parseFloat(effectiveProduct?.costoUSD?.toString() || '0');
+    
+    if (cost > 0) {
+      const price1USD = cost / (1 - (parseFloat(effectiveProduct?.margen?.toString() || '30') / 100));
+      const price2USD = cost / (1 - 0.15);
+      const price3USD = cost / (1 - 0.20);
+      
+      return [
+        { name: 'Precio 1 - Detal', usd: price1USD.toFixed(4), bs: (price1USD * exchangeRate).toFixed(2) },
+        { name: 'Precio 2 - Mayor', usd: price2USD.toFixed(4), bs: (price2USD * exchangeRate).toFixed(2) },
+        { name: 'Precio 3 - Oferta', usd: price3USD.toFixed(4), bs: (price3USD * exchangeRate).toFixed(2) },
+      ];
+    }
+    
+    return [
+      { name: 'Precio 1 - Detal', usd: '0', bs: '0' },
+      { name: 'Precio 2 - Mayor', usd: '0', bs: '0' },
+      { name: 'Precio 3 - Oferta', usd: '0', bs: '0' },
+    ];
+  });
 
   const round2 = (num: number) => Math.round(num * 100) / 100;
   const round4 = (num: number) => Math.round(num * 10000) / 10000;
 
+  const productos: any[] = safeState?.productos || [];
+
   const filteredProdsForKit = useMemo(() => {
     if (kitSearch.length < 2) return [];
-    return state.productos.filter(p => 
+    return productos.filter((p: any) => 
       p.activo && 
       !p.isKit && 
-      (p.nombre.toLowerCase().includes(kitSearch.toLowerCase()) || p.codigo.toLowerCase().includes(kitSearch.toLowerCase()))
+      (p.nombre?.toLowerCase().includes(kitSearch.toLowerCase()) || p.codigo?.toLowerCase().includes(kitSearch.toLowerCase()))
     ).slice(0, 5);
-  }, [kitSearch, state.productos]);
+  }, [kitSearch, productos]);
 
   const validarDecimal = (val: string) => /^[\d]*\.?[\d]*$/.test(val) || val === '';
 
-  // Recalcular precios desde costo y margen
   const recalcFromCostAndMargin = useCallback((costStr: string, marginStr: string) => {
     const cost = parseFloat(costStr);
     const margin = parseFloat(marginStr);
@@ -155,8 +258,16 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
       return;
     }
 
-    const newPrices = prices.map((p, i) => {
-      const tierMargin = margin + (i * 5); 
+    const newPrices = prices.map((p: any, i: number) => {
+      let tierMargin;
+      if (i === 0) {
+        tierMargin = margin;
+      } else if (i === 1) {
+        tierMargin = 15;
+      } else {
+        tierMargin = 20;
+      }
+      
       if (tierMargin >= 100) return { ...p, usd: '', bs: '' };
       
       const tierPriceUSD = round4(cost / (1 - (tierMargin / 100)));
@@ -170,7 +281,6 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
     });
     
     setPrices(newPrices);
-    // Actualizar también los campos principales
     if (newPrices[0]) {
       setDatos((prev: any) => ({
         ...prev,
@@ -193,12 +303,11 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
     recalcFromCostAndMargin(costStr, newMargin.toString());
   }, [recalcFromCostAndMargin]);
 
-  // Recalcular tridireccional (precioUSD, precioBS, margen)
   const recalcularTridireccional = (field: 'margen' | 'precioUSD' | 'precioBS', value: string) => {
     if (!validarDecimal(value)) return;
     const cost = parseFloat(datos.costoUSD) || 0;
     const val = parseFloat(value) || 0;
-    const tasa = state.tasa;
+    const tasa = exchangeRate;
 
     let newMargen = parseFloat(datos.margen) || 0;
     let newUSD = parseFloat(datos.precioUSD) || 0;
@@ -232,7 +341,6 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
       precioBS: field === 'precioBS' ? value : newBS.toFixed(2)
     });
     
-    // Actualizar también la tabla de precios
     const costStr = datos.costoUSD;
     const marginStr = field === 'margen' ? value : newMargen.toFixed(2);
     recalcFromCostAndMargin(costStr, marginStr);
@@ -243,6 +351,10 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
     const margin = parseFloat(datos.margen);
     if (!isNaN(margin) && margin > 0 && margin < 100) {
       recalcFromCostAndMargin(value, datos.margen);
+    } else {
+      const defaultMargin = 30;
+      recalcFromCostAndMargin(value, defaultMargin.toString());
+      setDatos((prev: any) => ({ ...prev, margen: defaultMargin.toString() }));
     }
   };
 
@@ -299,7 +411,6 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
     }
   };
 
-  // Efecto para escaneo
   useEffect(() => {
     if (scanning) {
       const timer = setTimeout(() => {
@@ -310,81 +421,101 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
     }
   }, [scanning]);
 
-  // Efecto para cargar datos de edición
   useEffect(() => {
-    if (producto) {
+    if (effectiveProduct) {
       setDatos((prev: any) => ({
         ...prev,
-        barcode: producto.barcode || '',
-        internalCode: producto.internalCode || producto.codigo || '',
-        alternateCode: producto.alternateCode || '',
-        description: producto.description || producto.nombre || '',
-        shortDescription: producto.shortDescription || '',
-        type: producto.type || 'Repuesto',
-        groupId: producto.groupId || 0,
-        subgroupId: producto.subgroupId || 0,
-        brandId: producto.brandId || 0,
-        lineId: producto.lineId || 0,
-        model: producto.model || '',
-        color: producto.color || 'No Aplica',
-        size: producto.size || 'N/A',
-        supplierId: producto.supplierId || 0,
-        supplierCode: producto.supplierCode || '',
-        mainUnit: producto.unit || 'unidad',
-        altUnit: producto.altUnit || '',
-        conversionFactor: producto.conversionFactor?.toString() || '',
-        maxStock: producto.maxStock?.toString() || '',
-        reorderPoint: producto.reorderPoint?.toString() || '',
-        warehouse: producto.warehouse || '',
-        managesLots: producto.managesLots || false,
-        managesSerials: producto.managesSerials || false,
-        managesExpiration: producto.managesExpiration || false,
-        taxType: producto.taxType || 'Gravado',
-        ivaRate: producto.ivaRate || 16,
-        igtfRate: producto.igtfRate || 3,
-        maxDiscount: producto.maxDiscount?.toString() || '',
-        netWeight: producto.netWeight?.toString() || '',
-        grossWeight: producto.grossWeight?.toString() || '',
-        volume: producto.volume?.toString() || '',
-        barcodeLabel: producto.barcodeLabel || '',
-        observations: producto.observations || '',
-        active: producto.activo ?? true
+        barcode: effectiveProduct.barcode || '',
+        internalCode: effectiveProduct.internalCode || effectiveProduct.codigo || '',
+        alternateCode: effectiveProduct.alternateCode || '',
+        description: effectiveProduct.description || effectiveProduct.nombre || '',
+        shortDescription: effectiveProduct.shortDescription || '',
+        type: effectiveProduct.type || (tiposArticulo.length > 0 ? tiposArticulo[0] : 'Repuesto'),
+        groupId: effectiveProduct.groupId || 0,
+        subgroupId: effectiveProduct.subgroupId || 0,
+        brandId: effectiveProduct.brandId || 0,
+        lineId: effectiveProduct.lineId || 0,
+        model: effectiveProduct.model || '',
+        color: effectiveProduct.color || (colores.length > 0 ? colores[0] : 'No Aplica'),
+        size: effectiveProduct.size || (tallas.length > 0 ? tallas[0] : 'N/A'),
+        supplierId: effectiveProduct.supplierId || 0,
+        supplierCode: effectiveProduct.supplierCode || '',
+        mainUnit: effectiveProduct.unit || (unidades.length > 0 ? unidades[0] : 'unidad'),
+        altUnit: effectiveProduct.altUnit || '',
+        conversionFactor: effectiveProduct.conversionFactor?.toString() || '',
+        maxStock: effectiveProduct.maxStock?.toString() || '',
+        reorderPoint: effectiveProduct.reorderPoint?.toString() || '',
+        warehouse: effectiveProduct.warehouse || '',
+        managesLots: effectiveProduct.managesLots || false,
+        managesSerials: effectiveProduct.managesSerials || false,
+        managesExpiration: effectiveProduct.managesExpiration || false,
+        taxType: effectiveProduct.taxType || 'Gravado',
+        ivaRate: effectiveProduct.ivaRate || 16,
+        igtfRate: effectiveProduct.igtfRate || 3,
+        maxDiscount: effectiveProduct.maxDiscount?.toString() || '',
+        netWeight: effectiveProduct.netWeight?.toString() || '',
+        grossWeight: effectiveProduct.grossWeight?.toString() || '',
+        volume: effectiveProduct.volume?.toString() || '',
+        barcodeLabel: effectiveProduct.barcodeLabel || '',
+        observations: effectiveProduct.observations || '',
+        active: effectiveProduct.activo ?? true
       }));
       
-      // Cargar precios escalonados
-      if (producto.prices && producto.prices.length > 0) {
-        setPrices(producto.prices.map((p: any, i: number) => ({
+      if (effectiveProduct.prices && effectiveProduct.prices.length > 0) {
+        setPrices(effectiveProduct.prices.map((p: any, i: number) => ({
           name: p.name || `Precio ${i + 1}`,
           usd: p.usd?.toString() || '',
           bs: p.ves?.toString() || ''
         })));
       }
     }
-  }, [producto]);
+  }, [effectiveProduct]);
 
-  // CORREGIDO: Función para agregar items a listas
   const handleAddListItem = (listName: string, newVal: string) => {
-    if (!newVal) return;
-    const currentList = state[listName as keyof AppState];
-    // Verificar si es un array
+    if (!newVal || !newVal.trim()) return;
+    const currentList = (safeState as any)[listName];
     if (Array.isArray(currentList)) {
-      onUpdateLists({ [listName]: [...currentList, newVal] });
+      handleUpdateLists({ [listName]: [...currentList, newVal.trim()] });
     }
   };
 
-  // CORREGIDO: Función para eliminar items de listas
   const handleRemoveListItem = (listName: string, current: string) => {
+    if (!current) return;
     if (confirm(`¿Eliminar \"${current}\" de la lista?`)) {
-      const currentList = state[listName as keyof AppState];
+      const currentList = (safeState as any)[listName];
       if (Array.isArray(currentList)) {
         const newList = currentList.filter((i: any) => i !== current);
-        onUpdateLists({ [listName]: newList });
+        handleUpdateLists({ [listName]: newList });
       }
     }
   };
 
-  // Select con botones de agregar/eliminar
-  const SelectWithAdd = React.memo((props: any) => (
+  const handleAddObject = (collection: string, name: string, extraData?: any) => {
+    if (!name || !name.trim()) return null;
+    const currentList = (safeState as any)[collection];
+    if (Array.isArray(currentList)) {
+      const newId = Math.max(...currentList.map((item: any) => item.id || 0), 0) + 1;
+      const newItem = { id: newId, name: name.trim(), ...extraData };
+      handleUpdateLists({ [collection]: [...currentList, newItem] });
+      return newId;
+    }
+    return null;
+  };
+
+  const handleRemoveObject = (collection: string, id: any) => {
+    if (!id || id === 0) return;
+    const currentList = (safeState as any)[collection];
+    if (Array.isArray(currentList)) {
+      const itemToRemove = currentList.find((item: any) => item.id === id);
+      if (!itemToRemove) return;
+      if (confirm(`¿Eliminar \"${itemToRemove.name}\" de la lista?`)) {
+        const newList = currentList.filter((item: any) => item.id !== id);
+        handleUpdateLists({ [collection]: newList });
+      }
+    }
+  };
+
+  const SelectWithAddString = React.memo((props: any) => (
     <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
       <Label className="text-[10px] font-black uppercase text-black">{props.label}</Label>
       <div className="flex gap-1">
@@ -436,7 +567,58 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
     </div>
   ));
 
-  // Vista previa del código de barras
+  const SelectWithAddObject = React.memo((props: any) => (
+    <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+      <Label className="text-[10px] font-black uppercase text-black">{props.label}</Label>
+      <div className="flex gap-1">
+        <Select 
+          value={props.value} 
+          onValueChange={props.onChange}
+        >
+          <SelectTrigger 
+            className="h-9 bg-white rounded-lg text-sm flex-1 border-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SelectValue placeholder={props.placeholder || "Seleccione"} />
+          </SelectTrigger>
+          <SelectContent 
+            className="bg-white z-[100]"
+            onPointerDownOutside={(e) => e.preventDefault()}
+          >
+            {props.options}
+          </SelectContent>
+        </Select>
+        <div className="flex gap-1 shrink-0">
+          <Button 
+            size="icon" 
+            variant="outline" 
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onAdd();
+            }} 
+            className="h-9 w-9 bg-white border-gray-300"
+            title="Agregar nuevo"
+          >
+            <PlusCircle className="w-4 h-4" />
+          </Button>
+          <Button 
+            size="icon" 
+            variant="outline" 
+            disabled={!props.value || props.value === '0' || props.value === ''}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onDelete && props.onDelete(props.value);
+            }} 
+            className="h-9 w-9 bg-white border-gray-300 hover:text-red-500 transition-colors"
+            title="Eliminar seleccionado"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  ));
+
   const BarcodePreview = () => (
     <div className="bg-white p-3 rounded-lg border border-gray-300 text-center">
       {datos.barcode ? (
@@ -453,22 +635,20 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
     </div>
   );
 
-  const handleSave = () => {
+  const onSaveProduct = () => {
     if (!datos.nombre || !datos.codigo) {
       alert('Nombre y Código requeridos');
       return;
     }
     
-    const existe = state.productos.find(p => p.activo && p.codigo === datos.codigo && p.id !== producto?.id);
+    const existe = productos.find((p: any) => p.activo && p.codigo === datos.codigo && p.id !== effectiveProduct?.id);
     if (existe) {
       alert(`ERROR: El código \"${datos.codigo}\" ya se encuentra registrado para el producto \"${existe.nombre}\". No se permiten duplicados.`);
       return;
     }
 
-    // Construir el producto completo con todos los campos
     const productData = {
       ...datos,
-      // Campos base
       costoUSD: parseFloat(datos.costoUSD) || 0,
       margen: parseFloat(datos.margen) || 0,
       precioUSD: parseFloat(datos.precioUSD) || 0,
@@ -476,15 +656,14 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
       stock: parseFloat(datos.stock) || 0,
       stockMinimo: parseFloat(datos.stockMinimo) || 0,
       
-      // Campos de ProductForm
-      id: producto?.id || Date.now().toString(36) + Math.random().toString(36).substr(2, 6),
+      id: effectiveProduct?.id || Date.now().toString(36) + Math.random().toString(36).substr(2, 6),
       barcode: datos.barcode || datos.codigo,
       internalCode: datos.internalCode || datos.codigo,
       code: datos.codigo,
       name: datos.nombre,
       description: datos.description || datos.nombre,
       priceVES: parseFloat(datos.precioBS) || 0,
-      prices: prices.map(p => ({ 
+      prices: prices.map((p: any) => ({ 
         name: p.name, 
         usd: round2(parseFloat(p.usd) || 0), 
         ves: round2(parseFloat(p.bs) || 0) 
@@ -500,19 +679,19 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
       netWeight: parseFloat(datos.netWeight) || 0,
       grossWeight: parseFloat(datos.grossWeight) || 0,
       volume: parseFloat(datos.volume) || 0,
-      createdAt: producto?.createdAt || new Date().toISOString(),
+      createdAt: effectiveProduct?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       activo: datos.active ?? true,
-      
-      // Mantener compatibilidad con campos existentes
-      precioMayorUSD: parseFloat(datos.precioMayorUSD) || 0,
-      precioOfertaUSD: parseFloat(datos.precioOfertaUSD) || 0,
-      precioPromoUSD: parseFloat(datos.precioPromoUSD) || 0,
-      cantidad: datos.cantidad || datos.mainUnit || 'Unidad'
+      cantidad: datos.cantidad || datos.mainUnit || 'Unidad',
+      categoria: datos.categoria || datos.type || 'Repuesto',
+      departamento: datos.departamento || 'Otros',
+      marca: datos.marca || 'Genérica'
     };
 
-    onSave(productData);
+    handleSave(productData);
   };
+
+  if (!isOpen) return null;
 
   return (
     <>
@@ -521,7 +700,7 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
         <div className="modal-box bg-white max-w-5xl border-2 border-line rounded-xl overflow-hidden shadow-2xl max-h-[95vh]">
           <div className="modal-head py-4 px-6 border-b border-line bg-ink flex justify-between items-center text-white">
             <h3 className="font-black uppercase italic tracking-tighter text-sm flex items-center gap-2">
-              <Box className="w-5 h-5 text-brand-gold" /> {producto ? 'EDITAR FICHA' : 'NUEVO ÍTEM / PRODUCTO'}
+              <Box className="w-5 h-5 text-brand-gold" /> {effectiveProduct ? 'EDITAR FICHA' : 'NUEVO ÍTEM / PRODUCTO'}
             </h3>
             <div className="flex items-center gap-3">
               <button 
@@ -557,7 +736,6 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
               <div className="modal-body p-6 space-y-6 bg-white">
                 {activeTab === 'general' && (
                   <div className="space-y-6">
-                    {/* Sección Identificación */}
                     <div>
                       <h4 className="text-[11px] font-black uppercase text-ink/50 border-b border-gray-100 pb-2 mb-4 flex items-center gap-2">
                         <Hash className="w-4 h-4 text-brand-gold" /> Identificación
@@ -602,7 +780,6 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                       </div>
                     </div>
 
-                    {/* Sección Descripción */}
                     <div>
                       <h4 className="text-[11px] font-black uppercase text-ink/50 border-b border-gray-100 pb-2 mb-4 flex items-center gap-2">
                         <Box className="w-4 h-4 text-brand-gold" /> Descripción
@@ -650,203 +827,129 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                       </div>
                     </div>
 
-                    {/* Sección Clasificación */}
                     <div>
                       <h4 className="text-[11px] font-black uppercase text-ink/50 border-b border-gray-100 pb-2 mb-4 flex items-center gap-2">
                         <Tag className="w-4 h-4 text-brand-gold" /> Clasificación
                       </h4>
                       <div className="grid grid-cols-3 gap-4">
-                        <SelectWithAdd 
-                          label="Categoría de Artículo"
-                          value={datos.type}
-                          onChange={(v: any) => setDatos((prev: any) => ({ ...prev, type: v }))}
-                          options={tiposArticulo.map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                          onAdd={() => {
-                            const n = prompt("Nueva Categoría:");
-                            if(n) handleAddListItem('productCategories', n);
-                          }}
-                          onDelete={(v: any) => {
-                            if (confirm(`¿Eliminar categoría "${v}"?`)) {
-                              const currentList = state.productCategories;
-                              if (Array.isArray(currentList)) {
-                                const newList = currentList.filter((c: string) => c !== v);
-                                onUpdateLists({ productCategories: newList });
-                                setDatos((prev: any) => ({ ...prev, type: '' }));
-                              }
-                            }
-                          }}
-                        />
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase text-black">Categoría</Label>
+                          <Select value={datos.categoria} onValueChange={(v) => setDatos({...datos, categoria: v, type: v})}>
+                            <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
+                              <SelectValue placeholder="Seleccione" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categorias.map((cat: string) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase text-black">Departamento</Label>
+                          <Select value={datos.departamento} onValueChange={(v) => setDatos({...datos, departamento: v})}>
+                            <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
+                              <SelectValue placeholder="Seleccione" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {departamentos.map((dep: string) => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         
-                        <SelectWithAdd 
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase text-black">Marca</Label>
+                          <Select value={datos.marca} onValueChange={(v) => setDatos({...datos, marca: v})}>
+                            <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
+                              <SelectValue placeholder="Seleccione" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {marcas.map((m: string) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4 mt-4">
+                        <SelectWithAddObject 
                           label="Familia / Grupo"
                           value={datos.groupId?.toString() ?? ''}
                           onChange={(v: any) => setDatos((prev: any) => ({ ...prev, groupId: parseInt(v) || 0, subgroupId: 0 }))}
-                          options={(state.groups || [])?.map((g: any) => <SelectItem key={g.id} value={g.id.toString()}>{g.name}</SelectItem>)}
+                          options={groups.map((g: any) => <SelectItem key={g.id} value={g.id.toString()}>{g.name}</SelectItem>)}
                           onAdd={() => {
                             const n = prompt("Nuevo Grupo:");
                             if(n) {
-                              const groups = state.groups || [];
-                              const newId = Math.max(...groups.map((g: any) => g.id), 0) + 1;
-                              onUpdateLists({ groups: [...groups, { id: newId, name: n }] });
-                              setDatos((prev: any) => ({ ...prev, groupId: newId }));
+                              const newId = handleAddObject('groups', n);
+                              if (newId) setDatos((prev: any) => ({ ...prev, groupId: newId }));
                             }
                           }}
-                          onDelete={(v: any) => {
-                            if (confirm(`¿Eliminar grupo?`)) {
-                              const newList = (state.groups || []).filter((g: any) => g.id.toString() !== v.toString());
-                              onUpdateLists({ groups: newList });
-                              setDatos((prev: any) => ({ ...prev, groupId: 0 }));
-                            }
-                          }}
+                          onDelete={(v: any) => handleRemoveObject('groups', parseInt(v))}
                         />
                         
-                        <SelectWithAdd 
+                        <SelectWithAddObject 
                           label="Sub-Familia"
                           value={datos.subgroupId?.toString() ?? ''}
                           onChange={(v: any) => setDatos((prev: any) => ({ ...prev, subgroupId: parseInt(v) || 0 }))}
-                          options={(state.subgroups || []).filter((s: any) => s.groupId === datos.groupId).map((s: any) => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
+                          options={subgroups.filter((s: any) => s.groupId === datos.groupId).map((s: any) => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
                           onAdd={() => {
                             if (!datos.groupId) { alert('Primero seleccione un grupo'); return; }
                             const n = prompt("Nueva Sub-Familia:");
                             if(n) {
-                              const subgroups = state.subgroups || [];
-                              const newId = Math.max(...subgroups.map((s: any) => s.id), 0) + 1;
-                              onUpdateLists({ subgroups: [...subgroups, { id: newId, name: n, groupId: datos.groupId }] });
-                              setDatos((prev: any) => ({ ...prev, subgroupId: newId }));
+                              const newId = handleAddObject('subgroups', n, { groupId: datos.groupId });
+                              if (newId) setDatos((prev: any) => ({ ...prev, subgroupId: newId }));
                             }
                           }}
-                          onDelete={(v: any) => {
-                            if (confirm(`¿Eliminar sub-familia?`)) {
-                              const newList = (state.subgroups || []).filter((s: any) => s.id.toString() !== v.toString());
-                              onUpdateLists({ subgroups: newList });
-                              setDatos((prev: any) => ({ ...prev, subgroupId: 0 }));
+                          onDelete={(v: any) => handleRemoveObject('subgroups', parseInt(v))}
+                        />
+                        
+                        <SelectWithAddObject 
+                          label="Línea de Producto"
+                          value={datos.lineId?.toString() ?? ''}
+                          onChange={(v: any) => setDatos((prev: any) => ({ ...prev, lineId: parseInt(v) || 0 }))}
+                          options={lines.map((l: any) => <SelectItem key={l.id} value={l.id.toString()}>{l.name}</SelectItem>)}
+                          onAdd={() => {
+                            const n = prompt("Nueva Línea:");
+                            if(n) {
+                              const newId = handleAddObject('lines', n);
+                              if (newId) setDatos((prev: any) => ({ ...prev, lineId: newId }));
                             }
                           }}
+                          onDelete={(v: any) => handleRemoveObject('lines', parseInt(v))}
                         />
                       </div>
 
                       <div className="grid grid-cols-3 gap-4 mt-4">
-                        <SelectWithAdd 
+                        <SelectWithAddObject 
                           label="Marca"
                           value={datos.brandId?.toString() ?? ''}
-                          onChange={(v: any) => setDatos((prev: any) => ({ ...prev, brandId: parseInt(v) || 0, marca: (state.brands || []).find((b: any) => b.id === parseInt(v))?.name || '' }))}
-                          options={(state.brands || [])?.map((b: any) => <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>)}
+                          onChange={(v: any) => setDatos((prev: any) => ({ ...prev, brandId: parseInt(v) || 0, marca: brands.find((b: any) => b.id === parseInt(v))?.name || '' }))}
+                          options={brands.map((b: any) => <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>)}
                           onAdd={() => {
                             const n = prompt("Nueva Marca:");
                             if(n) {
-                              const brands = state.brands || [];
-                              const newId = Math.max(...brands.map((b: any) => b.id), 0) + 1;
-                              onUpdateLists({ brands: [...brands, { id: newId, name: n }] });
-                              setDatos((prev: any) => ({ ...prev, brandId: newId, marca: n }));
-                            }
-                          }}
-                          onDelete={(v: any) => {
-                            if (confirm(`¿Eliminar marca?`)) {
-                              const newList = (state.brands || []).filter((b: any) => b.id.toString() !== v.toString());
-                              onUpdateLists({ brands: newList });
-                              setDatos((prev: any) => ({ ...prev, brandId: 0, marca: '' }));
-                            }
-                          }}
-                        />
-                        
-                        <SelectWithAdd 
-                          label="Línea de Producto"
-                          value={datos.lineId?.toString() ?? ''}
-                          onChange={(v: any) => setDatos((prev: any) => ({ ...prev, lineId: parseInt(v) || 0 }))}
-                          options={(state.lines || [])?.map((l: any) => <SelectItem key={l.id} value={l.id.toString()}>{l.name}</SelectItem>)}
-                          onAdd={() => {
-                            const n = prompt("Nueva Línea:");
-                            if(n) {
-                              const lines = state.lines || [];
-                              const newId = Math.max(...lines.map((l: any) => l.id), 0) + 1;
-                              onUpdateLists({ lines: [...lines, { id: newId, name: n }] });
-                              setDatos((prev: any) => ({ ...prev, lineId: newId }));
-                            }
-                          }}
-                          onDelete={(v: any) => {
-                            if (confirm(`¿Eliminar línea?`)) {
-                              const newList = (state.lines || []).filter((l: any) => l.id.toString() !== v.toString());
-                              onUpdateLists({ lines: newList });
-                              setDatos((prev: any) => ({ ...prev, lineId: 0 }));
-                            }
-                          }}
-                        />
-                        
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase text-black">Modelo / Aplicación / Año</Label>
-                          <CleanInput 
-                            value={datos.model} 
-                            onChange={(e: any) => setDatos((prev: any) => ({ ...prev, model: e.target.value }))}
-                            placeholder="EX: Corolla 2009-2014" 
-                            className="h-9 text-sm bg-white rounded-lg" 
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-4 gap-4 mt-4">
-                        <SelectWithAdd 
-                          label="Color / Acabado"
-                          value={datos.color}
-                          onChange={(v: any) => setDatos((prev: any) => ({ ...prev, color: v }))}
-                          options={colores.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                          onAdd={() => {
-                            const n = prompt("Nuevo Color:");
-                            if(n) handleAddListItem('productColors', n);
-                          }}
-                          onDelete={(v: any) => {
-                            if (confirm(`¿Eliminar color "${v}"?`)) {
-                              const currentList = state.productColors;
-                              if (Array.isArray(currentList)) {
-                                const newList = currentList.filter((c: string) => c !== v);
-                                onUpdateLists({ productColors: newList });
-                                setDatos((prev: any) => ({ ...prev, color: '' }));
+                              const newId = handleAddObject('brands', n);
+                              if (newId) {
+                                setDatos((prev: any) => ({ ...prev, brandId: newId, marca: n }));
                               }
                             }
                           }}
+                          onDelete={(v: any) => handleRemoveObject('brands', parseInt(v))}
                         />
                         
-                        <SelectWithAdd 
-                          label="Medida / Talla / Grado"
-                          value={datos.size}
-                          onChange={(v: any) => setDatos((prev: any) => ({ ...prev, size: v }))}
-                          options={tallas.map((t: string) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                          onAdd={() => {
-                            const n = prompt("Nueva Talla/Medida:");
-                            if(n) handleAddListItem('productSizes', n);
-                          }}
-                          onDelete={(v: any) => {
-                            if (confirm(`¿Eliminar talla "${v}"?`)) {
-                              const currentList = state.productSizes;
-                              if (Array.isArray(currentList)) {
-                                const newList = currentList.filter((t: string) => t !== v);
-                                onUpdateLists({ productSizes: newList });
-                                setDatos((prev: any) => ({ ...prev, size: '' }));
-                              }
-                            }
-                          }}
-                        />
-                        
-                        <SelectWithAdd 
+                        <SelectWithAddObject 
                           label="Proveedor"
                           value={datos.supplierId?.toString() ?? ''}
-                          onChange={(v: any) => setDatos((prev: any) => ({ ...prev, supplierId: parseInt(v) || 0, proveedor: (state.suppliers || []).find((s: any) => s.id === parseInt(v))?.name || '' }))}
-                          options={(state.suppliers || [])?.map((s: any) => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
+                          onChange={(v: any) => setDatos((prev: any) => ({ ...prev, supplierId: parseInt(v) || 0, proveedor: suppliers.find((s: any) => s.id === parseInt(v))?.name || '' }))}
+                          options={suppliers.map((s: any) => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
                           onAdd={() => {
                             const n = prompt("Nombre del Proveedor:");
                             if(n) {
-                              const suppliers = state.suppliers || [];
-                              const newId = Math.max(...suppliers.map((s: any) => s.id), 0) + 1;
-                              onUpdateLists({ suppliers: [...suppliers, { id: newId, name: n }] });
-                              setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: n }));
+                              const newId = handleAddObject('suppliers', n);
+                              if (newId) {
+                                setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: n }));
+                              }
                             }
                           }}
-                          onDelete={(v: any) => {
-                            if (confirm(`¿Eliminar proveedor?`)) {
-                              const newList = (state.suppliers || []).filter((s: any) => s.id.toString() !== v.toString());
-                              onUpdateLists({ suppliers: newList });
-                              setDatos((prev: any) => ({ ...prev, supplierId: 0, proveedor: '' }));
-                            }
-                          }}
+                          onDelete={(v: any) => handleRemoveObject('suppliers', parseInt(v))}
                         />
                         
                         <div className="space-y-1">
@@ -900,36 +1003,6 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                       <div className="space-y-1">
-                         <Label className="text-[10px] font-black uppercase text-ink/40">Precio al Mayor ($)</Label>
-                         <CleanInput 
-                           className="h-11 font-black bg-white" 
-                           value={datos.precioMayorUSD} 
-                           onChange={(e: any) => validarDecimal(e.target.value) && setDatos({...datos, precioMayorUSD: e.target.value})} 
-                           placeholder="0.00" 
-                         />
-                       </div>
-                       <div className="space-y-1">
-                         <Label className="text-[10px] font-black uppercase text-ink/40">Precio Promoción ($)</Label>
-                         <CleanInput 
-                           className="h-11 font-black bg-white" 
-                           value={datos.precioPromoUSD} 
-                           onChange={(e: any) => validarDecimal(e.target.value) && setDatos({...datos, precioPromoUSD: e.target.value})} 
-                           placeholder="0.00" 
-                         />
-                       </div>
-                       <div className="space-y-1">
-                         <Label className="text-[10px] font-black uppercase text-ink/40">Precio Descuento ($)</Label>
-                         <CleanInput 
-                           className="h-11 font-black bg-white" 
-                           value={datos.precioOfertaUSD} 
-                           onChange={(e: any) => validarDecimal(e.target.value) && setDatos({...datos, precioOfertaUSD: e.target.value})} 
-                           placeholder="0.00" 
-                         />
-                       </div>
-                    </div>
-
                     <div className="border border-gray-200 rounded-xl overflow-hidden">
                       <table className="w-full text-xs">
                         <thead className="bg-gray-100 text-black font-black uppercase">
@@ -942,14 +1015,17 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {prices.map((price, i) => {
+                          {prices.map((price: any, i: number) => {
                             const usdVal = parseFloat(price.usd) || 0;
                             const cost = parseFloat(datos.costoUSD) || 0;
                             const margin = (usdVal > 0 && cost > 0) ? ((usdVal - cost) / usdVal) * 100 : 0;
+                            const label = i === 0 ? 'Detal' : i === 1 ? 'Mayor (15%)' : 'Oferta (20%)';
                             
                             return (
                               <tr key={i} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 font-black text-black">{price.name}</td>
+                                <td className="px-3 py-2 font-black text-black">
+                                  Precio {i + 1} - {label}
+                                </td>
                                 <td className="px-3 py-2 text-center">
                                   <div className="flex items-center justify-center gap-2">
                                     <Switch 
@@ -995,7 +1071,8 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                     </div>
                     <div className="mt-2 flex justify-between items-center">
                       <span className="text-[10px] text-black font-black uppercase">
-                        Fórmula Automática: PV = Costo / (1 - Margen%)
+                        Fórmula Automática: PV = Costo / (1 - Margen%)<br/>
+                        <span className="text-[8px] text-gray-500">Precio 2: Mayor (15%) | Precio 3: Oferta (20%)</span>
                       </span>
                       <Badge variant="outline" className="text-[10px] text-black font-black border-black">TASA VIGENTE: {exchangeRate} Bs/USD</Badge>
                     </div>
@@ -1060,7 +1137,7 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                     </h4>
                     
                     <div className="grid grid-cols-3 gap-4">
-                      <SelectWithAdd 
+                      <SelectWithAddString 
                         label="Unidad de Despacho"
                         value={datos.mainUnit || datos.cantidad || 'unidad'}
                         onChange={(v: any) => setDatos((prev: any) => ({ ...prev, mainUnit: v, cantidad: v }))}
@@ -1070,14 +1147,8 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                           if(n) handleAddListItem('productUnits', n);
                         }}
                         onDelete={(v: any) => {
-                          if (confirm(`¿Eliminar unidad "${v}"?`)) {
-                            const currentList = state.productUnits;
-                            if (Array.isArray(currentList)) {
-                              const newList = currentList.filter((u: string) => u !== v);
-                              onUpdateLists({ productUnits: newList });
-                              setDatos((prev: any) => ({ ...prev, mainUnit: '', cantidad: '' }));
-                            }
-                          }
+                          handleRemoveListItem('productUnits', v);
+                          setDatos((prev: any) => ({ ...prev, mainUnit: '', cantidad: '' }));
                         }}
                       />
                       
@@ -1110,7 +1181,7 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                           type="number"
                           value={datos.stock} 
                           onChange={(e: any) => setDatos((prev: any) => ({ ...prev, stock: e.target.value }))}
-                          disabled={!!producto} 
+                          disabled={!!effectiveProduct} 
                           placeholder="0"
                           className="h-9 text-sm bg-white rounded-lg" 
                         />
@@ -1303,7 +1374,7 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                           />
                           {(filteredProdsForKit || []).length > 0 && (
                             <div className="absolute top-full left-0 right-0 bg-white border border-line rounded-lg shadow-2xl z-50 mt-1 overflow-hidden">
-                              {filteredProdsForKit.map((pk) => (
+                              {filteredProdsForKit.map((pk: any) => (
                                 <div 
                                   key={pk.id} 
                                   onClick={() => { 
@@ -1373,7 +1444,6 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
               </div>
             </div>
 
-            {/* Vista previa */}
             {showPreview && (
               <div className="w-72 bg-gray-100 border-l border-gray-300 p-4 space-y-4 overflow-y-auto shrink-0">
                 <h4 className="text-xs font-black uppercase text-black border-b border-gray-300 pb-2 tracking-widest">VISTA PREVIA</h4>
@@ -1386,12 +1456,13 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                 <div className="bg-white rounded-xl p-3 shadow-sm">
                   <div className="text-[10px] text-black uppercase font-black mb-2">PRECIOS ($/BS)</div>
                   <div className="space-y-2">
-                    {prices.map((p, i) => {
+                    {prices.map((p: any, i: number) => {
                       const usd = parseFloat(p.usd) || 0;
                       const bs = parseFloat(p.bs) || 0;
+                      const label = i === 0 ? 'Detal' : i === 1 ? 'Mayor' : 'Oferta';
                       return (
                         <div key={i} className="flex justify-between items-center text-sm">
-                          <span className="text-black text-[10px] font-black uppercase">{p.name.split('-')[1]?.trim() || p.name}</span>
+                          <span className="text-black text-[10px] font-black uppercase">Precio {i+1} {label}</span>
                           <div className="text-right">
                             <div className="font-mono font-black text-[#0a1628]">
                               {usd > 0 ? '$' + usd.toFixed(2) : '-'}
@@ -1446,7 +1517,7 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
                   <div className="text-[10px] text-black uppercase font-black mb-2">INFORMACIÓN</div>
                   <div className="space-y-1 text-[10px] text-black">
                     <div><span className="font-black">Tipo:</span> {datos.type || 'N/A'}</div>
-                    <div><span className="font-black">Marca:</span> {datos.marca || datos.brandId ? (state.brands || []).find((b: any) => b.id === datos.brandId)?.name || 'N/A' : 'N/A'}</div>
+                    <div><span className="font-black">Marca:</span> {datos.marca || datos.brandId ? (brands.find((b: any) => b.id === datos.brandId)?.name || 'N/A') : 'N/A'}</div>
                     <div><span className="font-black">Modelo:</span> {datos.model || 'N/A'}</div>
                     <div><span className="font-black">Color:</span> {datos.color || 'N/A'}</div>
                     <div><span className="font-black">Talla:</span> {datos.size || 'N/A'}</div>
@@ -1459,14 +1530,14 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
 
           <div className="modal-foot p-5 bg-surface-soft border-t border-line flex justify-between items-center">
             <div className="text-[9px] text-ink/40 font-black uppercase">
-              {producto ? 'Modo Edición' : 'Modo Registro'} • Todos los campos son opcionales
+              {effectiveProduct ? 'Modo Edición' : 'Modo Registro'} • Todos los campos son opcionales
             </div>
             <div className="flex gap-3">
               <Button variant="secondary" className="px-8 font-black uppercase text-[10px]" onClick={onClose}>
                 Cancelar
               </Button>
-              <Button className="bg-brand-gold hover:bg-brand-gold-deep text-ink px-10 font-black uppercase text-[10px] shadow-lg" onClick={handleSave}>
-                {producto ? 'ACTUALIZAR' : 'CREAR PRODUCTO'}
+              <Button className="bg-brand-gold hover:bg-brand-gold-deep text-ink px-10 font-black uppercase text-[10px] shadow-lg" onClick={onSaveProduct}>
+                {effectiveProduct ? 'ACTUALIZAR' : 'CREAR PRODUCTO'}
               </Button>
             </div>
           </div>
@@ -1485,22 +1556,22 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
             autoFocus 
             onKeyDown={(e: any) => { 
               if (e.key === 'Enter') {
-                const brands = state.brands || [];
-                const newId = Math.max(...brands.map((b: any) => b.id), 0) + 1;
-                onUpdateLists({ brands: [...brands, { id: newId, name: modalMarca.name }] });
-                setDatos((prev: any) => ({ ...prev, brandId: newId, marca: modalMarca.name }));
-                setModalMarca({ open: false, name: '' });
+                const newId = handleAddObject('brands', modalMarca.name);
+                if (newId) {
+                  setDatos((prev: any) => ({ ...prev, brandId: newId, marca: modalMarca.name }));
+                  setModalMarca({ open: false, name: '' });
+                }
               }
             }} 
           />
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={() => setModalMarca({ open: false, name: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
             <Button size="sm" onClick={() => {
-              const brands = state.brands || [];
-              const newId = Math.max(...brands.map((b: any) => b.id), 0) + 1;
-              onUpdateLists({ brands: [...brands, { id: newId, name: modalMarca.name }] });
-              setDatos((prev: any) => ({ ...prev, brandId: newId, marca: modalMarca.name }));
-              setModalMarca({ open: false, name: '' });
+              const newId = handleAddObject('brands', modalMarca.name);
+              if (newId) {
+                setDatos((prev: any) => ({ ...prev, brandId: newId, marca: modalMarca.name }));
+                setModalMarca({ open: false, name: '' });
+              }
             }} className="bg-ink font-black uppercase text-[10px]">Crear Marca</Button>
           </div>
         </DialogContent>
@@ -1517,22 +1588,22 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
             autoFocus 
             onKeyDown={(e: any) => { 
               if (e.key === 'Enter') {
-                const groups = state.groups || [];
-                const newId = Math.max(...groups.map((g: any) => g.id), 0) + 1;
-                onUpdateLists({ groups: [...groups, { id: newId, name: modalGrupo.name }] });
-                setDatos((prev: any) => ({ ...prev, groupId: newId }));
-                setModalGrupo({ open: false, name: '' });
+                const newId = handleAddObject('groups', modalGrupo.name);
+                if (newId) {
+                  setDatos((prev: any) => ({ ...prev, groupId: newId }));
+                  setModalGrupo({ open: false, name: '' });
+                }
               }
             }} 
           />
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={() => setModalGrupo({ open: false, name: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
             <Button size="sm" onClick={() => {
-              const groups = state.groups || [];
-              const newId = Math.max(...groups.map((g: any) => g.id), 0) + 1;
-              onUpdateLists({ groups: [...groups, { id: newId, name: modalGrupo.name }] });
-              setDatos((prev: any) => ({ ...prev, groupId: newId }));
-              setModalGrupo({ open: false, name: '' });
+              const newId = handleAddObject('groups', modalGrupo.name);
+              if (newId) {
+                setDatos((prev: any) => ({ ...prev, groupId: newId }));
+                setModalGrupo({ open: false, name: '' });
+              }
             }} className="bg-ink font-black uppercase text-[10px]">Crear Grupo</Button>
           </div>
         </DialogContent>
@@ -1550,11 +1621,11 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
             onKeyDown={(e: any) => { 
               if (e.key === 'Enter') {
                 if (!datos.groupId) { alert('Primero seleccione un grupo'); return; }
-                const subgroups = state.subgroups || [];
-                const newId = Math.max(...subgroups.map((s: any) => s.id), 0) + 1;
-                onUpdateLists({ subgroups: [...subgroups, { id: newId, name: modalSubGrupo.name, groupId: datos.groupId }] });
-                setDatos((prev: any) => ({ ...prev, subgroupId: newId }));
-                setModalSubGrupo({ open: false, name: '' });
+                const newId = handleAddObject('subgroups', modalSubGrupo.name, { groupId: datos.groupId });
+                if (newId) {
+                  setDatos((prev: any) => ({ ...prev, subgroupId: newId }));
+                  setModalSubGrupo({ open: false, name: '' });
+                }
               }
             }} 
           />
@@ -1562,11 +1633,11 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
             <Button variant="outline" size="sm" onClick={() => setModalSubGrupo({ open: false, name: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
             <Button size="sm" onClick={() => {
               if (!datos.groupId) { alert('Primero seleccione un grupo'); return; }
-              const subgroups = state.subgroups || [];
-              const newId = Math.max(...subgroups.map((s: any) => s.id), 0) + 1;
-              onUpdateLists({ subgroups: [...subgroups, { id: newId, name: modalSubGrupo.name, groupId: datos.groupId }] });
-              setDatos((prev: any) => ({ ...prev, subgroupId: newId }));
-              setModalSubGrupo({ open: false, name: '' });
+              const newId = handleAddObject('subgroups', modalSubGrupo.name, { groupId: datos.groupId });
+              if (newId) {
+                setDatos((prev: any) => ({ ...prev, subgroupId: newId }));
+                setModalSubGrupo({ open: false, name: '' });
+              }
             }} className="bg-ink font-black uppercase text-[10px]">Crear Sub-Familia</Button>
           </div>
         </DialogContent>
@@ -1583,22 +1654,22 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
             autoFocus 
             onKeyDown={(e: any) => { 
               if (e.key === 'Enter') {
-                const lines = state.lines || [];
-                const newId = Math.max(...lines.map((l: any) => l.id), 0) + 1;
-                onUpdateLists({ lines: [...lines, { id: newId, name: modalLinea.name }] });
-                setDatos((prev: any) => ({ ...prev, lineId: newId }));
-                setModalLinea({ open: false, name: '' });
+                const newId = handleAddObject('lines', modalLinea.name);
+                if (newId) {
+                  setDatos((prev: any) => ({ ...prev, lineId: newId }));
+                  setModalLinea({ open: false, name: '' });
+                }
               }
             }} 
           />
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={() => setModalLinea({ open: false, name: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
             <Button size="sm" onClick={() => {
-              const lines = state.lines || [];
-              const newId = Math.max(...lines.map((l: any) => l.id), 0) + 1;
-              onUpdateLists({ lines: [...lines, { id: newId, name: modalLinea.name }] });
-              setDatos((prev: any) => ({ ...prev, lineId: newId }));
-              setModalLinea({ open: false, name: '' });
+              const newId = handleAddObject('lines', modalLinea.name);
+              if (newId) {
+                setDatos((prev: any) => ({ ...prev, lineId: newId }));
+                setModalLinea({ open: false, name: '' });
+              }
             }} className="bg-ink font-black uppercase text-[10px]">Crear Línea</Button>
           </div>
         </DialogContent>
@@ -1621,22 +1692,22 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
             className="bg-white border-2 focus:border-brand-gold" 
             onKeyDown={(e: any) => { 
               if (e.key === 'Enter') {
-                const suppliers = state.suppliers || [];
-                const newId = Math.max(...suppliers.map((s: any) => s.id), 0) + 1;
-                onUpdateLists({ suppliers: [...suppliers, { id: newId, name: modalProveedor.name, code: modalProveedor.code }] });
-                setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: modalProveedor.name, supplierCode: modalProveedor.code }));
-                setModalProveedor({ open: false, name: '', code: '' });
+                const newId = handleAddObject('suppliers', modalProveedor.name, { code: modalProveedor.code });
+                if (newId) {
+                  setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: modalProveedor.name, supplierCode: modalProveedor.code }));
+                  setModalProveedor({ open: false, name: '', code: '' });
+                }
               }
             }} 
           />
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={() => setModalProveedor({ open: false, name: '', code: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
             <Button size="sm" onClick={() => {
-              const suppliers = state.suppliers || [];
-              const newId = Math.max(...suppliers.map((s: any) => s.id), 0) + 1;
-              onUpdateLists({ suppliers: [...suppliers, { id: newId, name: modalProveedor.name, code: modalProveedor.code }] });
-              setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: modalProveedor.name, supplierCode: modalProveedor.code }));
-              setModalProveedor({ open: false, name: '', code: '' });
+              const newId = handleAddObject('suppliers', modalProveedor.name, { code: modalProveedor.code });
+              if (newId) {
+                setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: modalProveedor.name, supplierCode: modalProveedor.code }));
+                setModalProveedor({ open: false, name: '', code: '' });
+              }
             }} className="bg-ink font-black uppercase text-[10px]">Crear Proveedor</Button>
           </div>
         </DialogContent>
@@ -1644,3 +1715,7 @@ export function ProductFormModal({ producto, state, onClose, onSave, onUpdateLis
     </>
   );
 }
+
+// ===== EXPORTACIÓN ÚNICA PARA COMPATIBILIDAD =====
+// Exportamos como ProductForm para que funcione con la importación de InventoryModule
+export const ProductForm = ProductFormModalComponent;
