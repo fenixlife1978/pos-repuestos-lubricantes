@@ -22,21 +22,17 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 // ===== INTERFAZ UNIFICADA QUE SOPORTA AMBOS SISTEMAS =====
 interface ProductFormModalProps {
-  // === Sistema original (InventoryModule) ===
   isOpen?: boolean;
   onClose: () => void;
   editingProduct?: Product | null;
   store?: AppState;
   updateStore?: (newState: Partial<AppState>) => void;
-  
-  // === Sistema alternativo (ProductFormModal directo) ===
   producto?: Product;
   state?: AppState;
   onSave?: (p: any) => void;
   onUpdateLists?: (l: any) => void;
 }
 
-// Input sin flechas de spinner
 const CleanInput = React.forwardRef<any, any>(
   ({ className, type = "text", ...props }, ref) => (
     <Input 
@@ -50,40 +46,31 @@ const CleanInput = React.forwardRef<any, any>(
 CleanInput.displayName = 'CleanInput';
 
 export function ProductFormModalComponent({ 
-  // Props del sistema InventoryModule
   isOpen = true,
   onClose,
   editingProduct,
   store,
   updateStore,
-  
-  // Props del sistema alternativo
   producto,
   state,
   onSave,
   onUpdateLists
 }: ProductFormModalProps) {
-  // ===== UNIFICACIÓN DE PROPS =====
-  // Usar store si está disponible, sino usar state
   const effectiveState = (store || state || {}) as AppState;
   const effectiveProduct = editingProduct || producto || null;
   
-  // Crear funciones de callback unificadas
   const handleSave = (productData: any) => {
     if (onSave) {
       onSave(productData);
       return;
     }
-    
     if (updateStore) {
       const currentProducts = effectiveState.productos || [];
       if (effectiveProduct) {
-        // Edición
         updateStore({
           productos: currentProducts.map((p: any) => p.id === effectiveProduct.id ? productData : p)
         });
       } else {
-        // Nuevo producto
         updateStore({
           productos: [...currentProducts, productData]
         });
@@ -91,7 +78,6 @@ export function ProductFormModalComponent({
       onClose();
       return;
     }
-    
     console.warn('No se encontró onSave ni updateStore');
   };
   
@@ -100,20 +86,16 @@ export function ProductFormModalComponent({
       onUpdateLists(listData);
       return;
     }
-    
     if (updateStore) {
       updateStore(listData);
       return;
     }
-    
     console.warn('No se encontró onUpdateLists ni updateStore');
   };
   
-  // ===== VALIDACIONES DE SEGURIDAD =====
   const safeState = effectiveState || ({} as AppState);
   const exchangeRate = safeState?.tasa || 36.50;
   
-  // Listas con valores por defecto seguros
   const categorias = safeState?.categorias || ['Repuesto', 'Lubricante', 'Filtro', 'Químico', 'Accesorio', 'Batería', 'Caucho', 'Freno', 'Suspensión', 'Motor', 'Eléctrico', 'Transmisión', 'Servicio'];
   const departamentos = safeState?.departamentos || ['Licores', 'Viveres', 'Otros'];
   const marcas = safeState?.marcas || ['Genérica'];
@@ -124,20 +106,17 @@ export function ProductFormModalComponent({
   const [showPricesWithIVA, setShowPricesWithIVA] = useState([false, false, false]);
   const [activeTab, setActiveTab] = useState<'general' | 'precios' | 'inventario' | 'kit'>('general');
   
-  // Estados para modales de creación rápida
   const [modalMarca, setModalMarca] = useState({ open: false, name: '' });
   const [modalGrupo, setModalGrupo] = useState({ open: false, name: '' });
   const [modalSubGrupo, setModalSubGrupo] = useState({ open: false, name: '' });
   const [modalLinea, setModalLinea] = useState({ open: false, name: '' });
   const [modalProveedor, setModalProveedor] = useState({ open: false, name: '', code: '' });
   
-  // Obtener listas del state con fallbacks seguros
   const unidades = safeState?.productUnits || ['unidad', 'litro', 'galón', 'kit', 'juego'];
   const tiposArticulo = safeState?.productCategories || ['Repuesto', 'Lubricante', 'Filtro', 'Químico', 'Accesorio', 'Batería', 'Caucho', 'Freno', 'Suspensión', 'Motor', 'Eléctrico', 'Transmisión', 'Servicio'];
   const colores = safeState?.productColors || ['No Aplica', 'Negro', 'Gris', 'Cromo', 'Rojo', 'Azul', 'Blanco', 'Ámbar'];
   const tallas = safeState?.productSizes || ['N/A', 'Estándar', '0.10', '0.20', '0.30', '0.40', '0.50', '20', '30', '40', '50', '60'];
   
-  // Obtener listas del store
   const groups: any[] = safeState?.groups || [];
   const subgroups: any[] = safeState?.subgroups || [];
   const lines: any[] = safeState?.lines || [];
@@ -145,7 +124,6 @@ export function ProductFormModalComponent({
   const suppliers: any[] = safeState?.suppliers || [];
   
   const [datos, setDatos] = useState<any>({
-    // Campos existentes
     codigo: effectiveProduct?.codigo || '',
     nombre: effectiveProduct?.nombre || '',
     categoria: effectiveProduct?.categoria || (categorias.length > 0 ? categorias[0] : ''),
@@ -164,7 +142,6 @@ export function ProductFormModalComponent({
     proveedor: effectiveProduct?.proveedor || '',
     cantidad: effectiveProduct?.cantidad || (presentaciones.length > 0 ? presentaciones[0] : 'Unidad'),
     
-    // Nuevos campos de ProductForm
     barcode: effectiveProduct?.barcode || '',
     internalCode: effectiveProduct?.internalCode || effectiveProduct?.codigo || '',
     alternateCode: effectiveProduct?.alternateCode || '',
@@ -203,7 +180,6 @@ export function ProductFormModalComponent({
 
   const [kitSearch, setKitSearch] = useState('');
   
-  // Precios escalonados - 3 niveles con márgenes predeterminados
   const [prices, setPrices] = useState(() => {
     if (effectiveProduct && effectiveProduct.prices && effectiveProduct.prices.length >= 3) {
       return effectiveProduct.prices.map((p: any, i: number) => ({
@@ -212,21 +188,17 @@ export function ProductFormModalComponent({
         bs: p.ves?.toString() || ''
       }));
     }
-    
     const cost = parseFloat(effectiveProduct?.costoUSD?.toString() || '0');
-    
     if (cost > 0) {
       const price1USD = cost / (1 - (parseFloat(effectiveProduct?.margen?.toString() || '30') / 100));
       const price2USD = cost / (1 - 0.15);
       const price3USD = cost / (1 - 0.20);
-      
       return [
         { name: 'Precio 1 - Detal', usd: price1USD.toFixed(4), bs: (price1USD * exchangeRate).toFixed(2) },
         { name: 'Precio 2 - Mayor', usd: price2USD.toFixed(4), bs: (price2USD * exchangeRate).toFixed(2) },
         { name: 'Precio 3 - Oferta', usd: price3USD.toFixed(4), bs: (price3USD * exchangeRate).toFixed(2) },
       ];
     }
-    
     return [
       { name: 'Precio 1 - Detal', usd: '0', bs: '0' },
       { name: 'Precio 2 - Mayor', usd: '0', bs: '0' },
@@ -253,51 +225,28 @@ export function ProductFormModalComponent({
   const recalcFromCostAndMargin = useCallback((costStr: string, marginStr: string) => {
     const cost = parseFloat(costStr);
     const margin = parseFloat(marginStr);
-    
-    if (isNaN(cost) || cost <= 0 || isNaN(margin) || margin <= 0 || margin >= 100) {
-      return;
-    }
+    if (isNaN(cost) || cost <= 0 || isNaN(margin) || margin <= 0 || margin >= 100) return;
 
     const newPrices = prices.map((p: any, i: number) => {
       let tierMargin;
-      if (i === 0) {
-        tierMargin = margin;
-      } else if (i === 1) {
-        tierMargin = 15;
-      } else {
-        tierMargin = 20;
-      }
-      
+      if (i === 0) tierMargin = margin;
+      else if (i === 1) tierMargin = 15;
+      else tierMargin = 20;
       if (tierMargin >= 100) return { ...p, usd: '', bs: '' };
-      
       const tierPriceUSD = round4(cost / (1 - (tierMargin / 100)));
       const tierPriceBS = round2(tierPriceUSD * exchangeRate);
-      
-      return {
-        ...p,
-        usd: tierPriceUSD.toString(),
-        bs: tierPriceBS.toString()
-      };
+      return { ...p, usd: tierPriceUSD.toString(), bs: tierPriceBS.toString() };
     });
-    
     setPrices(newPrices);
     if (newPrices[0]) {
-      setDatos((prev: any) => ({
-        ...prev,
-        precioUSD: newPrices[0].usd,
-        precioBS: newPrices[0].bs
-      }));
+      setDatos((prev: any) => ({ ...prev, precioUSD: newPrices[0].usd, precioBS: newPrices[0].bs }));
     }
   }, [prices, exchangeRate]);
 
   const recalcMarginFromPrice = useCallback((priceUSDStr: string, costStr: string) => {
     const priceUSD = parseFloat(priceUSDStr);
     const cost = parseFloat(costStr);
-    
-    if (isNaN(priceUSD) || priceUSD <= 0 || isNaN(cost) || cost <= 0) {
-      return;
-    }
-
+    if (isNaN(priceUSD) || priceUSD <= 0 || isNaN(cost) || cost <= 0) return;
     const newMargin = round2(((priceUSD - cost) / priceUSD) * 100);
     setDatos((prev: any) => ({ ...prev, margen: newMargin.toString() }));
     recalcFromCostAndMargin(costStr, newMargin.toString());
@@ -308,42 +257,23 @@ export function ProductFormModalComponent({
     const cost = parseFloat(datos.costoUSD) || 0;
     const val = parseFloat(value) || 0;
     const tasa = exchangeRate;
-
     let newMargen = parseFloat(datos.margen) || 0;
     let newUSD = parseFloat(datos.precioUSD) || 0;
     let newBS = parseFloat(datos.precioBS) || 0;
 
     if (field === 'margen') {
       newMargen = val;
-      if (newMargen < 100) {
-        newUSD = cost / (1 - (newMargen / 100));
-        newBS = newUSD * tasa;
-      }
+      if (newMargen < 100) { newUSD = cost / (1 - (newMargen / 100)); newBS = newUSD * tasa; }
     } else if (field === 'precioUSD') {
       newUSD = val;
-      if (newUSD > 0) {
-        newMargen = ((newUSD - cost) / newUSD) * 100;
-        newBS = newUSD * tasa;
-      }
+      if (newUSD > 0) { newMargen = ((newUSD - cost) / newUSD) * 100; newBS = newUSD * tasa; }
     } else if (field === 'precioBS') {
       newBS = val;
-      if (newBS > 0) {
-        newUSD = newBS / tasa;
-        newMargen = ((newUSD - cost) / newUSD) * 100;
-      }
+      if (newBS > 0) { newUSD = newBS / tasa; newMargen = ((newUSD - cost) / newUSD) * 100; }
     }
 
-    setDatos({
-      ...datos,
-      [field]: value,
-      margen: field === 'margen' ? value : newMargen.toFixed(2),
-      precioUSD: field === 'precioUSD' ? value : newUSD.toFixed(2),
-      precioBS: field === 'precioBS' ? value : newBS.toFixed(2)
-    });
-    
-    const costStr = datos.costoUSD;
-    const marginStr = field === 'margen' ? value : newMargen.toFixed(2);
-    recalcFromCostAndMargin(costStr, marginStr);
+    setDatos({ ...datos, [field]: value, margen: field === 'margen' ? value : newMargen.toFixed(2), precioUSD: field === 'precioUSD' ? value : newUSD.toFixed(2), precioBS: field === 'precioBS' ? value : newBS.toFixed(2) });
+    recalcFromCostAndMargin(datos.costoUSD, field === 'margen' ? value : newMargen.toFixed(2));
   };
 
   const handleCostChange = (value: string) => {
@@ -352,38 +282,26 @@ export function ProductFormModalComponent({
     if (!isNaN(margin) && margin > 0 && margin < 100) {
       recalcFromCostAndMargin(value, datos.margen);
     } else {
-      const defaultMargin = 30;
-      recalcFromCostAndMargin(value, defaultMargin.toString());
-      setDatos((prev: any) => ({ ...prev, margen: defaultMargin.toString() }));
+      recalcFromCostAndMargin(value, '30');
+      setDatos((prev: any) => ({ ...prev, margen: '30' }));
     }
   };
 
   const handleMarginChange = (value: string) => {
     setDatos({...datos, margen: value});
     const cost = parseFloat(datos.costoUSD);
-    if (!isNaN(cost) && cost > 0) {
-      recalcFromCostAndMargin(datos.costoUSD, value);
-    }
+    if (!isNaN(cost) && cost > 0) recalcFromCostAndMargin(datos.costoUSD, value);
   };
 
   const handlePriceUSDChange = (index: number, value: string) => {
     const newPrices = [...prices];
     newPrices[index].usd = value;
-    
     const usd = parseFloat(value);
-    if (!isNaN(usd) && usd > 0) {
-      const bs = round2(usd * exchangeRate);
-      newPrices[index].bs = bs.toString();
-    } else {
-      newPrices[index].bs = '';
-    }
-    
+    newPrices[index].bs = (!isNaN(usd) && usd > 0) ? round2(usd * exchangeRate).toString() : '';
     setPrices(newPrices);
     if (index === 0) {
       const cost = parseFloat(datos.costoUSD);
-      if (!isNaN(cost) && cost > 0) {
-        recalcMarginFromPrice(value, datos.costoUSD);
-      }
+      if (!isNaN(cost) && cost > 0) recalcMarginFromPrice(value, datos.costoUSD);
       setDatos((prev: any) => ({ ...prev, precioUSD: value, precioBS: newPrices[0].bs }));
     }
   };
@@ -391,22 +309,13 @@ export function ProductFormModalComponent({
   const handlePriceBSChange = (index: number, value: string) => {
     const newPrices = [...prices];
     newPrices[index].bs = value;
-    
     const bs = parseFloat(value);
-    if (!isNaN(bs) && bs > 0) {
-      const usd = round4(bs / exchangeRate);
-      newPrices[index].usd = usd.toString();
-    } else {
-      newPrices[index].usd = '';
-    }
-    
+    newPrices[index].usd = (!isNaN(bs) && bs > 0) ? round4(bs / exchangeRate).toString() : '';
     setPrices(newPrices);
     if (index === 0) {
       const cost = parseFloat(datos.costoUSD);
       const newUSD = parseFloat(newPrices[index].usd);
-      if (!isNaN(cost) && cost > 0 && !isNaN(newUSD) && newUSD > 0) {
-        recalcMarginFromPrice(newPrices[index].usd, datos.costoUSD);
-      }
+      if (!isNaN(cost) && cost > 0 && !isNaN(newUSD) && newUSD > 0) recalcMarginFromPrice(newPrices[index].usd, datos.costoUSD);
       setDatos((prev: any) => ({ ...prev, precioBS: value, precioUSD: newPrices[0].usd }));
     }
   };
@@ -460,7 +369,6 @@ export function ProductFormModalComponent({
         observations: effectiveProduct.observations || '',
         active: effectiveProduct.activo ?? true
       }));
-      
       if (effectiveProduct.prices && effectiveProduct.prices.length > 0) {
         setPrices(effectiveProduct.prices.map((p: any, i: number) => ({
           name: p.name || `Precio ${i + 1}`,
@@ -540,10 +448,7 @@ export function ProductFormModalComponent({
           <Button 
             size="icon" 
             variant="outline" 
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onAdd();
-            }} 
+            onClick={(e) => { e.stopPropagation(); props.onAdd(); }} 
             className="h-9 w-9 bg-white border-gray-300"
             title="Agregar nuevo"
           >
@@ -553,10 +458,7 @@ export function ProductFormModalComponent({
             size="icon" 
             variant="outline" 
             disabled={!props.value || props.value === '0' || props.value === ''}
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onDelete && props.onDelete(props.value);
-            }} 
+            onClick={(e) => { e.stopPropagation(); props.onDelete && props.onDelete(props.value); }} 
             className="h-9 w-9 bg-white border-gray-300 hover:text-red-500 transition-colors"
             title="Eliminar seleccionado"
           >
@@ -592,10 +494,7 @@ export function ProductFormModalComponent({
           <Button 
             size="icon" 
             variant="outline" 
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onAdd();
-            }} 
+            onClick={(e) => { e.stopPropagation(); props.onAdd(); }} 
             className="h-9 w-9 bg-white border-gray-300"
             title="Agregar nuevo"
           >
@@ -605,10 +504,7 @@ export function ProductFormModalComponent({
             size="icon" 
             variant="outline" 
             disabled={!props.value || props.value === '0' || props.value === ''}
-            onClick={(e) => {
-              e.stopPropagation();
-              props.onDelete && props.onDelete(props.value);
-            }} 
+            onClick={(e) => { e.stopPropagation(); props.onDelete && props.onDelete(props.value); }} 
             className="h-9 w-9 bg-white border-gray-300 hover:text-red-500 transition-colors"
             title="Eliminar seleccionado"
           >
@@ -623,9 +519,7 @@ export function ProductFormModalComponent({
     <div className="bg-white p-3 rounded-lg border border-gray-300 text-center">
       {datos.barcode ? (
         <>
-          <div className="font-mono text-lg font-bold tracking-widest text-black mb-1">
-            {datos.barcode}
-          </div>
+          <div className="font-mono text-lg font-bold tracking-widest text-black mb-1">{datos.barcode}</div>
           <div className="h-8 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxwYXR0ZXJuIGlkPSJiYXIiIHdpZHRoPSI0IiBoZWlnaHQ9IjEwMCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHJlY3Qgd2lkdGg9IjEiIGhlaWdodD0iMTAwIiBmaWxsPSIjMDAwIi8+PC9wYXR0ZXJuPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjYmFyKSIvPjwvc3ZnPg==')] bg-repeat-x bg-contain"></div>
           <div className="text-[9px] text-black font-bold mt-1">{datos.shortDescription || datos.nombre || 'Repuesto'}</div>
         </>
@@ -640,10 +534,9 @@ export function ProductFormModalComponent({
       alert('Nombre y Código requeridos');
       return;
     }
-    
     const existe = productos.find((p: any) => p.activo && p.codigo === datos.codigo && p.id !== effectiveProduct?.id);
     if (existe) {
-      alert(`ERROR: El código \"${datos.codigo}\" ya se encuentra registrado para el producto \"${existe.nombre}\". No se permiten duplicados.`);
+      alert(`ERROR: El código \"${datos.codigo}\" ya se encuentra registrado para el producto \"${existe.nombre}\".`);
       return;
     }
 
@@ -655,7 +548,6 @@ export function ProductFormModalComponent({
       precioBS: parseFloat(datos.precioBS) || 0,
       stock: parseFloat(datos.stock) || 0,
       stockMinimo: parseFloat(datos.stockMinimo) || 0,
-      
       id: effectiveProduct?.id || Date.now().toString(36) + Math.random().toString(36).substr(2, 6),
       barcode: datos.barcode || datos.codigo,
       internalCode: datos.internalCode || datos.codigo,
@@ -663,11 +555,7 @@ export function ProductFormModalComponent({
       name: datos.nombre,
       description: datos.description || datos.nombre,
       priceVES: parseFloat(datos.precioBS) || 0,
-      prices: prices.map((p: any) => ({ 
-        name: p.name, 
-        usd: round2(parseFloat(p.usd) || 0), 
-        ves: round2(parseFloat(p.bs) || 0) 
-      })),
+      prices: prices.map((p: any) => ({ name: p.name, usd: round2(parseFloat(p.usd) || 0), ves: round2(parseFloat(p.bs) || 0) })),
       costPrice: parseFloat(datos.costoUSD) || 0,
       profitPercentage: parseFloat(datos.margen) || 0,
       unit: datos.mainUnit || datos.cantidad || 'unidad',
@@ -687,7 +575,6 @@ export function ProductFormModalComponent({
       departamento: datos.departamento || 'Otros',
       marca: datos.marca || 'Genérica'
     };
-
     handleSave(productData);
   };
 
@@ -703,16 +590,10 @@ export function ProductFormModalComponent({
               <Box className="w-5 h-5 text-brand-gold" /> {effectiveProduct ? 'EDITAR FICHA' : 'NUEVO ÍTEM / PRODUCTO'}
             </h3>
             <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setShowPreview(!showPreview)} 
-                className="text-white/40 hover:text-white text-[10px] font-black uppercase flex items-center gap-1"
-              >
-                {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                PREVIEW
+              <button onClick={() => setShowPreview(!showPreview)} className="text-white/40 hover:text-white text-[10px] font-black uppercase flex items-center gap-1">
+                {showPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />} PREVIEW
               </button>
-              <button onClick={onClose} className="text-white/40 hover:text-white">
-                <X className="w-5 h-5"/>
-              </button>
+              <button onClick={onClose} className="text-white/40 hover:text-white"><X className="w-5 h-5"/></button>
             </div>
           </div>
 
@@ -736,6 +617,7 @@ export function ProductFormModalComponent({
               <div className="modal-body p-6 space-y-6 bg-white">
                 {activeTab === 'general' && (
                   <div className="space-y-6">
+                    {/* IDENTIFICACIÓN */}
                     <div>
                       <h4 className="text-[11px] font-black uppercase text-ink/50 border-b border-gray-100 pb-2 mb-4 flex items-center gap-2">
                         <Hash className="w-4 h-4 text-brand-gold" /> Identificación
@@ -756,7 +638,6 @@ export function ProductFormModalComponent({
                           </div>
                           {showPreview && <div className="mt-2"><BarcodePreview /></div>}
                         </div>
-                        
                         <div className="space-y-3">
                           <div className="space-y-1">
                             <Label className="text-[10px] font-black uppercase text-black">Código de Parte (Interno)</Label>
@@ -780,6 +661,7 @@ export function ProductFormModalComponent({
                       </div>
                     </div>
 
+                    {/* DESCRIPCIÓN */}
                     <div>
                       <h4 className="text-[11px] font-black uppercase text-ink/50 border-b border-gray-100 pb-2 mb-4 flex items-center gap-2">
                         <Box className="w-4 h-4 text-brand-gold" /> Descripción
@@ -827,48 +709,72 @@ export function ProductFormModalComponent({
                       </div>
                     </div>
 
+                    {/* CLASIFICACIÓN - CON CATEGORÍA, DEPARTAMENTO Y MARCA CON +/- */}
                     <div>
                       <h4 className="text-[11px] font-black uppercase text-ink/50 border-b border-gray-100 pb-2 mb-4 flex items-center gap-2">
                         <Tag className="w-4 h-4 text-brand-gold" /> Clasificación
                       </h4>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase text-black">Categoría</Label>
-                          <Select value={datos.categoria} onValueChange={(v) => setDatos({...datos, categoria: v, type: v})}>
-                            <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
-                              <SelectValue placeholder="Seleccione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categorias.map((cat: string) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      
+                      {/* ===== CATEGORÍA CON +/- ===== */}
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        <SelectWithAddString 
+                          label="Categoría"
+                          value={datos.categoria}
+                          onChange={(v: any) => setDatos({...datos, categoria: v, type: v})}
+                          options={categorias.map((cat: string) => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
+                          onAdd={() => {
+                            const n = prompt("Nueva Categoría:");
+                            if(n) handleAddListItem('categorias', n);
+                          }}
+                          onDelete={(v: any) => {
+                            if (confirm(`¿Eliminar categoría "${v}"?`)) {
+                              const newList = (safeState.categorias || []).filter((c: string) => c !== v);
+                              handleUpdateLists({ categorias: newList });
+                              setDatos((prev: any) => ({ ...prev, categoria: '', type: '' }));
+                            }
+                          }}
+                        />
 
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase text-black">Departamento</Label>
-                          <Select value={datos.departamento} onValueChange={(v) => setDatos({...datos, departamento: v})}>
-                            <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
-                              <SelectValue placeholder="Seleccione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {departamentos.map((dep: string) => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase text-black">Marca</Label>
-                          <Select value={datos.marca} onValueChange={(v) => setDatos({...datos, marca: v})}>
-                            <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
-                              <SelectValue placeholder="Seleccione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {marcas.map((m: string) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        {/* ===== DEPARTAMENTO CON +/- ===== */}
+                        <SelectWithAddString 
+                          label="Departamento"
+                          value={datos.departamento}
+                          onChange={(v: any) => setDatos({...datos, departamento: v})}
+                          options={departamentos.map((dep: string) => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                          onAdd={() => {
+                            const n = prompt("Nuevo Departamento:");
+                            if(n) handleAddListItem('departamentos', n);
+                          }}
+                          onDelete={(v: any) => {
+                            if (confirm(`¿Eliminar departamento "${v}"?`)) {
+                              const newList = (safeState.departamentos || []).filter((d: string) => d !== v);
+                              handleUpdateLists({ departamentos: newList });
+                              setDatos((prev: any) => ({ ...prev, departamento: '' }));
+                            }
+                          }}
+                        />
+
+                        {/* ===== MARCA CON +/- ===== */}
+                        <SelectWithAddString 
+                          label="Marca"
+                          value={datos.marca}
+                          onChange={(v: any) => setDatos({...datos, marca: v})}
+                          options={marcas.map((m: string) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                          onAdd={() => {
+                            const n = prompt("Nueva Marca:");
+                            if(n) handleAddListItem('marcas', n);
+                          }}
+                          onDelete={(v: any) => {
+                            if (confirm(`¿Eliminar marca "${v}"?`)) {
+                              const newList = (safeState.marcas || []).filter((m: string) => m !== v);
+                              handleUpdateLists({ marcas: newList });
+                              setDatos((prev: any) => ({ ...prev, marca: '' }));
+                            }
+                          }}
+                        />
                       </div>
 
+                      {/* FAMILIA, SUB-FAMILIA, LÍNEA (objetos) */}
                       <div className="grid grid-cols-3 gap-4 mt-4">
                         <SelectWithAddObject 
                           label="Familia / Grupo"
@@ -917,6 +823,7 @@ export function ProductFormModalComponent({
                         />
                       </div>
 
+                      {/* MARCA (objeto), PROVEEDOR, COD. PARTE */}
                       <div className="grid grid-cols-3 gap-4 mt-4">
                         <SelectWithAddObject 
                           label="Marca"
@@ -927,9 +834,7 @@ export function ProductFormModalComponent({
                             const n = prompt("Nueva Marca:");
                             if(n) {
                               const newId = handleAddObject('brands', n);
-                              if (newId) {
-                                setDatos((prev: any) => ({ ...prev, brandId: newId, marca: n }));
-                              }
+                              if (newId) setDatos((prev: any) => ({ ...prev, brandId: newId, marca: n }));
                             }
                           }}
                           onDelete={(v: any) => handleRemoveObject('brands', parseInt(v))}
@@ -944,9 +849,7 @@ export function ProductFormModalComponent({
                             const n = prompt("Nombre del Proveedor:");
                             if(n) {
                               const newId = handleAddObject('suppliers', n);
-                              if (newId) {
-                                setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: n }));
-                              }
+                              if (newId) setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: n }));
                             }
                           }}
                           onDelete={(v: any) => handleRemoveObject('suppliers', parseInt(v))}
@@ -963,6 +866,9 @@ export function ProductFormModalComponent({
                         </div>
                       </div>
                     </div>
+
+                    {/* ===== ELIMINADOS: Color y Medida/Talla ===== */}
+                    {/* Ya no se muestran Color y Medida/Talla */}
                   </div>
                 )}
 
@@ -971,35 +877,19 @@ export function ProductFormModalComponent({
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-surface-soft p-5 rounded-2xl border border-line shadow-inner">
                       <div className="space-y-1">
                         <Label className="text-[9px] font-black uppercase text-ink/50">Costo ($)</Label>
-                        <CleanInput 
-                          className="h-12 font-black text-lg bg-white" 
-                          value={datos.costoUSD} 
-                          onChange={(e: any) => handleCostChange(e.target.value)} 
-                        />
+                        <CleanInput className="h-12 font-black text-lg bg-white" value={datos.costoUSD} onChange={(e: any) => handleCostChange(e.target.value)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[9px] font-black uppercase text-brand-gold-deep">Margen %</Label>
-                        <CleanInput 
-                          className="h-12 font-black text-lg text-brand-gold-deep bg-white" 
-                          value={datos.margen} 
-                          onChange={(e: any) => handleMarginChange(e.target.value)} 
-                        />
+                        <CleanInput className="h-12 font-black text-lg text-brand-gold-deep bg-white" value={datos.margen} onChange={(e: any) => handleMarginChange(e.target.value)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[9px] font-black uppercase text-status-success">Venta ($)</Label>
-                        <CleanInput 
-                          className="h-12 font-black text-lg text-status-success bg-white" 
-                          value={datos.precioUSD} 
-                          onChange={(e: any) => recalcularTridireccional('precioUSD', e.target.value)} 
-                        />
+                        <CleanInput className="h-12 font-black text-lg text-status-success bg-white" value={datos.precioUSD} onChange={(e: any) => recalcularTridireccional('precioUSD', e.target.value)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[9px] font-black uppercase text-ink">Venta (BS)</Label>
-                        <CleanInput 
-                          className="h-12 font-black text-lg bg-white" 
-                          value={datos.precioBS} 
-                          onChange={(e: any) => recalcularTridireccional('precioBS', e.target.value)} 
-                        />
+                        <CleanInput className="h-12 font-black text-lg bg-white" value={datos.precioBS} onChange={(e: any) => recalcularTridireccional('precioBS', e.target.value)} />
                       </div>
                     </div>
 
@@ -1020,49 +910,22 @@ export function ProductFormModalComponent({
                             const cost = parseFloat(datos.costoUSD) || 0;
                             const margin = (usdVal > 0 && cost > 0) ? ((usdVal - cost) / usdVal) * 100 : 0;
                             const label = i === 0 ? 'Detal' : i === 1 ? 'Mayor (15%)' : 'Oferta (20%)';
-                            
                             return (
                               <tr key={i} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 font-black text-black">
-                                  Precio {i + 1} - {label}
-                                </td>
+                                <td className="px-3 py-2 font-black text-black">Precio {i + 1} - {label}</td>
                                 <td className="px-3 py-2 text-center">
                                   <div className="flex items-center justify-center gap-2">
-                                    <Switch 
-                                      checked={showPricesWithIVA[i]} 
-                                      onCheckedChange={(v) => {
-                                        const newShow = [...showPricesWithIVA];
-                                        newShow[i] = v;
-                                        setShowPricesWithIVA(newShow);
-                                      }} 
-                                      className="scale-75" 
-                                    />
+                                    <Switch checked={showPricesWithIVA[i]} onCheckedChange={(v) => { const newShow = [...showPricesWithIVA]; newShow[i] = v; setShowPricesWithIVA(newShow); }} className="scale-75" />
                                     <span className="text-[10px] text-black font-bold">{showPricesWithIVA[i] ? 'Sí' : 'No'}</span>
                                   </div>
                                 </td>
                                 <td className="px-3 py-2">
-                                  <CleanInput 
-                                    type="number"
-                                    step="0.01" 
-                                    value={price.usd} 
-                                    onChange={(e: any) => handlePriceUSDChange(i, e.target.value)}
-                                    placeholder="0.00"
-                                    className="h-8 text-xs bg-white rounded text-right font-mono font-bold" 
-                                  />
+                                  <CleanInput type="number" step="0.01" value={price.usd} onChange={(e: any) => handlePriceUSDChange(i, e.target.value)} placeholder="0.00" className="h-8 text-xs bg-white rounded text-right font-mono font-bold" />
                                 </td>
                                 <td className="px-3 py-2">
-                                  <CleanInput 
-                                    type="number"
-                                    step="0.01" 
-                                    value={price.bs} 
-                                    onChange={(e: any) => handlePriceBSChange(i, e.target.value)}
-                                    placeholder="0.00"
-                                    className="h-8 text-xs bg-white rounded text-right font-mono font-bold" 
-                                  />
+                                  <CleanInput type="number" step="0.01" value={price.bs} onChange={(e: any) => handlePriceBSChange(i, e.target.value)} placeholder="0.00" className="h-8 text-xs bg-white rounded text-right font-mono font-bold" />
                                 </td>
-                                <td className="px-3 py-2 text-right font-mono text-black font-black text-[10px]">
-                                  {margin > 0 ? margin.toFixed(1) + '%' : '-'}
-                                </td>
+                                <td className="px-3 py-2 text-right font-mono text-black font-black text-[10px]">{margin > 0 ? margin.toFixed(1) + '%' : '-'}</td>
                               </tr>
                             );
                           })}
@@ -1070,10 +933,7 @@ export function ProductFormModalComponent({
                       </table>
                     </div>
                     <div className="mt-2 flex justify-between items-center">
-                      <span className="text-[10px] text-black font-black uppercase">
-                        Fórmula Automática: PV = Costo / (1 - Margen%)<br/>
-                        <span className="text-[8px] text-gray-500">Precio 2: Mayor (15%) | Precio 3: Oferta (20%)</span>
-                      </span>
+                      <span className="text-[10px] text-black font-black uppercase">Fórmula Automática: PV = Costo / (1 - Margen%)<br/><span className="text-[8px] text-gray-500">Precio 2: Mayor (15%) | Precio 3: Oferta (20%)</span></span>
                       <Badge variant="outline" className="text-[10px] text-black font-black border-black">TASA VIGENTE: {exchangeRate} Bs/USD</Badge>
                     </div>
 
@@ -1081,49 +941,24 @@ export function ProductFormModalComponent({
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Impuesto</Label>
                         <Select value={datos.taxType} onValueChange={(v) => setDatos((prev: any) => ({ ...prev, taxType: v }))}>
-                          <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
-                            <SelectValue />
-                          </SelectTrigger>
+                          <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200"><SelectValue /></SelectTrigger>
                           <SelectContent>{['Gravado', 'Exento', 'No Aplica'].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">% IVA</Label>
-                        <CleanInput 
-                          type="number"
-                          step="0.1" 
-                          value={datos.ivaRate} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, ivaRate: parseFloat(e.target.value) || 0 }))}
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" step="0.1" value={datos.ivaRate} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, ivaRate: parseFloat(e.target.value) || 0 }))} className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">% IGTF</Label>
-                        <CleanInput 
-                          type="number"
-                          step="0.1" 
-                          value={datos.igtfRate} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, igtfRate: parseFloat(e.target.value) || 0 }))}
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" step="0.1" value={datos.igtfRate} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, igtfRate: parseFloat(e.target.value) || 0 }))} className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Desc. Máx.</Label>
-                        <CleanInput 
-                          type="number"
-                          step="0.1" 
-                          value={datos.maxDiscount} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, maxDiscount: e.target.value }))}
-                          placeholder="0"
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" step="0.1" value={datos.maxDiscount} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, maxDiscount: e.target.value }))} placeholder="0" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1 flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 h-9 mt-6">
-                        <Checkbox 
-                          checked={datos.aplicaIVA} 
-                          onCheckedChange={(v) => setDatos((prev: any) => ({ ...prev, aplicaIVA: v as boolean }))} 
-                          className="w-4 h-4" 
-                        />
+                        <Checkbox checked={datos.aplicaIVA} onCheckedChange={(v) => setDatos((prev: any) => ({ ...prev, aplicaIVA: v as boolean }))} className="w-4 h-4" />
                         <span className="text-xs font-black text-black uppercase">Aplica IVA</span>
                       </div>
                     </div>
@@ -1142,160 +977,70 @@ export function ProductFormModalComponent({
                         value={datos.mainUnit || datos.cantidad || 'unidad'}
                         onChange={(v: any) => setDatos((prev: any) => ({ ...prev, mainUnit: v, cantidad: v }))}
                         options={unidades.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                        onAdd={() => {
-                          const n = prompt("Nueva Unidad:");
-                          if(n) handleAddListItem('productUnits', n);
-                        }}
-                        onDelete={(v: any) => {
-                          handleRemoveListItem('productUnits', v);
-                          setDatos((prev: any) => ({ ...prev, mainUnit: '', cantidad: '' }));
-                        }}
+                        onAdd={() => { const n = prompt("Nueva Unidad:"); if(n) handleAddListItem('productUnits', n); }}
+                        onDelete={(v: any) => { handleRemoveListItem('productUnits', v); setDatos((prev: any) => ({ ...prev, mainUnit: '', cantidad: '' })); }}
+                      />
+                      
+                      {/* ===== UNIDAD DE COMPRA (EMPAQUE) CON +/- ===== */}
+                      <SelectWithAddString 
+                        label="Unidad de Compra (Empaque)"
+                        value={datos.altUnit}
+                        onChange={(v: any) => setDatos((prev: any) => ({ ...prev, altUnit: v }))}
+                        options={unidades.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                        placeholder="Opcional"
+                        onAdd={() => { const n = prompt("Nueva Unidad de Empaque:"); if(n) handleAddListItem('productUnits', n); }}
+                        onDelete={(v: any) => { handleRemoveListItem('productUnits', v); setDatos((prev: any) => ({ ...prev, altUnit: '' })); }}
                       />
                       
                       <div className="space-y-1">
-                        <Label className="text-[10px] font-black uppercase text-black">Unidad de Compra (Empaque)</Label>
-                        <Select value={datos.altUnit} onValueChange={(v) => setDatos((prev: any) => ({ ...prev, altUnit: v }))}>
-                          <SelectTrigger className="h-9 bg-white rounded-lg text-sm border-gray-200">
-                            <SelectValue placeholder="Opcional" />
-                          </SelectTrigger>
-                          <SelectContent>{unidades.map((u: string) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Contenido por Empaque</Label>
-                        <CleanInput 
-                          type="number"
-                          value={datos.conversionFactor} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, conversionFactor: e.target.value }))}
-                          placeholder="1.0" 
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" value={datos.conversionFactor} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, conversionFactor: e.target.value }))} placeholder="1.0" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-5 gap-4">
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Existencia Inicial</Label>
-                        <CleanInput 
-                          type="number"
-                          value={datos.stock} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, stock: e.target.value }))}
-                          disabled={!!effectiveProduct} 
-                          placeholder="0"
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" value={datos.stock} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, stock: e.target.value }))} disabled={!!effectiveProduct} placeholder="0" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Alerta Stock Mín.</Label>
-                        <CleanInput 
-                          type="number"
-                          value={datos.stockMinimo} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, stockMinimo: e.target.value }))}
-                          placeholder="5"
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" value={datos.stockMinimo} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, stockMinimo: e.target.value }))} placeholder="5" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Tope Stock Máx.</Label>
-                        <CleanInput 
-                          type="number"
-                          value={datos.maxStock} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, maxStock: e.target.value }))}
-                          placeholder="100"
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" value={datos.maxStock} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, maxStock: e.target.value }))} placeholder="100" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Pedir en:</Label>
-                        <CleanInput 
-                          type="number"
-                          value={datos.reorderPoint} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, reorderPoint: e.target.value }))}
-                          placeholder="10"
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" value={datos.reorderPoint} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, reorderPoint: e.target.value }))} placeholder="10" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Ubicación (Pasillo/Gaveta)</Label>
-                        <CleanInput 
-                          value={datos.warehouse} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, warehouse: e.target.value }))}
-                          placeholder="P-01 G-02" 
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput value={datos.warehouse} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, warehouse: e.target.value }))} placeholder="P-01 G-02" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                     </div>
 
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
-                        <Checkbox 
-                          checked={datos.managesLots} 
-                          onCheckedChange={(v) => setDatos((prev: any) => ({ ...prev, managesLots: v as boolean }))} 
-                          className="w-4 h-4" 
-                        />
-                        <span className="text-xs font-black text-black uppercase">Maneja Lotes / Cargas</span>
-                      </label>
-                      <label className="flex items-center gap-2 bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
-                        <Checkbox 
-                          checked={datos.managesSerials} 
-                          onCheckedChange={(v) => setDatos((prev: any) => ({ ...prev, managesSerials: v as boolean }))} 
-                          className="w-4 h-4" 
-                        />
-                        <span className="text-xs font-black text-black uppercase">Maneja Seriales / Chasis</span>
-                      </label>
-                      <label className="flex items-center gap-2 bg-gray-50 rounded-lg px-4 py-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
-                        <Checkbox 
-                          checked={datos.managesExpiration} 
-                          onCheckedChange={(v) => setDatos((prev: any) => ({ ...prev, managesExpiration: v as boolean }))} 
-                          className="w-4 h-4" 
-                        />
-                        <span className="text-xs font-black text-black uppercase">Control de Vencimiento</span>
-                      </label>
-                    </div>
+                    {/* ===== ELIMINADOS: Maneja Lotes, Maneja Seriales, Control de Vencimiento ===== */}
+                    {/* Estos tres checkboxes han sido eliminados */}
 
                     <div className="grid grid-cols-4 gap-4 mt-4">
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Peso Neto (kg)</Label>
-                        <CleanInput 
-                          type="number"
-                          step="0.01" 
-                          value={datos.netWeight} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, netWeight: e.target.value }))}
-                          placeholder="0.00"
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" step="0.01" value={datos.netWeight} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, netWeight: e.target.value }))} placeholder="0.00" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Peso Bruto (kg)</Label>
-                        <CleanInput 
-                          type="number"
-                          step="0.01" 
-                          value={datos.grossWeight} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, grossWeight: e.target.value }))}
-                          placeholder="0.00"
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" step="0.01" value={datos.grossWeight} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, grossWeight: e.target.value }))} placeholder="0.00" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Volumen (m³)</Label>
-                        <CleanInput 
-                          type="number"
-                          step="0.001" 
-                          value={datos.volume} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, volume: e.target.value }))}
-                          placeholder="0.000"
-                          className="h-9 text-sm bg-white rounded-lg" 
-                        />
+                        <CleanInput type="number" step="0.001" value={datos.volume} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, volume: e.target.value }))} placeholder="0.000" className="h-9 text-sm bg-white rounded-lg" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Estado del Artículo</Label>
                         <div className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 h-9">
-                          <Switch 
-                            checked={datos.active} 
-                            onCheckedChange={(v) => setDatos((prev: any) => ({ ...prev, active: v }))} 
-                            className="scale-75" 
-                          />
+                          <Switch checked={datos.active} onCheckedChange={(v) => setDatos((prev: any) => ({ ...prev, active: v }))} className="scale-75" />
                           <span className="text-xs font-black text-black uppercase">{datos.active ? 'Habilitado' : 'Deshabilitado'}</span>
                         </div>
                       </div>
@@ -1305,31 +1050,13 @@ export function ProductFormModalComponent({
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Contenido Etiqueta Barcode</Label>
                         <div className="flex gap-2">
-                          <CleanInput 
-                            value={datos.barcodeLabel} 
-                            onChange={(e: any) => setDatos((prev: any) => ({ ...prev, barcodeLabel: e.target.value }))}
-                            placeholder="Texto para impresión térmica" 
-                            className="h-9 text-sm bg-white rounded-lg flex-1" 
-                          />
-                          <Button 
-                            size="icon" 
-                            variant="outline" 
-                            className="h-9 w-9 bg-white border-gray-300 shrink-0" 
-                            title="Probar impresión de etiqueta"
-                          >
-                            <Printer className="w-4 h-4 text-black" />
-                          </Button>
+                          <CleanInput value={datos.barcodeLabel} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, barcodeLabel: e.target.value }))} placeholder="Texto para impresión térmica" className="h-9 text-sm bg-white rounded-lg flex-1" />
+                          <Button size="icon" variant="outline" className="h-9 w-9 bg-white border-gray-300 shrink-0" title="Probar impresión de etiqueta"><Printer className="w-4 h-4 text-black" /></Button>
                         </div>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] font-black uppercase text-black">Observaciones / Notas Internas</Label>
-                        <Textarea 
-                          value={datos.observations} 
-                          onChange={(e: any) => setDatos((prev: any) => ({ ...prev, observations: e.target.value }))}
-                          rows={2}
-                          placeholder="Detalles sobre compatibilidad, fragilidad o proveedor..." 
-                          className="text-sm bg-white rounded-lg resize-none" 
-                        />
+                        <Textarea value={datos.observations} onChange={(e: any) => setDatos((prev: any) => ({ ...prev, observations: e.target.value }))} rows={2} placeholder="Detalles sobre compatibilidad, fragilidad o proveedor..." className="text-sm bg-white rounded-lg resize-none" />
                       </div>
                     </div>
                   </div>
@@ -1342,49 +1069,28 @@ export function ProductFormModalComponent({
                         <button onClick={() => setDatos({...datos, isKit: !datos.isKit})} className={`w-12 h-6 rounded-full transition-all relative ${datos.isKit ? 'bg-brand-gold' : 'bg-white/20'}`}>
                           <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${datos.isKit ? 'right-1' : 'left-1'}`} />
                         </button>
-                        <Label className="text-[11px] font-black uppercase tracking-widest cursor-pointer" onClick={() => setDatos({...datos, isKit: !datos.isKit})}>
-                          Habilitar KIT / COMBO
-                        </Label>
+                        <Label className="text-[11px] font-black uppercase tracking-widest cursor-pointer" onClick={() => setDatos({...datos, isKit: !datos.isKit})}>Habilitar KIT / COMBO</Label>
                       </div>
-
                       {datos.isKit && (
-                         <div className="space-y-2 pt-2 border-t border-white/10">
-                            <Label className="text-[9px] font-black uppercase opacity-40">Tipo de Gestión de Stock</Label>
-                            <div className="flex gap-4">
-                               <button onClick={() => setDatos({...datos, kitType: 'stock_propio'})} className={`flex-1 py-2 px-3 rounded-lg border text-[10px] font-black uppercase transition-all ${datos.kitType === 'stock_propio' ? 'bg-brand-gold text-ink border-brand-gold' : 'bg-white/5 border-white/20 text-white/40'}`}>
-                                 Stock Propio
-                               </button>
-                               <button onClick={() => setDatos({...datos, kitType: 'stock_componentes'})} className={`flex-1 py-2 px-3 rounded-lg border text-[10px] font-black uppercase transition-all ${datos.kitType === 'stock_componentes' ? 'bg-brand-gold text-ink border-brand-gold' : 'bg-white/5 border-white/20 text-white/40'}`}>
-                                 Stock Virtual
-                               </button>
-                            </div>
-                         </div>
+                        <div className="space-y-2 pt-2 border-t border-white/10">
+                          <Label className="text-[9px] font-black uppercase opacity-40">Tipo de Gestión de Stock</Label>
+                          <div className="flex gap-4">
+                            <button onClick={() => setDatos({...datos, kitType: 'stock_propio'})} className={`flex-1 py-2 px-3 rounded-lg border text-[10px] font-black uppercase transition-all ${datos.kitType === 'stock_propio' ? 'bg-brand-gold text-ink border-brand-gold' : 'bg-white/5 border-white/20 text-white/40'}`}>Stock Propio</button>
+                            <button onClick={() => setDatos({...datos, kitType: 'stock_componentes'})} className={`flex-1 py-2 px-3 rounded-lg border text-[10px] font-black uppercase transition-all ${datos.kitType === 'stock_componentes' ? 'bg-brand-gold text-ink border-brand-gold' : 'bg-white/5 border-white/20 text-white/40'}`}>Stock Virtual</button>
+                          </div>
+                        </div>
                       )}
                     </div>
-
                     {datos.isKit && (
                       <div className="space-y-4">
                         <div className="relative">
                           <Search className="absolute left-3 top-3 w-4 h-4 text-ink/30" />
-                          <Input 
-                            className="h-12 pl-10 text-xs font-black uppercase bg-white" 
-                            placeholder="Buscar productos componentes..." 
-                            value={kitSearch} 
-                            onChange={(e) => setKitSearch(e.target.value)} 
-                          />
+                          <Input className="h-12 pl-10 text-xs font-black uppercase bg-white" placeholder="Buscar productos componentes..." value={kitSearch} onChange={(e) => setKitSearch(e.target.value)} />
                           {(filteredProdsForKit || []).length > 0 && (
                             <div className="absolute top-full left-0 right-0 bg-white border border-line rounded-lg shadow-2xl z-50 mt-1 overflow-hidden">
                               {filteredProdsForKit.map((pk: any) => (
-                                <div 
-                                  key={pk.id} 
-                                  onClick={() => { 
-                                    setDatos({...datos, kitItems: [...(datos.kitItems || []), { productoId: pk.id, nombre: pk.nombre, cantidad: 1 }]}); 
-                                    setKitSearch(''); 
-                                  }} 
-                                  className="p-3 border-b border-line hover:bg-brand-gold-soft cursor-pointer flex justify-between items-center"
-                                >
-                                  <span className="text-xs font-black uppercase text-ink">{pk.nombre}</span>
-                                  <PlusCircle className="w-4 h-4 text-brand-gold"/>
+                                <div key={pk.id} onClick={() => { setDatos({...datos, kitItems: [...(datos.kitItems || []), { productoId: pk.id, nombre: pk.nombre, cantidad: 1 }]}); setKitSearch(''); }} className="p-3 border-b border-line hover:bg-brand-gold-soft cursor-pointer flex justify-between items-center">
+                                  <span className="text-xs font-black uppercase text-ink">{pk.nombre}</span><PlusCircle className="w-4 h-4 text-brand-gold"/>
                                 </div>
                               ))}
                             </div>
@@ -1393,46 +1099,16 @@ export function ProductFormModalComponent({
                         <Card className="border-line shadow-sm overflow-hidden bg-white">
                           <div className="table-wrap">
                             <table>
-                              <thead className="bg-surface-soft">
-                                <tr>
-                                  <th className="text-[10px] font-black uppercase text-ink">Componente</th>
-                                  <th className="text-[10px] font-black uppercase text-center text-ink">Cant</th>
-                                  <th />
-                                </tr>
-                              </thead>
+                              <thead className="bg-surface-soft"><tr><th className="text-[10px] font-black uppercase text-ink">Componente</th><th className="text-[10px] font-black uppercase text-center text-ink">Cant</th><th /></tr></thead>
                               <tbody>
                                 {(datos.kitItems || []).map((ki: KitItem, index: number) => (
                                   <tr key={index} className="border-b border-line/30">
                                     <td className="text-[11px] font-black uppercase text-ink">{ki.nombre}</td>
-                                    <td className="text-center">
-                                      <Input 
-                                        className="w-12 h-8 text-center font-black bg-surface-soft border-line inline-block" 
-                                        type="number" 
-                                        value={ki.cantidad} 
-                                        onChange={(e) => { 
-                                          const n = [...(datos.kitItems || [])]; 
-                                          n[index].cantidad = parseInt(e.target.value) || 1; 
-                                          setDatos({...datos, kitItems: n}); 
-                                        }} 
-                                      />
-                                    </td>
-                                    <td className="text-center">
-                                      <button 
-                                        onClick={() => setDatos({...datos, kitItems: (datos.kitItems || []).filter((_: any, i: number) => i !== index)})} 
-                                        className="text-status-danger"
-                                      >
-                                        <Trash2 className="w-4 h-4"/>
-                                      </button>
-                                    </td>
+                                    <td className="text-center"><Input className="w-12 h-8 text-center font-black bg-surface-soft border-line inline-block" type="number" value={ki.cantidad} onChange={(e) => { const n = [...(datos.kitItems || [])]; n[index].cantidad = parseInt(e.target.value) || 1; setDatos({...datos, kitItems: n}); }} /></td>
+                                    <td className="text-center"><button onClick={() => setDatos({...datos, kitItems: (datos.kitItems || []).filter((_: any, i: number) => i !== index)})} className="text-status-danger"><Trash2 className="w-4 h-4"/></button></td>
                                   </tr>
                                 ))}
-                                {(datos.kitItems || []).length === 0 && (
-                                  <tr>
-                                    <td colSpan={3} className="text-center py-4 text-ink/40 text-xs font-black uppercase">
-                                      No hay componentes agregados
-                                    </td>
-                                  </tr>
-                                )}
+                                {(datos.kitItems || []).length === 0 && <tr><td colSpan={3} className="text-center py-4 text-ink/40 text-xs font-black uppercase">No hay componentes agregados</td></tr>}
                               </tbody>
                             </table>
                           </div>
@@ -1447,12 +1123,7 @@ export function ProductFormModalComponent({
             {showPreview && (
               <div className="w-72 bg-gray-100 border-l border-gray-300 p-4 space-y-4 overflow-y-auto shrink-0">
                 <h4 className="text-xs font-black uppercase text-black border-b border-gray-300 pb-2 tracking-widest">VISTA PREVIA</h4>
-                
-                <div className="bg-white rounded-xl p-3 shadow-sm">
-                  <div className="text-[10px] text-black uppercase font-black mb-2">IDENTIFICADOR</div>
-                  <BarcodePreview />
-                </div>
-
+                <div className="bg-white rounded-xl p-3 shadow-sm"><div className="text-[10px] text-black uppercase font-black mb-2">IDENTIFICADOR</div><BarcodePreview /></div>
                 <div className="bg-white rounded-xl p-3 shadow-sm">
                   <div className="text-[10px] text-black uppercase font-black mb-2">PRECIOS ($/BS)</div>
                   <div className="space-y-2">
@@ -1463,65 +1134,36 @@ export function ProductFormModalComponent({
                       return (
                         <div key={i} className="flex justify-between items-center text-sm">
                           <span className="text-black text-[10px] font-black uppercase">Precio {i+1} {label}</span>
-                          <div className="text-right">
-                            <div className="font-mono font-black text-[#0a1628]">
-                              {usd > 0 ? '$' + usd.toFixed(2) : '-'}
-                            </div>
-                            <div className="font-mono text-[9px] text-black font-black">
-                              {bs > 0 ? 'Bs. ' + bs.toFixed(2) : '-'}
-                            </div>
-                          </div>
+                          <div className="text-right"><div className="font-mono font-black text-[#0a1628]">{usd > 0 ? '$' + usd.toFixed(2) : '-'}</div><div className="font-mono text-[9px] text-black font-black">{bs > 0 ? 'Bs. ' + bs.toFixed(2) : '-'}</div></div>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-
                 <div className="bg-white rounded-xl p-3 shadow-sm">
                   <div className="text-[10px] text-black uppercase font-black mb-2">RESUMEN DE EXISTENCIA</div>
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-black font-black uppercase">Actual:</span>
-                      <Badge className={parseInt(datos.stock) <= parseInt(datos.stockMinimo) ? "bg-red-100 text-red-700 font-black" : "bg-green-100 text-green-700 font-black"}>
-                        {datos.stock || '0'} {datos.mainUnit || datos.cantidad || 'unidad'}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-black font-black uppercase">Stock Mínimo:</span>
-                      <span className="text-xs font-mono font-black text-black">{datos.stockMinimo || '0'}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-black font-black uppercase">Punto Reorden:</span>
-                      <span className="text-xs font-mono font-black text-black">{datos.reorderPoint || '0'}</span>
-                    </div>
+                    <div className="flex justify-between items-center"><span className="text-xs text-black font-black uppercase">Actual:</span><Badge className={parseInt(datos.stock) <= parseInt(datos.stockMinimo) ? "bg-red-100 text-red-700 font-black" : "bg-green-100 text-green-700 font-black"}>{datos.stock || '0'} {datos.mainUnit || datos.cantidad || 'unidad'}</Badge></div>
+                    <div className="flex justify-between items-center"><span className="text-[10px] text-black font-black uppercase">Stock Mínimo:</span><span className="text-xs font-mono font-black text-black">{datos.stockMinimo || '0'}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-[10px] text-black font-black uppercase">Punto Reorden:</span><span className="text-xs font-mono font-black text-black">{datos.reorderPoint || '0'}</span></div>
                   </div>
                 </div>
-
                 <div className="bg-white rounded-xl p-3 shadow-sm">
                   <div className="text-[10px] text-black uppercase font-black mb-2">PROYECCIÓN DE MARGEN</div>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-brand-gold rounded-full transition-all"
-                        style={{ width: `${Math.min(parseFloat(datos.margen) || 0, 100)}%` }}
-                      />
-                    </div>
+                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-brand-gold rounded-full transition-all" style={{ width: `${Math.min(parseFloat(datos.margen) || 0, 100)}%` }} /></div>
                     <span className="text-xs font-black text-[#0a1628]">{datos.margen || '0'}%</span>
                   </div>
-                  <div className="text-[9px] text-black font-black mt-1 uppercase leading-tight">
-                    Utilidad estimada sobre el precio detal (Sin IVA)
-                  </div>
+                  <div className="text-[9px] text-black font-black mt-1 uppercase leading-tight">Utilidad estimada sobre el precio detal (Sin IVA)</div>
                 </div>
-
                 <div className="bg-white rounded-xl p-3 shadow-sm">
                   <div className="text-[10px] text-black uppercase font-black mb-2">INFORMACIÓN</div>
                   <div className="space-y-1 text-[10px] text-black">
                     <div><span className="font-black">Tipo:</span> {datos.type || 'N/A'}</div>
                     <div><span className="font-black">Marca:</span> {datos.marca || datos.brandId ? (brands.find((b: any) => b.id === datos.brandId)?.name || 'N/A') : 'N/A'}</div>
                     <div><span className="font-black">Modelo:</span> {datos.model || 'N/A'}</div>
-                    <div><span className="font-black">Color:</span> {datos.color || 'N/A'}</div>
-                    <div><span className="font-black">Talla:</span> {datos.size || 'N/A'}</div>
                     <div><span className="font-black">IVA:</span> {datos.aplicaIVA ? `${datos.ivaRate}%` : 'Exento'}</div>
+                    {/* ===== ELIMINADOS: Color y Talla de la vista previa ===== */}
                   </div>
                 </div>
               </div>
@@ -1529,16 +1171,10 @@ export function ProductFormModalComponent({
           </div>
 
           <div className="modal-foot p-5 bg-surface-soft border-t border-line flex justify-between items-center">
-            <div className="text-[9px] text-ink/40 font-black uppercase">
-              {effectiveProduct ? 'Modo Edición' : 'Modo Registro'} • Todos los campos son opcionales
-            </div>
+            <div className="text-[9px] text-ink/40 font-black uppercase">{effectiveProduct ? 'Modo Edición' : 'Modo Registro'} • Todos los campos son opcionales</div>
             <div className="flex gap-3">
-              <Button variant="secondary" className="px-8 font-black uppercase text-[10px]" onClick={onClose}>
-                Cancelar
-              </Button>
-              <Button className="bg-brand-gold hover:bg-brand-gold-deep text-ink px-10 font-black uppercase text-[10px] shadow-lg" onClick={onSaveProduct}>
-                {effectiveProduct ? 'ACTUALIZAR' : 'CREAR PRODUCTO'}
-              </Button>
+              <Button variant="secondary" className="px-8 font-black uppercase text-[10px]" onClick={onClose}>Cancelar</Button>
+              <Button className="bg-brand-gold hover:bg-brand-gold-deep text-ink px-10 font-black uppercase text-[10px] shadow-lg" onClick={onSaveProduct}>{effectiveProduct ? 'ACTUALIZAR' : 'CREAR PRODUCTO'}</Button>
             </div>
           </div>
         </div>
@@ -1548,31 +1184,10 @@ export function ProductFormModalComponent({
       <Dialog open={modalMarca.open} onOpenChange={(open) => !open && setModalMarca({ open: false, name: '' })}>
         <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Marca</DialogTitle>
-          <CleanInput 
-            value={modalMarca.name} 
-            onChange={(e: any) => setModalMarca((prev) => ({ ...prev, name: e.target.value }))} 
-            placeholder="Nombre de la marca" 
-            className="bg-white border-2 focus:border-brand-gold" 
-            autoFocus 
-            onKeyDown={(e: any) => { 
-              if (e.key === 'Enter') {
-                const newId = handleAddObject('brands', modalMarca.name);
-                if (newId) {
-                  setDatos((prev: any) => ({ ...prev, brandId: newId, marca: modalMarca.name }));
-                  setModalMarca({ open: false, name: '' });
-                }
-              }
-            }} 
-          />
+          <CleanInput value={modalMarca.name} onChange={(e: any) => setModalMarca((prev) => ({ ...prev, name: e.target.value }))} placeholder="Nombre de la marca" className="bg-white border-2 focus:border-brand-gold" autoFocus onKeyDown={(e: any) => { if (e.key === 'Enter') { const newId = handleAddObject('brands', modalMarca.name); if (newId) { setDatos((prev: any) => ({ ...prev, brandId: newId, marca: modalMarca.name })); setModalMarca({ open: false, name: '' }); } } }} />
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={() => setModalMarca({ open: false, name: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
-            <Button size="sm" onClick={() => {
-              const newId = handleAddObject('brands', modalMarca.name);
-              if (newId) {
-                setDatos((prev: any) => ({ ...prev, brandId: newId, marca: modalMarca.name }));
-                setModalMarca({ open: false, name: '' });
-              }
-            }} className="bg-ink font-black uppercase text-[10px]">Crear Marca</Button>
+            <Button size="sm" onClick={() => { const newId = handleAddObject('brands', modalMarca.name); if (newId) { setDatos((prev: any) => ({ ...prev, brandId: newId, marca: modalMarca.name })); setModalMarca({ open: false, name: '' }); } }} className="bg-ink font-black uppercase text-[10px]">Crear Marca</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1580,31 +1195,10 @@ export function ProductFormModalComponent({
       <Dialog open={modalGrupo.open} onOpenChange={(open) => !open && setModalGrupo({ open: false, name: '' })}>
         <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nuevo Grupo</DialogTitle>
-          <CleanInput 
-            value={modalGrupo.name} 
-            onChange={(e: any) => setModalGrupo((prev) => ({ ...prev, name: e.target.value }))} 
-            placeholder="Nombre del grupo" 
-            className="bg-white border-2 focus:border-brand-gold" 
-            autoFocus 
-            onKeyDown={(e: any) => { 
-              if (e.key === 'Enter') {
-                const newId = handleAddObject('groups', modalGrupo.name);
-                if (newId) {
-                  setDatos((prev: any) => ({ ...prev, groupId: newId }));
-                  setModalGrupo({ open: false, name: '' });
-                }
-              }
-            }} 
-          />
+          <CleanInput value={modalGrupo.name} onChange={(e: any) => setModalGrupo((prev) => ({ ...prev, name: e.target.value }))} placeholder="Nombre del grupo" className="bg-white border-2 focus:border-brand-gold" autoFocus onKeyDown={(e: any) => { if (e.key === 'Enter') { const newId = handleAddObject('groups', modalGrupo.name); if (newId) { setDatos((prev: any) => ({ ...prev, groupId: newId })); setModalGrupo({ open: false, name: '' }); } } }} />
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={() => setModalGrupo({ open: false, name: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
-            <Button size="sm" onClick={() => {
-              const newId = handleAddObject('groups', modalGrupo.name);
-              if (newId) {
-                setDatos((prev: any) => ({ ...prev, groupId: newId }));
-                setModalGrupo({ open: false, name: '' });
-              }
-            }} className="bg-ink font-black uppercase text-[10px]">Crear Grupo</Button>
+            <Button size="sm" onClick={() => { const newId = handleAddObject('groups', modalGrupo.name); if (newId) { setDatos((prev: any) => ({ ...prev, groupId: newId })); setModalGrupo({ open: false, name: '' }); } }} className="bg-ink font-black uppercase text-[10px]">Crear Grupo</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1612,33 +1206,10 @@ export function ProductFormModalComponent({
       <Dialog open={modalSubGrupo.open} onOpenChange={(open) => !open && setModalSubGrupo({ open: false, name: '' })}>
         <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Sub-Familia</DialogTitle>
-          <CleanInput 
-            value={modalSubGrupo.name} 
-            onChange={(e: any) => setModalSubGrupo((prev) => ({ ...prev, name: e.target.value }))} 
-            placeholder="Nombre de la sub-familia" 
-            className="bg-white border-2 focus:border-brand-gold" 
-            autoFocus 
-            onKeyDown={(e: any) => { 
-              if (e.key === 'Enter') {
-                if (!datos.groupId) { alert('Primero seleccione un grupo'); return; }
-                const newId = handleAddObject('subgroups', modalSubGrupo.name, { groupId: datos.groupId });
-                if (newId) {
-                  setDatos((prev: any) => ({ ...prev, subgroupId: newId }));
-                  setModalSubGrupo({ open: false, name: '' });
-                }
-              }
-            }} 
-          />
+          <CleanInput value={modalSubGrupo.name} onChange={(e: any) => setModalSubGrupo((prev) => ({ ...prev, name: e.target.value }))} placeholder="Nombre de la sub-familia" className="bg-white border-2 focus:border-brand-gold" autoFocus onKeyDown={(e: any) => { if (e.key === 'Enter') { if (!datos.groupId) { alert('Primero seleccione un grupo'); return; } const newId = handleAddObject('subgroups', modalSubGrupo.name, { groupId: datos.groupId }); if (newId) { setDatos((prev: any) => ({ ...prev, subgroupId: newId })); setModalSubGrupo({ open: false, name: '' }); } } }} />
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={() => setModalSubGrupo({ open: false, name: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
-            <Button size="sm" onClick={() => {
-              if (!datos.groupId) { alert('Primero seleccione un grupo'); return; }
-              const newId = handleAddObject('subgroups', modalSubGrupo.name, { groupId: datos.groupId });
-              if (newId) {
-                setDatos((prev: any) => ({ ...prev, subgroupId: newId }));
-                setModalSubGrupo({ open: false, name: '' });
-              }
-            }} className="bg-ink font-black uppercase text-[10px]">Crear Sub-Familia</Button>
+            <Button size="sm" onClick={() => { if (!datos.groupId) { alert('Primero seleccione un grupo'); return; } const newId = handleAddObject('subgroups', modalSubGrupo.name, { groupId: datos.groupId }); if (newId) { setDatos((prev: any) => ({ ...prev, subgroupId: newId })); setModalSubGrupo({ open: false, name: '' }); } }} className="bg-ink font-black uppercase text-[10px]">Crear Sub-Familia</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1646,31 +1217,10 @@ export function ProductFormModalComponent({
       <Dialog open={modalLinea.open} onOpenChange={(open) => !open && setModalLinea({ open: false, name: '' })}>
         <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nueva Línea</DialogTitle>
-          <CleanInput 
-            value={modalLinea.name} 
-            onChange={(e: any) => setModalLinea((prev) => ({ ...prev, name: e.target.value }))} 
-            placeholder="Nombre de la línea" 
-            className="bg-white border-2 focus:border-brand-gold" 
-            autoFocus 
-            onKeyDown={(e: any) => { 
-              if (e.key === 'Enter') {
-                const newId = handleAddObject('lines', modalLinea.name);
-                if (newId) {
-                  setDatos((prev: any) => ({ ...prev, lineId: newId }));
-                  setModalLinea({ open: false, name: '' });
-                }
-              }
-            }} 
-          />
+          <CleanInput value={modalLinea.name} onChange={(e: any) => setModalLinea((prev) => ({ ...prev, name: e.target.value }))} placeholder="Nombre de la línea" className="bg-white border-2 focus:border-brand-gold" autoFocus onKeyDown={(e: any) => { if (e.key === 'Enter') { const newId = handleAddObject('lines', modalLinea.name); if (newId) { setDatos((prev: any) => ({ ...prev, lineId: newId })); setModalLinea({ open: false, name: '' }); } } }} />
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={() => setModalLinea({ open: false, name: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
-            <Button size="sm" onClick={() => {
-              const newId = handleAddObject('lines', modalLinea.name);
-              if (newId) {
-                setDatos((prev: any) => ({ ...prev, lineId: newId }));
-                setModalLinea({ open: false, name: '' });
-              }
-            }} className="bg-ink font-black uppercase text-[10px]">Crear Línea</Button>
+            <Button size="sm" onClick={() => { const newId = handleAddObject('lines', modalLinea.name); if (newId) { setDatos((prev: any) => ({ ...prev, lineId: newId })); setModalLinea({ open: false, name: '' }); } }} className="bg-ink font-black uppercase text-[10px]">Crear Línea</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1678,37 +1228,11 @@ export function ProductFormModalComponent({
       <Dialog open={modalProveedor.open} onOpenChange={(open) => !open && setModalProveedor({ open: false, name: '', code: '' })}>
         <DialogContent className="max-w-sm bg-gray-200">
           <DialogTitle className="text-black text-xs font-black uppercase">Nuevo Proveedor</DialogTitle>
-          <CleanInput 
-            value={modalProveedor.name} 
-            onChange={(e: any) => setModalProveedor((prev) => ({ ...prev, name: e.target.value }))} 
-            placeholder="Razón Social del Proveedor" 
-            className="bg-white border-2 focus:border-brand-gold mb-2" 
-            autoFocus 
-          />
-          <CleanInput 
-            value={modalProveedor.code} 
-            onChange={(e: any) => setModalProveedor((prev) => ({ ...prev, code: e.target.value }))} 
-            placeholder="Código / RIF" 
-            className="bg-white border-2 focus:border-brand-gold" 
-            onKeyDown={(e: any) => { 
-              if (e.key === 'Enter') {
-                const newId = handleAddObject('suppliers', modalProveedor.name, { code: modalProveedor.code });
-                if (newId) {
-                  setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: modalProveedor.name, supplierCode: modalProveedor.code }));
-                  setModalProveedor({ open: false, name: '', code: '' });
-                }
-              }
-            }} 
-          />
+          <CleanInput value={modalProveedor.name} onChange={(e: any) => setModalProveedor((prev) => ({ ...prev, name: e.target.value }))} placeholder="Razón Social del Proveedor" className="bg-white border-2 focus:border-brand-gold mb-2" autoFocus />
+          <CleanInput value={modalProveedor.code} onChange={(e: any) => setModalProveedor((prev) => ({ ...prev, code: e.target.value }))} placeholder="Código / RIF" className="bg-white border-2 focus:border-brand-gold" onKeyDown={(e: any) => { if (e.key === 'Enter') { const newId = handleAddObject('suppliers', modalProveedor.name, { code: modalProveedor.code }); if (newId) { setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: modalProveedor.name, supplierCode: modalProveedor.code })); setModalProveedor({ open: false, name: '', code: '' }); } } }} />
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" onClick={() => setModalProveedor({ open: false, name: '', code: '' })} className="font-black uppercase text-[10px]">Cerrar</Button>
-            <Button size="sm" onClick={() => {
-              const newId = handleAddObject('suppliers', modalProveedor.name, { code: modalProveedor.code });
-              if (newId) {
-                setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: modalProveedor.name, supplierCode: modalProveedor.code }));
-                setModalProveedor({ open: false, name: '', code: '' });
-              }
-            }} className="bg-ink font-black uppercase text-[10px]">Crear Proveedor</Button>
+            <Button size="sm" onClick={() => { const newId = handleAddObject('suppliers', modalProveedor.name, { code: modalProveedor.code }); if (newId) { setDatos((prev: any) => ({ ...prev, supplierId: newId, proveedor: modalProveedor.name, supplierCode: modalProveedor.code })); setModalProveedor({ open: false, name: '', code: '' }); } }} className="bg-ink font-black uppercase text-[10px]">Crear Proveedor</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1716,6 +1240,4 @@ export function ProductFormModalComponent({
   );
 }
 
-// ===== EXPORTACIÓN ÚNICA PARA COMPATIBILIDAD =====
-// Exportamos como ProductForm para que funcione con la importación de InventoryModule
 export const ProductForm = ProductFormModalComponent;
