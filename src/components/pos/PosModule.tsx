@@ -18,20 +18,12 @@ import { ReceiptModal } from './ReceiptModal';
 
 const math = create(all);
 
-// DEV-NOTE: Se ha movido el hook useDebounce aquí para solucionar un problema de resolución de módulos.
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
-
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
   }, [value, delay]);
-
   return debouncedValue;
 }
 
@@ -54,14 +46,15 @@ export default function PosModule() {
 
   const [syncStatus, setSyncStatus] = useState('idle');
 
-  // Estados para el modal de crédito (integrado directamente)
-  const [creditStep, setCreditStep] = useState<'search' | 'existing' | 'create' | 'notfound'>('search');
+  // Estados para el modal de crédito
+  const [creditStep, setCreditStep] = useState<'search' | 'found' | 'create'>('search');
   const [documentType, setDocumentType] = useState<DocumentType>('V-');
   const [documentNumber, setDocumentNumber] = useState('');
+  const [foundCustomer, setFoundCustomer] = useState<Customer | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
-  const [foundCustomer, setFoundCustomer] = useState<Customer | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
@@ -79,6 +72,7 @@ export default function PosModule() {
       setPhone('');
       setFoundCustomer(null);
       setDocumentType('V-');
+      setIsSearching(false);
     }
   }, [isLoadCreditModalOpen]);
 
@@ -90,7 +84,6 @@ export default function PosModule() {
     return products.filter(p => 
       p.activo && (
         p.nombre.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-        p.codigo?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
         p.codigo?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
       )
     ).slice(0, 20);
@@ -122,26 +115,34 @@ export default function PosModule() {
   }, [cart]);
 
   // ============================================
-  // LÓGICA DEL MODAL DE CRÉDITO (integrada)
+  // LÓGICA DEL MODAL DE CRÉDITO
   // ============================================
   
   const handleCreditSearch = () => {
     if (!documentNumber.trim()) {
-      alert('Por favor, ingrese un número de documento');
+      toast({ title: "Campo vacío", description: "Por favor, ingrese un número de documento", variant: "destructive" });
       return;
     }
 
+    setIsSearching(true);
     const fullDocument = `${documentType}${documentNumber}`;
     const customers: Customer[] = store?.clientes || [];
     
-    const customer = customers.find(c => c.cedula === fullDocument);
-    
-    if (customer) {
-      setFoundCustomer(customer);
-      setCreditStep('existing');
-    } else {
-      setCreditStep('notfound');
-    }
+    // Simular un pequeño delay para la búsqueda
+    setTimeout(() => {
+      const customer = customers.find(c => c.cedula === fullDocument);
+      if (customer) {
+        setFoundCustomer(customer);
+        setCreditStep('found');
+      } else {
+        // No encontrado - mostrar formulario de creación
+        setFoundCustomer(null);
+        setCreditStep('create');
+        // Pre-cargar el número de documento en el formulario
+        setCustomerName('');
+      }
+      setIsSearching(false);
+    }, 300);
   };
 
   const handleCreditCreateNew = () => {
@@ -150,7 +151,7 @@ export default function PosModule() {
 
   const handleCreditSaveNewCustomer = () => {
     if (!customerName.trim()) {
-      alert('Por favor, ingrese el nombre del cliente');
+      toast({ title: "Campo requerido", description: "Por favor, ingrese el nombre del cliente", variant: "destructive" });
       return;
     }
 
@@ -158,7 +159,7 @@ export default function PosModule() {
     const newCustomer: Customer = {
       id: `CUS-${Date.now()}`,
       cedula: fullDocument,
-      name: customerName,
+      name: customerName.trim(),
       address: address || 'Sin dirección',
       phone: phone || 'Sin teléfono',
       debt: 0,
@@ -168,11 +169,26 @@ export default function PosModule() {
     Store.set({ ...store, clientes: updatedCustomers });
 
     setFoundCustomer(newCustomer);
-    setCreditStep('existing');
+    setCreditStep('found');
+    
+    toast({ 
+      title: "Cliente creado", 
+      description: `Cliente ${newCustomer.name} registrado exitosamente.` 
+    });
   };
 
   const handleCreditConfirmLoad = () => {
     if (foundCustomer) {
+      // Verificar que el carrito no esté vacío
+      if (cart.length === 0) {
+        toast({ 
+          title: "Carrito vacío", 
+          description: "No hay productos para cargar al crédito.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+
       // Crear registro de carga de crédito
       const creditSale = {
         id: `CRED-${Date.now()}`,
@@ -182,25 +198,38 @@ export default function PosModule() {
           id: foundCustomer.id,
           name: foundCustomer.name,
         },
-        items: [{
-          id: 'CREDIT',
-          nombre: 'CARGA DE SALDO',
-          quantity: 1,
-          price: total
-        }],
+        items: cart.map(item => ({
+          id: item.id,
+          nombre: item.nombre,
+          quantity: item.quantity,
+          price: item.precioUSD,
+          subtotal: item.precioUSD * item.quantity
+        })),
         total: total,
+        totalBS: total * exchangeRate,
+        metodoPago: 'credito'
       };
 
       const updatedCustomers = (store.clientes || []).map((c: Customer) => 
         c.id === foundCustomer.id ? { ...c, debt: (c.debt || 0) + total } : c
       );
 
+      // Actualizar stock de productos
+      const updatedProducts = (store.products || []).map((p: Product) => {
+        const cartItem = cart.find(item => item.id === p.id);
+        return cartItem ? { ...p, stock: (p.stock || 0) - cartItem.quantity } : p;
+      });
+
       Store.set({ 
         ...store, 
         sales: [...(store.sales || []), creditSale],
-        clientes: updatedCustomers
+        clientes: updatedCustomers,
+        products: updatedProducts
       });
 
+      // Limpiar carrito
+      setCart([]);
+      
       toast({ 
         title: "Crédito Cargado", 
         description: `Se cargaron ${formatUsd(total)} al cliente ${foundCustomer.name}.` 
@@ -217,21 +246,21 @@ export default function PosModule() {
     setCreditStep('search');
     setFoundCustomer(null);
     setDocumentNumber('');
+    setCustomerName('');
+    setAddress('');
+    setPhone('');
   };
 
   const handlePayment = (isCredit = false) => {
     if (cart.length === 0) {
-        toast({ title: "Carrito Vacío", description: "Agregue productos antes de proceder.", variant: "destructive" });
-        return;
+      toast({ title: "Carrito Vacío", description: "Agregue productos antes de proceder.", variant: "destructive" });
+      return;
     }
     
     if (isCredit) {
-      if (!selectedCustomer) {
-          toast({ title: "Venta a Crédito", description: "Por favor, busque y seleccione un cliente antes de proceder.", variant: "default"});
-          return;
-      }
-      // Finalize credit sale directly
-      finalizeTransaction({ method: 'credito', customer: selectedCustomer, payments: [], change: 0 });
+      // Abrir modal de crédito
+      setLoadCreditModalOpen(true);
+      return;
     } else {
       setPaymentModalOpen(true);
     }
@@ -245,7 +274,7 @@ export default function PosModule() {
       customer: data.customer || selectedCustomer || { id: '0', name: 'CONSUMIDOR FINAL' },
       items: cart,
       subtotal: total,
-      tax: total * 0.16, // Simulado
+      tax: total * 0.16,
       total: total,
       totalBs: total * exchangeRate,
       payments: data.payments,
@@ -254,8 +283,10 @@ export default function PosModule() {
     };
 
     if (data.method === 'credito' && data.customer) {
-        const updatedCustomers = (store.clientes || []).map((c: Customer) => c.id === data.customer.id ? {...c, debt: (c.debt || 0) + total} : c);
-        Store.set({ ...store, clientes: updatedCustomers });
+      const updatedCustomers = (store.clientes || []).map((c: Customer) => 
+        c.id === data.customer.id ? {...c, debt: (c.debt || 0) + total} : c
+      );
+      Store.set({ ...store, clientes: updatedCustomers });
     }
 
     const newSales = [...(store.sales || []), sale];
@@ -297,11 +328,11 @@ export default function PosModule() {
     <div className="h-screen bg-white flex flex-col font-sans">
       <header className="bg-white border-b border-gray-200 px-4 py-2 flex justify-between items-center">
         <div className="flex items-center gap-4">
-            <h1 className="text-lg font-black text-gray-800 tracking-tighter">Pos<span className="text-[#D4A017]">VEN</span> pro</h1>
-            <div className="flex items-center gap-3">
-              <button className="font-bold text-xs flex items-center gap-2 bg-primary px-3 py-1.5 rounded-lg text-black"><BookOpen className="w-4 h-4"/> PUNTO DE VENTA</button>
-              <button className="font-bold text-xs flex items-center gap-2 hover:bg-gray-100 px-3 py-1.5 rounded-lg"><History className="w-4 h-4"/> HISTORIAL</button>
-            </div>
+          <h1 className="text-lg font-black text-gray-800 tracking-tighter">Pos<span className="text-[#D4A017]">VEN</span> pro</h1>
+          <div className="flex items-center gap-3">
+            <button className="font-bold text-xs flex items-center gap-2 bg-primary px-3 py-1.5 rounded-lg text-black"><BookOpen className="w-4 h-4"/> PUNTO DE VENTA</button>
+            <button className="font-bold text-xs flex items-center gap-2 hover:bg-gray-100 px-3 py-1.5 rounded-lg"><History className="w-4 h-4"/> HISTORIAL</button>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <div 
@@ -396,21 +427,21 @@ export default function PosModule() {
                     <div className="w-1/5 text-right font-mono">{formatUsd(item.precioUSD)}</div>
                     <div className="w-1/5 text-right font-mono font-bold text-lg text-gray-800">{formatUsd(item.precioUSD * item.quantity)}</div>
                     <div className="pl-3">
-                        <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
                     </div>
                   </div>
                 ))
               )}
             </div>
             <div className="bg-gray-800 h-24 p-4 flex justify-between items-center text-white">
-                <div className="flex gap-4">
-                    <button onClick={() => setCart([])} className="flex items-center gap-2 text-xs font-bold bg-red-500/20 hover:bg-red-500/40 px-3 py-2 rounded-lg"><X className="w-4"/> LIMPIAR (F4)</button>
-                </div>
-                <div className="text-right">
-                    <p className="text-sm font-bold text-gray-400">TOTAL FACTURA</p>
-                    <p className="text-4xl font-black tracking-tighter">{formatUsd(total)}</p>
-                    <p className="font-bold text-primary -mt-1">{formatBs(total * exchangeRate)}</p>
-                </div>
+              <div className="flex gap-4">
+                <button onClick={() => setCart([])} className="flex items-center gap-2 text-xs font-bold bg-red-500/20 hover:bg-red-500/40 px-3 py-2 rounded-lg"><X className="w-4"/> LIMPIAR (F4)</button>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold text-gray-400">TOTAL FACTURA</p>
+                <p className="text-4xl font-black tracking-tighter">{formatUsd(total)}</p>
+                <p className="font-bold text-primary -mt-1">{formatBs(total * exchangeRate)}</p>
+              </div>
             </div>
           </div>
         </main>
@@ -432,10 +463,10 @@ export default function PosModule() {
           
           <div className="flex-1 flex flex-col gap-3">
             <button onClick={() => handlePayment(false)} className="w-full flex-1 bg-[#D4A017] text-black rounded-xl font-black text-lg flex items-center justify-center gap-2 shadow-md hover:brightness-110 transition-transform active:scale-95">
-                <DollarSign /> COBRAR (F2)
+              <DollarSign /> COBRAR (F2)
             </button>
             <button onClick={() => handlePayment(true)} className="w-full flex-1 bg-gray-800 text-white rounded-xl font-black text-lg flex items-center justify-center gap-2 shadow-md hover:bg-gray-900 transition-transform active:scale-95">
-                <Users/> VENTA A CRÉDITO (F3)
+              <Users/> VENTA A CRÉDITO (F3)
             </button>
           </div>
 
@@ -455,11 +486,13 @@ export default function PosModule() {
         />
       )}
 
-      {/* MODAL DE CRÉDITO INTEGRADO DIRECTAMENTE */}
+      {/* ============================================== */}
+      {/* MODAL DE CRÉDITO MODIFICADO SEGÚN LAS IMÁGENES */}
+      {/* ============================================== */}
       {isLoadCreditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-            {/* Header con fondo negro */}
+            {/* Header */}
             <div className="bg-black px-6 py-4 flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Cargar Crédito</h2>
               <button
@@ -477,7 +510,7 @@ export default function PosModule() {
                 <p className="text-2xl font-black text-amber-800">{formatUsd(total)}</p>
               </div>
 
-              {/* PASO 1: SOLO BÚSQUEDA DE CLIENTE */}
+              {/* PASO 1: BÚSQUEDA DE CLIENTE (Imagen 1) */}
               {creditStep === 'search' && (
                 <div className="space-y-4">
                   <p className="text-sm font-medium text-gray-700">Documento de Identidad</p>
@@ -497,7 +530,7 @@ export default function PosModule() {
                       </select>
                     </div>
                     
-                    <div className="flex-1">
+                    <div className="flex-1 relative">
                       <input
                         type="text"
                         value={documentNumber}
@@ -507,81 +540,65 @@ export default function PosModule() {
                         onKeyDown={(e) => e.key === 'Enter' && handleCreditSearch()}
                       />
                     </div>
+
+                    <button
+                      onClick={handleCreditSearch}
+                      disabled={isSearching}
+                      className="h-12 px-4 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50"
+                    >
+                      {isSearching ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Search className="w-5 h-5" />
+                      )}
+                    </button>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-2">
+                  <div className="flex justify-end pt-2">
                     <button
                       onClick={() => setLoadCreditModalOpen(false)}
                       className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
                     >
                       Cancelar
                     </button>
-                    <button
-                      onClick={handleCreditSearch}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"
-                    >
-                      <Search className="w-4 h-4" />
-                      Buscar
-                    </button>
                   </div>
                 </div>
               )}
 
-              {/* PASO 2: CLIENTE NO ENCONTRADO */}
-              {creditStep === 'notfound' && (
+              {/* PASO 2: CLIENTE ENCONTRADO (Imagen 2) */}
+              {creditStep === 'found' && foundCustomer && (
                 <div className="space-y-4 animate-in fade-in-50">
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-                    <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-2" />
-                    <p className="font-bold text-amber-700">Cliente no encontrado</p>
-                    <p className="text-sm text-amber-600 mt-1">
-                      No existe un cliente con el documento {documentType}{documentNumber}
-                    </p>
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleCreditBackToSearch}
-                      className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
-                    >
-                      No
-                    </button>
-                    <button
-                      onClick={handleCreditCreateNew}
-                      className="flex-1 h-12 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <UserPlus className="w-5 h-5" />
-                      Sí, Crear Cliente
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* PASO 3: CLIENTE EXISTENTE */}
-              {creditStep === 'existing' && foundCustomer && (
-                <div className="space-y-4 animate-in fade-in-50">
-                  <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                  <div className="bg-gray-50 rounded-xl p-4 space-y-3">
                     <p className="font-bold text-lg text-gray-800">{foundCustomer.name}</p>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-500">Cédula:</span>
                       <span className="font-mono text-gray-800">{foundCustomer.cedula}</span>
                     </div>
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                      <span className="text-sm text-gray-500">Saldo:</span>
+                      <span className="text-sm text-gray-500">Saldo actual:</span>
                       <span className="font-bold text-lg text-red-600">{formatUsd(foundCustomer.debt || 0)}</span>
                     </div>
                   </div>
 
-                  <button
-                    onClick={handleCreditConfirmLoad}
-                    className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold text-lg hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                  >
-                    <DollarSign className="w-5 h-5" />
-                    Cargar Crédito
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleCreditBackToSearch}
+                      className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
+                    >
+                      Volver a buscar
+                    </button>
+                    <button
+                      onClick={handleCreditConfirmLoad}
+                      className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      Cargar Crédito
+                    </button>
+                  </div>
                 </div>
               )}
 
-              {/* PASO 4: CREAR NUEVO CLIENTE */}
+              {/* PASO 3: CREAR NUEVO CLIENTE (Imagen 3) */}
               {creditStep === 'create' && (
                 <div className="space-y-4 animate-in fade-in-50">
                   <p className="text-center text-sm font-bold text-gray-700">Nuevo Cliente</p>
@@ -593,7 +610,7 @@ export default function PosModule() {
                         type="text"
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Ej: Juan Pérez"
+                        placeholder="Ej: Gloria Machete"
                         className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         onKeyDown={(e) => e.key === 'Enter' && handleCreditSaveNewCustomer()}
                       />
@@ -617,7 +634,7 @@ export default function PosModule() {
                           type="text"
                           value={documentNumber}
                           onChange={(e) => setDocumentNumber(e.target.value.replace(/\D/g, ''))}
-                          placeholder="Número"
+                          placeholder="XX.XXX.XXX"
                           className="flex-1 h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           disabled
                         />
@@ -652,7 +669,7 @@ export default function PosModule() {
                       onClick={handleCreditBackToSearch}
                       className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
                     >
-                      Volver
+                      Volver a buscar
                     </button>
                     <button
                       onClick={handleCreditSaveNewCustomer}
