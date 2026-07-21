@@ -46,8 +46,8 @@ export default function PosModule() {
 
   const [syncStatus, setSyncStatus] = useState('idle');
 
-  // Estados para el modal de crédito - NUEVA VERSIÓN
-  const [creditStep, setCreditStep] = useState<'search' | 'found' | 'create' | 'notfound'>('search');
+  // Estados para el modal de crédito - NUEVO
+  const [creditStep, setCreditStep] = useState<'search' | 'found' | 'create'>('search');
   const [documentType, setDocumentType] = useState<DocumentType>('V-');
   const [documentNumber, setDocumentNumber] = useState('');
   const [foundCustomer, setFoundCustomer] = useState<Customer | null>(null);
@@ -55,7 +55,6 @@ export default function PosModule() {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     setIsClient(true);
@@ -74,7 +73,6 @@ export default function PosModule() {
       setFoundCustomer(null);
       setDocumentType('V-');
       setIsSearching(false);
-      setSearchQuery('');
     }
   }, [isLoadCreditModalOpen]);
 
@@ -117,7 +115,7 @@ export default function PosModule() {
   }, [cart]);
 
   // ============================================
-  // LÓGICA DEL MODAL DE CRÉDITO - NUEVA VERSIÓN
+  // LÓGICA DEL MODAL DE CRÉDITO - NUEVA
   // ============================================
   
   const handleCreditSearch = () => {
@@ -137,14 +135,10 @@ export default function PosModule() {
         setCreditStep('found');
       } else {
         setFoundCustomer(null);
-        setCreditStep('notfound');
+        setCreditStep('create');
       }
       setIsSearching(false);
     }, 300);
-  };
-
-  const handleCreditCreateNew = () => {
-    setCreditStep('create');
   };
 
   const handleCreditSaveNewCustomer = () => {
@@ -243,7 +237,6 @@ export default function PosModule() {
     setCustomerName('');
     setAddress('');
     setPhone('');
-    setSearchQuery('');
   };
 
   const handlePayment = (isCredit = false) => {
@@ -480,9 +473,9 @@ export default function PosModule() {
         />
       )}
 
-      {/* ============================================== */}
-      {/* MODAL DE CRÉDITO - NUEVA VERSIÓN */}
-      {/* ============================================== */}
+      {/* ============================================================ */}
+      {/* MODAL DE CRÉDITO - NUEVO CON 3 PASOS EXACTAMENTE COMO LAS IMÁGENES */}
+      {/* ============================================================ */}
       {isLoadCreditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
@@ -498,13 +491,15 @@ export default function PosModule() {
             </div>
 
             <div className="p-6">
-              {/* Mostrar monto a deber */}
+              {/* Monto a deber - IGUAL EN TODOS LOS PASOS */}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-center">
                 <p className="text-xs font-bold text-amber-700 uppercase">Monto a deber</p>
                 <p className="text-2xl font-black text-amber-800">{formatUsd(total)}</p>
               </div>
 
-              {/* PASO 1: BÚSQUEDA DE CLIENTE */}
+              {/* ========================================== */}
+              {/* PASO 1: BÚSQUEDA - IMAGEN 1 */}
+              {/* ========================================== */}
               {creditStep === 'search' && (
                 <div className="space-y-4">
                   <p className="text-sm font-medium text-gray-700">Documento de Identidad</p>
@@ -524,7 +519,7 @@ export default function PosModule() {
                       </select>
                     </div>
                     
-                    <div className="flex-1 relative">
+                    <div className="flex-1">
                       <input
                         type="text"
                         value={documentNumber}
@@ -548,7 +543,7 @@ export default function PosModule() {
                     </button>
                   </div>
 
-                  <div className="flex justify-between pt-2">
+                  <div className="flex justify-end pt-2">
                     <button
                       onClick={() => setLoadCreditModalOpen(false)}
                       className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
@@ -559,36 +554,9 @@ export default function PosModule() {
                 </div>
               )}
 
-              {/* PASO 2: CLIENTE NO ENCONTRADO */}
-              {creditStep === 'notfound' && (
-                <div className="space-y-4 animate-in fade-in-50">
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-                    <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-                    <p className="font-bold text-amber-700 text-lg">No hay resultados</p>
-                    <p className="text-sm text-amber-600 mt-1">
-                      No se encontró un cliente con el documento {documentType}{documentNumber}
-                    </p>
-                  </div>
-                  
-                  <div className="flex flex-col gap-3">
-                    <button
-                      onClick={handleCreditCreateNew}
-                      className="w-full h-12 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <UserPlus className="w-5 h-5" />
-                      + Registrar Nuevo
-                    </button>
-                    <button
-                      onClick={handleCreditBackToSearch}
-                      className="w-full h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
-                    >
-                      Volver a buscar
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* PASO 3: CLIENTE ENCONTRADO */}
+              {/* ========================================== */}
+              {/* PASO 2: CLIENTE ENCONTRADO - IMAGEN 2 */}
+              {/* ========================================== */}
               {creditStep === 'found' && foundCustomer && (
                 <div className="space-y-4 animate-in fade-in-50">
                   <div className="bg-gray-50 rounded-xl p-4 space-y-3">
@@ -598,34 +566,26 @@ export default function PosModule() {
                       <span className="font-mono text-gray-800">{foundCustomer.cedula}</span>
                     </div>
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                      <span className="text-sm text-gray-500">Saldo actual:</span>
+                      <span className="text-sm text-gray-500">Saldo:</span>
                       <span className="font-bold text-lg text-red-600">{formatUsd(foundCustomer.debt || 0)}</span>
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleCreditBackToSearch}
-                      className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
-                    >
-                      Volver a buscar
-                    </button>
-                    <button
-                      onClick={handleCreditConfirmLoad}
-                      className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold text-sm hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                    >
-                      <CreditCard className="w-5 h-5" />
-                      Cargar Crédito
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleCreditConfirmLoad}
+                    className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold text-lg hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <CreditCard className="w-5 h-5" />
+                    Cargar Crédito
+                  </button>
                 </div>
               )}
 
-              {/* PASO 4: CREAR NUEVO CLIENTE */}
+              {/* ========================================== */}
+              {/* PASO 3: CREAR NUEVO CLIENTE - IMAGEN 3 */}
+              {/* ========================================== */}
               {creditStep === 'create' && (
                 <div className="space-y-4 animate-in fade-in-50">
-                  <p className="text-center text-sm font-bold text-gray-700">Nuevo Cliente</p>
-                  
                   <div className="space-y-3">
                     <div>
                       <label className="text-xs font-bold text-gray-500 block mb-1">NOMBRE COMPLETO</label>
@@ -633,8 +593,8 @@ export default function PosModule() {
                         type="text"
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Ej: Gloria Machete"
-                        className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        placeholder="GLORIA MACHETE"
+                        className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none uppercase"
                         onKeyDown={(e) => e.key === 'Enter' && handleCreditSaveNewCustomer()}
                       />
                     </div>
@@ -657,7 +617,7 @@ export default function PosModule() {
                           type="text"
                           value={documentNumber}
                           onChange={(e) => setDocumentNumber(e.target.value.replace(/\D/g, ''))}
-                          placeholder="XX.XXX.XXX"
+                          placeholder="11.254.685"
                           className="flex-1 h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           disabled
                         />
@@ -665,12 +625,12 @@ export default function PosModule() {
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-gray-500 block mb-1">TELÉFONO (XXXX-XXXXXXX)</label>
+                      <label className="text-xs font-bold text-gray-500 block mb-1">TELÉFONO</label>
                       <input
                         type="text"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="04XX-XXXXXXX"
+                        placeholder="04125896659"
                         className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
@@ -681,7 +641,7 @@ export default function PosModule() {
                         type="text"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        placeholder="Ej: Av. Principal #123"
+                        placeholder="Dirección del cliente"
                         className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
@@ -692,7 +652,7 @@ export default function PosModule() {
                       onClick={handleCreditBackToSearch}
                       className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
                     >
-                      Volver a buscar
+                      Volver a la lista
                     </button>
                     <button
                       onClick={handleCreditSaveNewCustomer}

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, UserPlus, X, AlertCircle, User, Phone, MapPin, CreditCard, DollarSign, ArrowLeft } from 'lucide-react';
+import { Search, UserPlus, X, AlertCircle, CreditCard } from 'lucide-react';
 import { Customer } from '@/lib/types';
 import { Store } from '@/lib/db-store';
-import { formatBs, formatUsd } from '@/lib/currency-formatter';
+import { formatUsd } from '@/lib/currency-formatter';
 
 interface LoadCreditModalProps {
   isOpen: boolean;
@@ -55,7 +55,6 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
     const fullDocument = `${documentType}${documentNumber}`;
     const customers: Customer[] = store?.clientes || [];
     
-    // Simular un pequeño delay para la búsqueda
     setTimeout(() => {
       const customer = customers.find(c => c.cedula === fullDocument);
       if (customer) {
@@ -85,7 +84,6 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
       debt: 0,
     };
 
-    // Guardar nuevo cliente
     const updatedCustomers = [...(store.clientes || []), newCustomer];
     Store.set({ ...store, clientes: updatedCustomers });
 
@@ -115,7 +113,7 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        {/* Header con fondo negro */}
+        {/* Header */}
         <div className="bg-black px-6 py-4 flex justify-between items-center">
           <h2 className="text-xl font-bold text-white">Cargar Crédito</h2>
           <button
@@ -127,7 +125,7 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
         </div>
 
         <div className="p-6">
-          {/* Mostrar monto a deber - IGUAL EN TODOS LOS PASOS */}
+          {/* Monto a deber */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-center">
             <p className="text-xs font-bold text-amber-700 uppercase">Monto a deber</p>
             <p className="text-2xl font-black text-amber-800">{formatUsd(totalAmount)}</p>
