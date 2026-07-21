@@ -16,13 +16,14 @@ interface LoadCreditModalProps {
 type DocumentType = 'V-' | 'J-' | 'G-' | 'E-' | 'P-';
 
 export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: LoadCreditModalProps) {
-  const [step, setStep] = useState<'search' | 'existing' | 'create' | 'notfound'>('search');
+  const [step, setStep] = useState<'search' | 'found' | 'create'>('search');
   const [documentType, setDocumentType] = useState<DocumentType>('V-');
   const [documentNumber, setDocumentNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [foundCustomer, setFoundCustomer] = useState<Customer | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
   const [store, setStore] = useState<any>(Store.get());
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
       setPhone('');
       setFoundCustomer(null);
       setDocumentType('V-');
+      setIsSearching(false);
     }
   }, [isOpen]);
 
@@ -49,22 +51,22 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
       return;
     }
 
+    setIsSearching(true);
     const fullDocument = `${documentType}${documentNumber}`;
     const customers: Customer[] = store?.clientes || [];
     
-    // Buscar cliente por cédula
-    const customer = customers.find(c => c.cedula === fullDocument);
-    
-    if (customer) {
-      setFoundCustomer(customer);
-      setStep('existing');
-    } else {
-      setStep('notfound');
-    }
-  };
-
-  const handleCreateNew = () => {
-    setStep('create');
+    // Simular un pequeño delay para la búsqueda
+    setTimeout(() => {
+      const customer = customers.find(c => c.cedula === fullDocument);
+      if (customer) {
+        setFoundCustomer(customer);
+        setStep('found');
+      } else {
+        setFoundCustomer(null);
+        setStep('create');
+      }
+      setIsSearching(false);
+    }, 300);
   };
 
   const handleSaveNewCustomer = () => {
@@ -77,7 +79,7 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
     const newCustomer: Customer = {
       id: `CUS-${Date.now()}`,
       cedula: fullDocument,
-      name: customerName,
+      name: customerName.trim(),
       address: address || 'Sin dirección',
       phone: phone || 'Sin teléfono',
       debt: 0,
@@ -88,7 +90,9 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
     Store.set({ ...store, clientes: updatedCustomers });
 
     setFoundCustomer(newCustomer);
-    setStep('existing');
+    setStep('found');
+    
+    alert(`Cliente ${newCustomer.name} registrado exitosamente.`);
   };
 
   const handleConfirmLoad = () => {
@@ -101,6 +105,9 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
     setStep('search');
     setFoundCustomer(null);
     setDocumentNumber('');
+    setCustomerName('');
+    setAddress('');
+    setPhone('');
   };
 
   if (!isOpen) return null;
@@ -120,15 +127,15 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
         </div>
 
         <div className="p-6">
-          {/* Mostrar monto a deber */}
+          {/* Mostrar monto a deber - IGUAL EN TODOS LOS PASOS */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-center">
             <p className="text-xs font-bold text-amber-700 uppercase">Monto a deber</p>
             <p className="text-2xl font-black text-amber-800">{formatUsd(totalAmount)}</p>
           </div>
 
-          {/* ============================================ */}
-          {/* PASO 1: SOLO BÚSQUEDA DE CLIENTE (Imagen 1) */}
-          {/* ============================================ */}
+          {/* ========================================== */}
+          {/* PASO 1: BÚSQUEDA - IMAGEN 1 */}
+          {/* ========================================== */}
           {step === 'search' && (
             <div className="space-y-4">
               <p className="text-sm font-medium text-gray-700">Documento de Identidad</p>
@@ -158,63 +165,37 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   />
                 </div>
+
+                <button
+                  onClick={handleSearch}
+                  disabled={isSearching}
+                  className="h-12 px-4 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center disabled:opacity-50"
+                >
+                  {isSearching ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Search className="w-5 h-5" />
+                  )}
+                </button>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-end pt-2">
                 <button
                   onClick={onClose}
                   className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
                 >
                   Cancelar
                 </button>
-                <button
-                  onClick={handleSearch}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center gap-2"
-                >
-                  <Search className="w-4 h-4" />
-                  Buscar
-                </button>
               </div>
             </div>
           )}
 
-          {/* ============================================ */}
-          {/* PASO 2: CLIENTE NO ENCONTRADO - Diálogo */}
-          {/* ============================================ */}
-          {step === 'notfound' && (
+          {/* ========================================== */}
+          {/* PASO 2: CLIENTE ENCONTRADO - IMAGEN 2 */}
+          {/* ========================================== */}
+          {step === 'found' && foundCustomer && (
             <div className="space-y-4 animate-in fade-in-50">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-                <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-2" />
-                <p className="font-bold text-amber-700">Cliente no encontrado</p>
-                <p className="text-sm text-amber-600 mt-1">
-                  No existe un cliente con el documento {documentType}{documentNumber}
-                </p>
-              </div>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={handleBackToSearch}
-                  className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
-                >
-                  No
-                </button>
-                <button
-                  onClick={handleCreateNew}
-                  className="flex-1 h-12 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <UserPlus className="w-5 h-5" />
-                  Sí, Crear Cliente
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ============================================ */}
-          {/* PASO 3: CLIENTE EXISTENTE (Imagen 2) */}
-          {/* ============================================ */}
-          {step === 'existing' && foundCustomer && (
-            <div className="space-y-4 animate-in fade-in-50">
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
                 <p className="font-bold text-lg text-gray-800">{foundCustomer.name}</p>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-500">Cédula:</span>
@@ -230,40 +211,32 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
                 onClick={handleConfirmLoad}
                 className="w-full h-14 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold text-lg hover:shadow-lg transition-all flex items-center justify-center gap-2"
               >
-                <DollarSign className="w-5 h-5" />
+                <CreditCard className="w-5 h-5" />
                 Cargar Crédito
               </button>
             </div>
           )}
 
-          {/* ============================================ */}
-          {/* PASO 4: CREAR NUEVO CLIENTE (Imagen 3) */}
-          {/* ============================================ */}
+          {/* ========================================== */}
+          {/* PASO 3: CREAR NUEVO CLIENTE - IMAGEN 3 */}
+          {/* ========================================== */}
           {step === 'create' && (
             <div className="space-y-4 animate-in fade-in-50">
-              <p className="text-center text-sm font-bold text-gray-700">
-                Nuevo Cliente
-              </p>
-              
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-bold text-gray-500 block mb-1">
-                    NOMBRE COMPLETO
-                  </label>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">NOMBRE COMPLETO</label>
                   <input
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Ej: Juan Pérez"
-                    className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="GLORIA MACHETE"
+                    className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none uppercase"
                     onKeyDown={(e) => e.key === 'Enter' && handleSaveNewCustomer()}
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-gray-500 block mb-1">
-                    CÉDULA / IDENTIFICACIÓN
-                  </label>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">CÉDULA / IDENTIFICACIÓN</label>
                   <div className="flex items-center gap-2">
                     <select
                       value={documentType}
@@ -280,7 +253,7 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
                       type="text"
                       value={documentNumber}
                       onChange={(e) => setDocumentNumber(e.target.value.replace(/\D/g, ''))}
-                      placeholder="Número"
+                      placeholder="11.254.685"
                       className="flex-1 h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       disabled
                     />
@@ -288,27 +261,23 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-gray-500 block mb-1">
-                    TELÉFONO (XXXX-XXXXXXX)
-                  </label>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">TELÉFONO</label>
                   <input
                     type="text"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="04XX-XXXXXXX"
+                    placeholder="04125896659"
                     className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-gray-500 block mb-1">
-                    DIRECCIÓN
-                  </label>
+                  <label className="text-xs font-bold text-gray-500 block mb-1">DIRECCIÓN</label>
                   <input
                     type="text"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Ej: Av. Principal #123"
+                    placeholder="Dirección del cliente"
                     className="w-full h-12 px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
@@ -319,7 +288,7 @@ export function LoadCreditModal({ isOpen, onClose, onConfirm, totalAmount }: Loa
                   onClick={handleBackToSearch}
                   className="flex-1 h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
                 >
-                  Volver
+                  Volver a la lista
                 </button>
                 <button
                   onClick={handleSaveNewCustomer}
