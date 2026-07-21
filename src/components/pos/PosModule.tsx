@@ -46,8 +46,8 @@ export default function PosModule() {
 
   const [syncStatus, setSyncStatus] = useState('idle');
 
-  // Estados para el modal de crédito
-  const [creditStep, setCreditStep] = useState<'search' | 'found' | 'create'>('search');
+  // Estados para el modal de crédito - NUEVA VERSIÓN
+  const [creditStep, setCreditStep] = useState<'search' | 'found' | 'create' | 'notfound'>('search');
   const [documentType, setDocumentType] = useState<DocumentType>('V-');
   const [documentNumber, setDocumentNumber] = useState('');
   const [foundCustomer, setFoundCustomer] = useState<Customer | null>(null);
@@ -55,6 +55,7 @@ export default function PosModule() {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     setIsClient(true);
@@ -73,6 +74,7 @@ export default function PosModule() {
       setFoundCustomer(null);
       setDocumentType('V-');
       setIsSearching(false);
+      setSearchQuery('');
     }
   }, [isLoadCreditModalOpen]);
 
@@ -115,7 +117,7 @@ export default function PosModule() {
   }, [cart]);
 
   // ============================================
-  // LÓGICA DEL MODAL DE CRÉDITO
+  // LÓGICA DEL MODAL DE CRÉDITO - NUEVA VERSIÓN
   // ============================================
   
   const handleCreditSearch = () => {
@@ -128,18 +130,14 @@ export default function PosModule() {
     const fullDocument = `${documentType}${documentNumber}`;
     const customers: Customer[] = store?.clientes || [];
     
-    // Simular un pequeño delay para la búsqueda
     setTimeout(() => {
       const customer = customers.find(c => c.cedula === fullDocument);
       if (customer) {
         setFoundCustomer(customer);
         setCreditStep('found');
       } else {
-        // No encontrado - mostrar formulario de creación
         setFoundCustomer(null);
-        setCreditStep('create');
-        // Pre-cargar el número de documento en el formulario
-        setCustomerName('');
+        setCreditStep('notfound');
       }
       setIsSearching(false);
     }, 300);
@@ -179,7 +177,6 @@ export default function PosModule() {
 
   const handleCreditConfirmLoad = () => {
     if (foundCustomer) {
-      // Verificar que el carrito no esté vacío
       if (cart.length === 0) {
         toast({ 
           title: "Carrito vacío", 
@@ -189,7 +186,6 @@ export default function PosModule() {
         return;
       }
 
-      // Crear registro de carga de crédito
       const creditSale = {
         id: `CRED-${Date.now()}`,
         type: 'CREDIT_LOAD',
@@ -214,7 +210,6 @@ export default function PosModule() {
         c.id === foundCustomer.id ? { ...c, debt: (c.debt || 0) + total } : c
       );
 
-      // Actualizar stock de productos
       const updatedProducts = (store.products || []).map((p: Product) => {
         const cartItem = cart.find(item => item.id === p.id);
         return cartItem ? { ...p, stock: (p.stock || 0) - cartItem.quantity } : p;
@@ -227,7 +222,6 @@ export default function PosModule() {
         products: updatedProducts
       });
 
-      // Limpiar carrito
       setCart([]);
       
       toast({ 
@@ -249,6 +243,7 @@ export default function PosModule() {
     setCustomerName('');
     setAddress('');
     setPhone('');
+    setSearchQuery('');
   };
 
   const handlePayment = (isCredit = false) => {
@@ -258,7 +253,6 @@ export default function PosModule() {
     }
     
     if (isCredit) {
-      // Abrir modal de crédito
       setLoadCreditModalOpen(true);
       return;
     } else {
@@ -487,7 +481,7 @@ export default function PosModule() {
       )}
 
       {/* ============================================== */}
-      {/* MODAL DE CRÉDITO MODIFICADO SEGÚN LAS IMÁGENES */}
+      {/* MODAL DE CRÉDITO - NUEVA VERSIÓN */}
       {/* ============================================== */}
       {isLoadCreditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -510,7 +504,7 @@ export default function PosModule() {
                 <p className="text-2xl font-black text-amber-800">{formatUsd(total)}</p>
               </div>
 
-              {/* PASO 1: BÚSQUEDA DE CLIENTE (Imagen 1) */}
+              {/* PASO 1: BÚSQUEDA DE CLIENTE */}
               {creditStep === 'search' && (
                 <div className="space-y-4">
                   <p className="text-sm font-medium text-gray-700">Documento de Identidad</p>
@@ -554,7 +548,7 @@ export default function PosModule() {
                     </button>
                   </div>
 
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-between pt-2">
                     <button
                       onClick={() => setLoadCreditModalOpen(false)}
                       className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
@@ -565,7 +559,36 @@ export default function PosModule() {
                 </div>
               )}
 
-              {/* PASO 2: CLIENTE ENCONTRADO (Imagen 2) */}
+              {/* PASO 2: CLIENTE NO ENCONTRADO */}
+              {creditStep === 'notfound' && (
+                <div className="space-y-4 animate-in fade-in-50">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+                    <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+                    <p className="font-bold text-amber-700 text-lg">No hay resultados</p>
+                    <p className="text-sm text-amber-600 mt-1">
+                      No se encontró un cliente con el documento {documentType}{documentNumber}
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={handleCreditCreateNew}
+                      className="w-full h-12 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <UserPlus className="w-5 h-5" />
+                      + Registrar Nuevo
+                    </button>
+                    <button
+                      onClick={handleCreditBackToSearch}
+                      className="w-full h-12 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300 transition-colors"
+                    >
+                      Volver a buscar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* PASO 3: CLIENTE ENCONTRADO */}
               {creditStep === 'found' && foundCustomer && (
                 <div className="space-y-4 animate-in fade-in-50">
                   <div className="bg-gray-50 rounded-xl p-4 space-y-3">
@@ -598,7 +621,7 @@ export default function PosModule() {
                 </div>
               )}
 
-              {/* PASO 3: CREAR NUEVO CLIENTE (Imagen 3) */}
+              {/* PASO 4: CREAR NUEVO CLIENTE */}
               {creditStep === 'create' && (
                 <div className="space-y-4 animate-in fade-in-50">
                   <p className="text-center text-sm font-bold text-gray-700">Nuevo Cliente</p>
