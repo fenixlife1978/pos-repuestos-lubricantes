@@ -6,7 +6,7 @@ import { Save, AlertTriangle, RefreshCw, Database } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { initialState } from '@/lib/db-store';
 import { db, auth } from '@/lib/firebase';
-import { collection, getDocs, deleteDoc, doc, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc, setDoc, writeBatch, query, limit } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { migrarEstructura } from '@/lib/migracion-firestore';
 
@@ -41,6 +41,32 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
     if (pinDevolucion.length !== 6) return alert('El PIN debe ser de 6 dígitos exactos');
     updateState({ pinDevolucion });
     toast({ title: "Seguridad Actualizada", description: "PIN de autorización establecido correctamente." });
+  };
+
+  // ============================================================
+  // FUNCIÓN PARA ELIMINAR UNA COLECCIÓN COMPLETA CON BATCH
+  // ============================================================
+  const deleteCollection = async (collectionPath: string, batchSize = 100) => {
+    try {
+      const colRef = collection(db, collectionPath);
+      const snapshot = await getDocs(query(colRef, limit(batchSize)));
+
+      if (snapshot.empty) {
+        console.log(`✅ Colección "${collectionPath}" vacía o no existe.`);
+        return;
+      }
+
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+      await batch.commit();
+
+      // Recursivamente eliminar el resto (si hay más de batchSize documentos)
+      await deleteCollection(collectionPath, batchSize);
+    } catch (error) {
+      console.warn(`⚠️ Error al eliminar colección "${collectionPath}":`, error);
+    }
   };
 
   const handleMigrar = async () => {
@@ -79,52 +105,118 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
   };
 
   const formatearSistema = async () => {
-    const confirmMsg = '¿ESTÁ ABSOLUTAMENTE SEGURO?\n\nESTA ACCIÓN ELIMINARÁ:\n- Todos los Productos e Inventario.\n- Todas las Ventas y Créditos.\n- TODOS los usuarios del sistema.\n- Toda la configuración.\n\nEl sistema se cerrará y volverá al estado de "Primer Uso".';
-    
-    if (confirm(confirmMsg)) {
-      setIsFormatting(true);
-      try {
-        const batch = writeBatch(db);
+    const confirmMsg = 
+      '⚠️ ¿ESTÁ ABSOLUTAMENTE SEGURO?\n\n' +
+      'ESTA ACCIÓN ELIMINARÁ PERMANENTEMENTE:\n' +
+      '✅ TODOS los productos e inventario.\n' +
+      '✅ TODAS las ventas y créditos.\n' +
+      '✅ TODOS los clientes y proveedores.\n' +
+      '✅ TODOS los movimientos y asientos contables.\n' +
+      '✅ TODOS los usuarios y sus credenciales.\n' +
+      '✅ TODOS los reportes y configuraciones.\n\n' +
+      '⚠️ ESTA ACCIÓN NO SE PUEDE DESHACER.';
 
-        // 1. ELIMINAR TODOS LOS USUARIOS DE FIRESTORE
-        const usersSnapshot = await getDocs(collection(db, 'users'));
-        usersSnapshot.forEach((uDoc) => {
-          batch.delete(uDoc.ref);
-        });
+    if (!confirm(confirmMsg)) return;
 
-        // 2. REINICIAR ESTADO GLOBAL CON isInitialized: false
-        const stateRef = doc(db, 'pos_system_data', 'state');
-        batch.set(stateRef, {
-          ...initialState,
-          isInitialized: false,
-          fechaFormateo: new Date().toISOString()
-        });
+    setIsFormatting(true);
+    try {
+      // ===== 1. ELIMINAR TODAS LAS COLECCIONES =====
+      const colecciones = [
+        'productos',
+        'ventas',
+        'clientes',
+        'cxc',
+        'cxp',
+        'movimientos',
+        'terminales',
+        'proveedores',
+        'devoluciones',
+        'anulaciones',
+        'libroDiario',
+        'reportesZ',
+        'catalogos',
+        'inventario',
+        'config',
+        'users'
+      ];
 
-        await batch.commit();
-        
-        toast({ title: "Sistema Formateado", description: "Base de datos vaciada con éxito." });
-
-        // 3. LIMPIAR SESIÓN Y SALIR
-        if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
-        
-        if (auth.currentUser) {
-          try {
-            await auth.currentUser.delete();
-          } catch (e) {
-            await signOut(auth);
-          }
-        } else {
-          await signOut(auth);
-        }
-        
-        window.location.href = '/login';
-
-      } catch (error: any) {
-        console.error("Error en formateo:", error);
-        toast({ variant: "destructive", title: "Fallo en Limpieza", description: error.message });
-      } finally {
-        setIsFormatting(false);
+      console.log('🗑️ Iniciando eliminación de colecciones...');
+      for (const colName of colecciones) {
+        console.log(`Eliminando colección "${colName}"...`);
+        await deleteCollection(colName);
       }
+
+      // ===== 2. ELIMINAR DOCUMENTOS DE pos_system_data (excepto 'state') =====
+      try {
+        const mainColRef = collection(db, 'pos_system_data');
+        const mainSnapshot = await getDocs(mainColRef);
+        const batch = writeBatch(db);
+        mainSnapshot.docs.forEach((docSnap) => {
+          if (docSnap.id !== 'state') {
+            batch.delete(docSnap.ref);
+          }
+        });
+        await batch.commit();
+        console.log('✅ Documentos extras en pos_system_data eliminados (excepto state).');
+      } catch (e) {
+        console.warn('⚠️ Error al limpiar pos_system_data:', e);
+      }
+
+      // ===== 3. REINICIAR ESTADO GLOBAL =====
+      const stateRef = doc(db, 'pos_system_data', 'state');
+      await setDoc(stateRef, {
+        ...initialState,
+        isInitialized: false,
+        fechaFormateo: new Date().toISOString(),
+        ultimoZ: 0,
+        proximoRecibo: 1,
+        proximaDevolucion: 1,
+        proximaAnulacion: 1,
+        acumuladoHistorico: 0,
+        fechaUltimoZ: '',
+        fondoCajaHoyUSD: 0,
+        fondoCajaHoyBS: 0,
+        tasa: state.tasa || 36.50,
+        empresa: {
+          nombre: 'NOMBRE DE SU NEGOCIO',
+          rif: 'J-00000000-0',
+          direccion: 'DIRECCIÓN FISCAL',
+          telefono: '0000-0000000'
+        }
+      });
+      console.log('✅ Estado global reiniciado con valores iniciales.');
+
+      // ===== 4. LIMPIAR SESIÓN Y SALIR =====
+      if (typeof sessionStorage !== 'undefined') sessionStorage.clear();
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('posven_apertura_done');
+        localStorage.removeItem('posven_last_cxp_alert');
+      }
+
+      toast({ 
+        title: "Sistema Formateado", 
+        description: "Todos los datos han sido eliminados permanentemente." 
+      });
+
+      // ===== 5. CERRAR SESIÓN =====
+      try {
+        await signOut(auth);
+      } catch (e) {
+        console.warn('⚠️ Error al cerrar sesión:', e);
+      }
+
+      // ===== 6. REDIRIGIR AL LOGIN =====
+      window.location.href = '/login';
+
+    } catch (error: any) {
+      console.error("❌ Error en formateo:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Fallo en Limpieza", 
+        description: error.message 
+      });
+    } finally {
+      setIsFormatting(false);
     }
   };
 
@@ -284,7 +376,7 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
         </div>
         <div className="card-body p-6">
           <p className="text-xs text-ink font-bold mb-5 uppercase">
-            ESTA ACCIÓN BORRARÁ TODO EL SISTEMA Y USUARIOS PERMANENTEMENTE.
+            ESTA ACCIÓN ELIMINARÁ TODOS LOS DATOS DEL SISTEMA DE MANERA PERMANENTE.
           </p>
           <button 
             className="btn btn-danger h-12 px-8 font-black uppercase text-xs shadow-xl flex items-center gap-2" 
