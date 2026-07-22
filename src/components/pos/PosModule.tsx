@@ -43,14 +43,13 @@ import {
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
+import { CreditModal } from '@/components/pos/CreditModal';
 import FloatingPaymentModal from '@/components/pos/FloatingPaymentModal';
 import { toast } from '@/hooks/use-toast';
 import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, PagoRealizado, Customer, Return, ReturnItem, Product, Debt, Movimiento, LibroDiarioEntry } from '@/lib/types';
 import { Utils, Store } from '@/lib/db-store';
 import ReturnsModule from '@/components/modules/ReturnsModule';
 import { cn } from '@/lib/utils';
-
-// ✅ ELIMINADO: El declare global ya está en ReceiptModal.tsx
 
 export default function SalesModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [search, setSearch] = useState('');
@@ -290,6 +289,20 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setEditandoTasa(false);
   };
 
+  // ===== HANDLER PARA CREDIT MODAL =====
+  const handleCreditConfirm = (customer: Customer, amount: number) => {
+    // Esta función se ejecuta cuando el modal confirma la carga de crédito
+    // Pero la lógica ya está en ejecutarVentaACredito
+    // Solo cerramos el modal
+    setIsCreditView(false);
+  };
+
+  // ===== FUNCIÓN PARA CARGAR CRÉDITO CON CLIENTE SELECCIONADO =====
+  const handleLoadCreditWithClient = (customer: Customer) => {
+    setSelectedClient(customer);
+    ejecutarVentaACredito();
+  };
+
   const ejecutarVenta = async (pagosFinales?: PagoRealizado[]) => {
     if (state.carrito.length === 0 || isProcessing) return;
     setIsProcessing(true);
@@ -488,6 +501,16 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // ===== MANEJADOR DEL CREDIT MODAL =====
+  const handleCreditModalConfirm = (customer: Customer, amount: number) => {
+    setSelectedClient(customer);
+    setIsCreditView(false);
+    // Ejecutar la venta a crédito con el cliente seleccionado
+    setTimeout(() => {
+      ejecutarVentaACredito();
+    }, 100);
   };
 
   return (
@@ -874,54 +897,15 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {isCreditView && (
-        <div className="modal show"><div className="modal-bg" onClick={() => setIsCreditView(false)}></div>
-          <div className="modal-box max-w-[380px] bg-white border-2 border-line">
-            <div className="modal-head py-3 px-4 border-b border-line bg-surface-soft flex justify-between"><h3 className="text-ink text-xs font-black uppercase tracking-widest flex items-center gap-2"><HandCoins className="w-4 h-4 text-brand-gold" /> CARGAR CRÉDITO</h3><button onClick={() => setIsCreditView(false)}><X size={18} /></button></div>
-            <div className="modal-body p-4 space-y-4">
-              {!showNewClientForm ? (
-                <div className="space-y-3">
-                   <div className="bg-ink p-3 rounded-lg text-center mb-2"><p className="text-white/40 text-[8px] font-black uppercase mb-1">Monto a Deber</p><p className="text-2xl font-black text-brand-gold">{Utils.fmtUSD(subtotalUSD)}</p></div>
-                   <div className="relative"><Search className="absolute left-3 top-2.5 w-4 h-4 text-ink opacity-30" /><input className="form-input pl-10 h-10 text-xs font-bold" placeholder="Buscar cliente..." value={clientSearch} onChange={e => setClientSearch(e.target.value)} /></div>
-                   <div className="max-h-[160px] overflow-y-auto border border-line rounded-xl bg-gray-50 shadow-inner">{(filteredClients || []).map(c => (<div key={c.id} onClick={() => setSelectedClient(c)} className={`p-3 border-b border-line/40 cursor-pointer hover:bg-brand-gold-soft transition-all ${selectedClient?.id === c.id ? 'bg-brand-gold-soft border-l-4 border-l-brand-gold' : ''}`}><div className="text-xs font-black text-ink uppercase">{c.name}</div><div className="text-[10px] text-ink/40 mono">{c.cedula}</div></div>))}{filteredClients.length === 0 && <div className="p-10 text-center text-[10px] font-black text-ink/20 uppercase">No hay resultados</div>}</div>
-                   <div className="flex flex-col gap-2"><button className="btn bg-status-info-soft text-status-info border border-status-info/40 font-black uppercase text-[10px] h-10 flex items-center justify-center gap-2" onClick={() => setShowNewClientForm(true)}><UserPlus className="w-4 h-4" /> Registrar Nuevo</button><button className="btn btn-primary w-full h-12 font-black uppercase text-xs shadow-md" disabled={!selectedClient || isProcessing} onClick={ejecutarVentaACredito}>{isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2 inline" /> : null}Cargar a Cartera</button></div>
-                </div>
-              ) : (
-                <div className="space-y-4 animate-in slide-in-from-right-2 duration-200">
-                  <div className="space-y-2">
-                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-ink">Nombre Completo</label><input className="form-input h-9 text-xs font-black uppercase" value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})} /></div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase text-ink">Cédula / Identificación</label>
-                      <div className="grid grid-cols-[80px_1fr] gap-1.5 items-center">
-                        <select 
-                          className="form-select h-9 text-[10px] font-black bg-surface-soft border-line w-full px-1"
-                          value={newClient.tipoDoc}
-                          onChange={e => setNewClient({ ...newClient, tipoDoc: e.target.value })}
-                        >
-                          {['V', 'E', 'J', 'G', 'P'].map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                        <div className="relative">
-                          <Hash className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-ink opacity-30" />
-                          <input 
-                            className="form-input pl-8 h-9 text-xs font-black w-full" 
-                            placeholder="EJ: 13313521"
-                            value={newClient.cedula}
-                            onChange={e => handleNewClientCedulaChange(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-ink">Teléfono (XXXX-XXXXXXX)</label><input className="form-input h-9 text-xs font-black uppercase" value={newClient.phone} onChange={e => setNewClient({...newClient, phone: e.target.value})} placeholder="04XX-XXXXXXX" /></div>
-                    <div className="space-y-1"><label className="text-[9px] font-black uppercase text-ink">Dirección</label><input className="form-input h-9 text-xs font-black uppercase" value={newClient.address} onChange={e => setNewClient({...newClient, address: e.target.value})} /></div>
-                  </div>
-                  <button className="btn btn-primary w-full h-12 font-black uppercase text-xs shadow-md" disabled={isProcessing} onClick={ejecutarVentaACredito}>{isProcessing ? <Loader2 className="w-4 h-4 animate-spin mr-2 inline" /> : null}Guardar y Cargar</button>
-                  <button className="text-[10px] text-ink font-black uppercase text-center w-full" onClick={() => setShowNewClientForm(false)}>Volver a la lista</button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ============================================================ */}
+      {/* MODAL DE CRÉDITO - USANDO CreditModal */}
+      {/* ============================================================ */}
+      <CreditModal
+        isOpen={isCreditView}
+        onClose={() => setIsCreditView(false)}
+        onConfirm={handleCreditModalConfirm}
+        totalAmount={subtotalUSD}
+      />
     </div>
   );
 }
