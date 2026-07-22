@@ -29,6 +29,86 @@ import {
 import { exportarPDFCxC } from '@/lib/pdf-generator';
 import { useToast } from '@/hooks/use-toast';
 
+// ============================================================
+// UTILIDADES DE NORMALIZACIÓN DE CÉDULA (integradas)
+// ============================================================
+
+/**
+ * Normaliza una cédula según el tipo de documento
+ * - Para V- y E-: formato con puntos (XX.XXX.XXX)
+ * - Para J-, G-, P-: solo dígitos sin formato
+ */
+function normalizeCedula(cedula: string, docType?: string): string {
+  if (!cedula) return '';
+  
+  let type = docType || '';
+  let number = cedula;
+  
+  const match = cedula.match(/^([A-Z]-?)?(.*)/);
+  if (match) {
+    if (match[1] && !docType) {
+      type = match[1].replace('-', '').trim() + '-';
+    }
+    number = match[2] || '';
+  }
+  
+  const cleanNumber = number.replace(/[^0-9]/g, '');
+  
+  if (!type) type = 'V-';
+  
+  if (type === 'V-' || type === 'E-') {
+    const digits = cleanNumber;
+    if (digits.length <= 2) return `${type}${digits}`;
+    if (digits.length <= 5) return `${type}${digits.slice(0, 2)}.${digits.slice(2)}`;
+    if (digits.length <= 8) return `${type}${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+    return `${type}${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}`;
+  }
+  
+  return `${type}${cleanNumber}`;
+}
+
+/**
+ * Obtiene solo el número de cédula sin puntos ni tipo
+ */
+function getRawCedula(cedula: string): string {
+  return cedula.replace(/[^0-9]/g, '');
+}
+
+/**
+ * Busca un cliente por cédula normalizada, ignorando formato
+ */
+function findCustomerByCedula(customers: any[], cedula: string): any | null {
+  const raw = getRawCedula(cedula);
+  return customers.find(c => getRawCedula(c.cedula) === raw) || null;
+}
+
+/**
+ * Busca deudas por cédula del cliente (en el campo cliente)
+ */
+function findDebtsByCedula(deudas: any[], cedula: string): any[] {
+  const raw = getRawCedula(cedula);
+  return deudas.filter(d => {
+    if (!d.cliente) return false;
+    const match = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
+    if (match) {
+      return getRawCedula(match[2]) === raw;
+    }
+    return false;
+  });
+}
+
+/**
+ * Extrae el tipo de documento (V-, J-, etc.) de una cédula
+ */
+function extractDocType(cedula: string): string {
+  const match = cedula.match(/^([A-Z]-?)/);
+  return match ? match[1].replace('-', '').trim() + '-' : 'V-';
+}
+
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
+
 export default function CxCModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const { toast } = useToast();
   const [showModal, setShowModal] = useState(false);
@@ -47,13 +127,27 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     sinVencimiento: false
   });
 
-  const formatCedula = (val: string) => {
-    const digits = val.replace(/\D/g, '');
-    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  // ===== FORMATO DE CÉDULA CON PUNTOS (SOLO PARA V- Y E-) =====
+  const formatCedula = (value: string, type: string) => {
+    if (type !== 'V' && type !== 'E') {
+      return value.replace(/\D/g, '');
+    }
+    const digits = value.replace(/\D/g, '');
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return digits.slice(0, 2) + '.' + digits.slice(2);
+    if (digits.length <= 8) return digits.slice(0, 2) + '.' + digits.slice(2, 5) + '.' + digits.slice(5);
+    return digits.slice(0, 2) + '.' + digits.slice(2, 5) + '.' + digits.slice(5, 8);
   };
 
   const handleCedulaChange = (val: string) => {
-    setNuevaDeuda({ ...nuevaDeuda, cedula: formatCedula(val) });
+    const formatted = formatCedula(val, nuevaDeuda.tipoDoc);
+    setNuevaDeuda({ ...nuevaDeuda, cedula: formatted });
+  };
+
+  const handleTipoDocChange = (tipo: string) => {
+    const cleanNumber = nuevaDeuda.cedula.replace(/\./g, '');
+    const formatted = formatCedula(cleanNumber, tipo);
+    setNuevaDeuda({ ...nuevaDeuda, tipoDoc: tipo, cedula: formatted });
   };
 
   // Obtener TODOS los clientes del sistema
@@ -135,24 +229,44 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
 
   // Función para sincronizar clientes desde CxC
   const syncCustomersFromCxC = () => {
-    const clientesExistentes = new Set(allCustomers.map((c: Customer) => c.name));
-    const clientesFromCxC = new Set(todasLasDeudas.map((d: Debt) => d.cliente).filter((name): name is string => name !== undefined && name !== null && name !== ''));
+    const clientesExistentes = new Set(allCustomers.map((c: Customer) => getRawCedula(c.cedula)));
+    const clientesFromCxC: string[] = [];
     
+    todasLasDeudas.forEach((d: Debt) => {
+      if (!d.cliente) return;
+      const match = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
+      if (match) {
+        const raw = getRawCedula(match[2]);
+        if (!clientesExistentes.has(raw)) {
+          clientesFromCxC.push(raw);
+          clientesExistentes.add(raw);
+        }
+      }
+    });
+
     const nuevosClientes: Customer[] = [];
-    clientesFromCxC.forEach((name: string) => {
-      if (!clientesExistentes.has(name)) {
-        // Extraer nombre y cédula del string "NOMBRE [V-123456]"
-        const match = name.match(/^(.*?)\s*\[(.*?)\]$/);
-        const nombreLimpio = match ? match[1].trim() : name;
-        const cedulaLimpia = match ? match[2].trim() : '';
-        nuevosClientes.push({
-          id: `CUS-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          name: nombreLimpio,
-          cedula: cedulaLimpia || 'SIN-CEDULA',
-          address: 'Sin dirección',
-          phone: 'Sin teléfono',
-          debt: 0
-        });
+    clientesFromCxC.forEach((raw: string) => {
+      // Buscar la deuda para obtener el nombre
+      const deuda = todasLasDeudas.find(d => {
+        if (!d.cliente) return false;
+        const m = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
+        return m && getRawCedula(m[2]) === raw;
+      });
+      if (deuda) {
+        const match = deuda.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
+        if (match) {
+          const nombre = match[1].trim();
+          const tipo = extractDocType(match[2]);
+          const cedulaNormalizada = normalizeCedula(raw, tipo);
+          nuevosClientes.push({
+            id: `CUS-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            name: nombre,
+            cedula: cedulaNormalizada,
+            address: 'Sin dirección',
+            phone: 'Sin teléfono',
+            debt: 0
+          });
+        }
       }
     });
 
@@ -166,9 +280,8 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     syncCustomersFromCxC();
   }, []);
 
-  // ===== NUEVA FUNCIÓN: ELIMINAR CLIENTE COMPLETO =====
+  // ===== ELIMINAR CLIENTE COMPLETO =====
   const eliminarCliente = (clientName: string) => {
-    // Verificar si el cliente tiene deudas pendientes
     const tieneDeudasPendientes = todasLasDeudas.some(
       (d: Debt) => d.cliente === clientName && d.estado !== 'pagada'
     );
@@ -182,23 +295,16 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
       return;
     }
 
-    // Verificar si el cliente tiene deudas (aunque estén pagadas)
     const tieneDeudas = todasLasDeudas.some((d: Debt) => d.cliente === clientName);
-    
     let mensajeConfirmacion = `¿Está seguro de eliminar permanentemente al cliente "${clientName}"`;
     if (tieneDeudas) {
       mensajeConfirmacion += " y todo su historial de deudas (pagadas)";
     }
     mensajeConfirmacion += "?";
 
-    if (!confirm(mensajeConfirmacion)) {
-      return;
-    }
+    if (!confirm(mensajeConfirmacion)) return;
 
-    // Eliminar cliente de la lista de clientes
     const clientesActualizados = allCustomers.filter((c: Customer) => c.name !== clientName);
-    
-    // Eliminar todas las deudas del cliente
     const deudasActualizadas = todasLasDeudas.filter((d: Debt) => d.cliente !== clientName);
     
     updateState({ 
@@ -212,36 +318,64 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     });
   };
 
+  // ===== GUARDAR DEUDA DIRECTA CON NORMALIZACIÓN =====
   const guardarDeudaDirecta = () => {
     if (!nuevaDeuda.cliente || !nuevaDeuda.cedula || nuevaDeuda.montoUSD <= 0) {
       alert('Por favor ingrese el cliente, su cédula y un monto válido.');
       return;
     }
 
-    const idFull = `${nuevaDeuda.tipoDoc}-${nuevaDeuda.cedula}`;
-    const nombreFull = `${nuevaDeuda.cliente} [${idFull}]`;
+    // Limpiar puntos para obtener el número puro
+    const cleanNumber = nuevaDeuda.cedula.replace(/\./g, '');
+    const rawDoc = `${nuevaDeuda.tipoDoc}-${cleanNumber}`;
+    const normalizedCedula = normalizeCedula(rawDoc);
+    const raw = getRawCedula(normalizedCedula);
+    const nombreFull = `${nuevaDeuda.cliente} [${normalizedCedula}]`;
 
-    // Verificar si el cliente ya existe en la lista de clientes
-    const clienteExistente = allCustomers.find((c: Customer) => c.cedula === idFull || c.name === nuevaDeuda.cliente);
-    if (!clienteExistente) {
-      // Crear nuevo cliente
-      const nuevoCliente: Customer = {
-        id: `CUS-${Date.now()}`,
-        name: nuevaDeuda.cliente,
-        cedula: idFull,
-        address: 'Sin dirección',
-        phone: 'Sin teléfono',
-        debt: nuevaDeuda.montoUSD
-      };
-      updateState({ clientes: [...allCustomers, nuevoCliente] });
-    } else {
+    // Verificar si el cliente ya existe (comparando por número sin formato)
+    const clienteExistente = findCustomerByCedula(allCustomers, normalizedCedula);
+    
+    if (clienteExistente) {
       // Actualizar deuda del cliente existente
       const updatedCustomers = allCustomers.map((c: Customer) => 
         c.id === clienteExistente.id ? { ...c, debt: (c.debt || 0) + nuevaDeuda.montoUSD } : c
       );
       updateState({ clientes: updatedCustomers });
+    } else {
+      // Verificar si existe en deudas (para unificar)
+      const deudasExistentes = findDebtsByCedula(todasLasDeudas, normalizedCedula);
+      if (deudasExistentes.length > 0) {
+        // Ya existe en deudas, extraer nombre y actualizar
+        const primeraDeuda = deudasExistentes[0];
+        const match = primeraDeuda.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
+        if (match) {
+          const nombre = match[1].trim();
+          // Crear cliente con el nombre existente
+          const nuevoCliente: Customer = {
+            id: `CUS-${Date.now()}`,
+            name: nombre,
+            cedula: normalizedCedula,
+            address: 'Sin dirección',
+            phone: 'Sin teléfono',
+            debt: nuevaDeuda.montoUSD + deudasExistentes.reduce((sum, d) => sum + (d.saldoUSD || 0), 0)
+          };
+          updateState({ clientes: [...allCustomers, nuevoCliente] });
+        }
+      } else {
+        // Crear nuevo cliente
+        const nuevoCliente: Customer = {
+          id: `CUS-${Date.now()}`,
+          name: nuevaDeuda.cliente,
+          cedula: normalizedCedula,
+          address: 'Sin dirección',
+          phone: 'Sin teléfono',
+          debt: nuevaDeuda.montoUSD
+        };
+        updateState({ clientes: [...allCustomers, nuevoCliente] });
+      }
     }
 
+    // Crear la deuda con la cédula normalizada en el nombre del cliente
     const nuevaEntrada: Debt = {
       id: 'DEU-' + Store.uid().toUpperCase().slice(0, 6),
       fecha: nuevaDeuda.fecha,
@@ -262,7 +396,6 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     if (!confirm(`¿Seguro que desea eliminar el registro ${deuda.id}? Esta acción no se puede deshacer.`)) return;
     const nuevas = state.cxc.filter((x: Debt) => x.id !== deuda.id);
     
-    // Actualizar deuda del cliente
     const clientesActualizados = allCustomers.map((c: Customer) => {
       if (c.name === deuda.cliente || c.cedula === deuda.cliente) {
         return { ...c, debt: Math.max(0, (c.debt || 0) - deuda.saldoUSD) };
@@ -419,7 +552,6 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                                  >
                                    <Eye className="w-5 h-5" />
                                  </button>
-                                 {/* ===== BOTÓN ELIMINAR CLIENTE - SOLO SI NO TIENE DEUDAS PENDIENTES ===== */}
                                  {!tieneDeudaPendiente && (
                                    <button 
                                      onClick={() => eliminarCliente(clientName)} 
@@ -431,7 +563,6 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                                  )}
                                </>
                              ) : (
-                               /* ===== CLIENTE SIN DEUDAS - MOSTRAR PAPELERA DIRECTAMENTE ===== */
                                <button 
                                  onClick={() => eliminarCliente(clientName)} 
                                  className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-status-danger border-2 border-status-danger/20 hover:bg-status-danger hover:text-white transition-all shadow-md"
@@ -660,7 +791,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                   <select 
                     className="form-select h-11 text-xs font-black bg-surface-soft border-line w-full px-2"
                     value={nuevaDeuda.tipoDoc}
-                    onChange={e => setNuevaDeuda({ ...nuevaDeuda, tipoDoc: e.target.value })}
+                    onChange={e => handleTipoDocChange(e.target.value)}
                   >
                     {['V', 'E', 'J', 'G', 'P'].map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
@@ -668,7 +799,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                     <Hash className="absolute left-3 top-3 w-4 h-4 text-ink opacity-30" />
                     <input 
                       className="form-input pl-10 h-11 text-sm font-black text-ink w-full" 
-                      placeholder="EJ: 13313521"
+                      placeholder={nuevaDeuda.tipoDoc === 'V' || nuevaDeuda.tipoDoc === 'E' ? "EJ: 13.313.521" : "EJ: 12345678"}
                       value={nuevaDeuda.cedula}
                       onChange={e => handleCedulaChange(e.target.value)}
                     />

@@ -51,6 +51,86 @@ import { Utils, Store } from '@/lib/db-store';
 import ReturnsModule from '@/components/modules/ReturnsModule';
 import { cn } from '@/lib/utils';
 
+// ============================================================
+// UTILIDADES DE NORMALIZACIÓN DE CÉDULA (integradas)
+// ============================================================
+
+/**
+ * Normaliza una cédula según el tipo de documento
+ * - Para V- y E-: formato con puntos (XX.XXX.XXX)
+ * - Para J-, G-, P-: solo dígitos sin formato
+ */
+function normalizeCedula(cedula: string, docType?: string): string {
+  if (!cedula) return '';
+  
+  let type = docType || '';
+  let number = cedula;
+  
+  const match = cedula.match(/^([A-Z]-?)?(.*)/);
+  if (match) {
+    if (match[1] && !docType) {
+      type = match[1].replace('-', '').trim() + '-';
+    }
+    number = match[2] || '';
+  }
+  
+  const cleanNumber = number.replace(/[^0-9]/g, '');
+  
+  if (!type) type = 'V-';
+  
+  if (type === 'V-' || type === 'E-') {
+    const digits = cleanNumber;
+    if (digits.length <= 2) return `${type}${digits}`;
+    if (digits.length <= 5) return `${type}${digits.slice(0, 2)}.${digits.slice(2)}`;
+    if (digits.length <= 8) return `${type}${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+    return `${type}${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}`;
+  }
+  
+  return `${type}${cleanNumber}`;
+}
+
+/**
+ * Obtiene solo el número de cédula sin puntos ni tipo
+ */
+function getRawCedula(cedula: string): string {
+  return cedula.replace(/[^0-9]/g, '');
+}
+
+/**
+ * Busca un cliente por cédula normalizada, ignorando formato
+ */
+function findCustomerByCedula(customers: any[], cedula: string): any | null {
+  const raw = getRawCedula(cedula);
+  return customers.find(c => getRawCedula(c.cedula) === raw) || null;
+}
+
+/**
+ * Busca deudas por cédula del cliente (en el campo cliente)
+ */
+function findDebtsByCedula(deudas: any[], cedula: string): any[] {
+  const raw = getRawCedula(cedula);
+  return deudas.filter(d => {
+    if (!d.cliente) return false;
+    const match = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
+    if (match) {
+      return getRawCedula(match[2]) === raw;
+    }
+    return false;
+  });
+}
+
+/**
+ * Extrae el tipo de documento (V-, J-, etc.) de una cédula
+ */
+function extractDocType(cedula: string): string {
+  const match = cedula.match(/^([A-Z]-?)/);
+  return match ? match[1].replace('-', '').trim() + '-' : 'V-';
+}
+
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
+
 export default function SalesModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'pos' | 'history' | 'credits' | 'returns'>('pos');
@@ -87,13 +167,27 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const formatVNCedula = (val: string) => {
+  // ===== CORREGIDO: Formato de cédula según tipo =====
+  const formatCedulaByType = (val: string, type: string) => {
+    if (type !== 'V' && type !== 'E') {
+      return val.replace(/\D/g, '');
+    }
     const digits = val.replace(/\D/g, '');
-    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 5) return digits.slice(0, 2) + '.' + digits.slice(2);
+    if (digits.length <= 8) return digits.slice(0, 2) + '.' + digits.slice(2, 5) + '.' + digits.slice(5);
+    return digits.slice(0, 2) + '.' + digits.slice(2, 5) + '.' + digits.slice(5, 8);
   };
 
   const handleNewClientCedulaChange = (val: string) => {
-    setNewClient({ ...newClient, cedula: formatVNCedula(val) });
+    const formatted = formatCedulaByType(val, newClient.tipoDoc);
+    setNewClient({ ...newClient, cedula: formatted });
+  };
+
+  const handleNewClientTipoDocChange = (tipo: string) => {
+    const cleanNumber = newClient.cedula.replace(/\./g, '');
+    const formatted = formatCedulaByType(cleanNumber, tipo);
+    setNewClient({ ...newClient, tipoDoc: tipo, cedula: formatted });
   };
 
   const currentTerminal = useMemo(() => {
@@ -454,7 +548,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     }
   };
 
-  // ===== FUNCIÓN PARA EJECUTAR VENTA A CRÉDITO CON CLIENTE SELECCIONADO =====
+  // ===== CORREGIDO: FUNCIÓN PARA EJECUTAR VENTA A CRÉDITO CON CLIENTE =====
   const ejecutarVentaACredito = async (customer: Customer) => {
     if (state.carrito.length === 0 || isProcessing) return;
     if (!customer) return alert("Seleccione un cliente.");
@@ -517,11 +611,15 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         tasa: state.tasa
       };
       
+      // Normalizar cédula para la deuda (asegurar formato correcto)
+      const cedulaNormalizada = normalizeCedula(customer.cedula, extractDocType(customer.cedula));
+      const nombreCliente = customer.name;
+      
       const nuevaDeuda: Debt = { 
         id: 'CRD-' + reciboId.slice(-6), 
         fecha: ahoraStr.slice(0, 10), 
         fechaVencimiento: '2099-12-31', 
-        cliente: `${customer.name} [${customer.cedula}]`, 
+        cliente: `${nombreCliente} [${cedulaNormalizada}]`, 
         montoUSD: subtotalUSD, 
         abonadoUSD: 0, 
         saldoUSD: subtotalUSD, 
@@ -552,11 +650,27 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   // ===== HANDLER PARA EL CREDIT MODAL =====
   const handleCreditModalConfirm = (customer: Customer, amount: number) => {
+    // Verificar si el cliente tiene una cédula normalizada
+    if (customer.cedula && !customer.cedula.includes('.')) {
+      // Si la cédula no tiene formato, normalizarla
+      const tipo = extractDocType(customer.cedula);
+      const cedulaNormalizada = normalizeCedula(customer.cedula, tipo);
+      // Actualizar el cliente antes de proceder
+      const customers = state.clientes || [];
+      const exists = findCustomerByCedula(customers, cedulaNormalizada);
+      if (exists) {
+        // Usar el cliente existente
+        setSelectedClient(exists);
+        setIsCreditModalOpen(false);
+        setTimeout(() => ejecutarVentaACredito(exists), 100);
+        return;
+      }
+      // Actualizar el cliente con la cédula normalizada
+      customer.cedula = cedulaNormalizada;
+    }
     setSelectedClient(customer);
     setIsCreditModalOpen(false);
-    setTimeout(() => {
-      ejecutarVentaACredito(customer);
-    }, 100);
+    setTimeout(() => ejecutarVentaACredito(customer), 100);
   };
 
   return (

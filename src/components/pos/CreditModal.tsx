@@ -6,6 +6,102 @@ import { Store } from '@/lib/db-store';
 import { formatUsd } from '@/lib/currency-formatter';
 import { useToast } from '@/hooks/use-toast';
 
+// ============================================================
+// UTILIDADES DE NORMALIZACIÓN DE CÉDULA (integradas)
+// ============================================================
+
+/**
+ * Normaliza una cédula según el tipo de documento
+ * - Para V- y E-: formato con puntos (XX.XXX.XXX)
+ * - Para J-, G-, P-: solo dígitos sin formato
+ */
+function normalizeCedula(cedula: string, docType?: string): string {
+  if (!cedula) return '';
+  
+  // Si viene con tipo (ej: "V-13.313.521"), extraer tipo y número
+  let type = docType || '';
+  let number = cedula;
+  
+  const match = cedula.match(/^([A-Z]-?)?(.*)/);
+  if (match) {
+    if (match[1] && !docType) {
+      type = match[1].replace('-', '').trim() + '-';
+    }
+    number = match[2] || '';
+  }
+  
+  // Limpiar puntos y otros caracteres no numéricos
+  const cleanNumber = number.replace(/[^0-9]/g, '');
+  
+  // Si no hay tipo definido, intentar detectar
+  if (!type) {
+    // Por defecto asumimos V- si no se especifica
+    type = 'V-';
+  }
+  
+  // Para V- y E- aplicar formato con puntos
+  if (type === 'V-' || type === 'E-') {
+    const digits = cleanNumber;
+    if (digits.length <= 2) return `${type}${digits}`;
+    if (digits.length <= 5) return `${type}${digits.slice(0, 2)}.${digits.slice(2)}`;
+    if (digits.length <= 8) return `${type}${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+    return `${type}${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}`;
+  }
+  
+  // Para J-, G-, P-: solo dígitos
+  return `${type}${cleanNumber}`;
+}
+
+/**
+ * Obtiene solo el número de cédula sin puntos ni tipo
+ */
+function getRawCedula(cedula: string): string {
+  return cedula.replace(/[^0-9]/g, '');
+}
+
+/**
+ * Compara dos cédulas ignorando formato y tipo
+ * Retorna true si el número (sin tipo) coincide
+ */
+function sameCedula(cedula1: string, cedula2: string): boolean {
+  return getRawCedula(cedula1) === getRawCedula(cedula2);
+}
+
+/**
+ * Extrae el tipo de documento (V-, J-, etc.) de una cédula
+ */
+function extractDocType(cedula: string): string {
+  const match = cedula.match(/^([A-Z]-?)/);
+  return match ? match[1].replace('-', '').trim() + '-' : 'V-';
+}
+
+/**
+ * Busca un cliente por cédula normalizada, ignorando formato
+ */
+function findCustomerByCedula(customers: any[], cedula: string): any | null {
+  const raw = getRawCedula(cedula);
+  return customers.find(c => getRawCedula(c.cedula) === raw) || null;
+}
+
+/**
+ * Busca deudas por cédula del cliente (en el campo cliente)
+ */
+function findDebtsByCedula(deudas: any[], cedula: string): any[] {
+  const raw = getRawCedula(cedula);
+  return deudas.filter(d => {
+    if (!d.cliente) return false;
+    const match = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
+    if (match) {
+      return getRawCedula(match[2]) === raw;
+    }
+    return false;
+  });
+}
+
+// ============================================================
+// COMPONENTE PRINCIPAL
+// ============================================================
+
 interface CreditModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -43,61 +139,49 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
   }, [isOpen]);
 
   // ===== FORMATO DE CÉDULA CON PUNTOS (SOLO PARA V- Y E-) =====
-  const formatCedula = (value: string, type: string) => {
-    if (type !== 'V-' && type !== 'E-') {
-      return value.replace(/\D/g, '');
-    }
-    const digits = value.replace(/\D/g, '');
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 5) return digits.slice(0, 2) + '.' + digits.slice(2);
-    if (digits.length <= 8) return digits.slice(0, 2) + '.' + digits.slice(2, 5) + '.' + digits.slice(5);
-    return digits.slice(0, 2) + '.' + digits.slice(2, 5) + '.' + digits.slice(5, 8);
-  };
-
+  // Ahora usa normalizeCedula
   const handleDocNumberChange = (value: string) => {
-    const formatted = formatCedula(value, docType);
+    // Primero limpiar todo lo que no sea número, luego normalizar con el tipo actual
+    const clean = value.replace(/[^0-9]/g, '');
+    const formatted = normalizeCedula(clean, docType);
     setDocNumber(formatted);
   };
 
   const handleDocTypeChange = (type: string) => {
     setDocType(type);
     if (docNumber) {
-      const cleanNumber = docNumber.replace(/\./g, '');
-      const formatted = formatCedula(cleanNumber, type);
+      const cleanNumber = docNumber.replace(/[^0-9]/g, '');
+      const formatted = normalizeCedula(cleanNumber, type);
       setDocNumber(formatted);
     }
   };
 
-  const cleanCedula = (cedula: string) => cedula.replace(/\./g, '');
-
+  // ===== BUSCAR CLIENTE EN CLIENTES Y EN CXC =====
   const findCustomer = (fullDoc: string): Customer | null => {
-    const cleanDoc = cleanCedula(fullDoc);
+    const raw = getRawCedula(fullDoc);
     
+    // 1. Buscar en clientes
     const customers: Customer[] = store.clientes || [];
-    const found = customers.find(c => cleanCedula(c.cedula) === cleanDoc);
+    const found = customers.find(c => getRawCedula(c.cedula) === raw);
     if (found) return found;
 
+    // 2. Buscar en deudas
     const deudas: Debt[] = store.cxc || [];
-    const deuda = deudas.find(d => {
-      if (!d.cliente) return false;
-      const match = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
+    const deudasCliente = findDebtsByCedula(deudas, fullDoc);
+    if (deudasCliente.length > 0) {
+      const primera = deudasCliente[0];
+      const match = primera.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
       if (match) {
-        const cedula = cleanCedula(match[2].trim());
-        return cedula === cleanDoc;
-      }
-      return false;
-    });
-
-    if (deuda) {
-      const match = deuda.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
-      if (match) {
+        // Determinar el tipo de documento correcto
+        const tipo = extractDocType(fullDoc);
+        const cedulaNormalizada = normalizeCedula(match[2], tipo);
         return {
           id: `CUS-${Date.now()}`,
           name: match[1].trim(),
-          cedula: match[2].trim(),
+          cedula: cedulaNormalizada,
           address: 'Sin dirección',
           phone: 'Sin teléfono',
-          debt: deuda.saldoUSD || 0
+          debt: deudasCliente.reduce((sum, d) => sum + (d.saldoUSD || 0), 0)
         };
       }
     }
@@ -109,6 +193,7 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
       toast({ title: "Documento Requerido", description: "Por favor, ingrese un documento de identidad.", variant: "destructive" });
       return;
     }
+    // Limpiar puntos para la búsqueda
     const cleanDoc = docNumber.replace(/\./g, '');
     const fullDoc = `${docType}${cleanDoc}`;
     
@@ -125,12 +210,14 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
   const handleConfirmCharge = () => {
     if (foundCustomer) {
       const customers: Customer[] = store.clientes || [];
-      const exists = customers.some(c => cleanCedula(c.cedula) === cleanCedula(foundCustomer.cedula));
+      const exists = customers.some(c => getRawCedula(c.cedula) === getRawCedula(foundCustomer.cedula));
       if (!exists) {
+        // Normalizar cédula antes de guardar
+        const cedulaNormalizada = normalizeCedula(foundCustomer.cedula, extractDocType(foundCustomer.cedula));
         const newCustomer: Customer = {
           id: `CUS-${Date.now()}`,
           name: foundCustomer.name,
-          cedula: foundCustomer.cedula,
+          cedula: cedulaNormalizada,
           address: foundCustomer.address || 'Sin dirección',
           phone: foundCustomer.phone || 'Sin teléfono',
           debt: foundCustomer.debt || 0
@@ -148,24 +235,29 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
   const handleCreateAndCharge = () => {
     const cleanDoc = docNumber.replace(/\./g, '');
     const fullDoc = `${docType}${cleanDoc}`;
+    // Normalizar la cédula completa
+    const normalizedCedula = normalizeCedula(fullDoc);
+    const raw = getRawCedula(normalizedCedula);
+    
     if (!newName.trim() || !fullDoc) {
       toast({ title: "Campos Incompletos", description: "El nombre y la identificación son obligatorios.", variant: "destructive" });
       return;
     }
 
+    // Verificar duplicado en clientes y en deudas usando raw
     const customers: Customer[] = store.clientes || [];
     const deudas: Debt[] = store.cxc || [];
-    const exists = customers.some(c => cleanCedula(c.cedula) === cleanDoc) ||
+    const exists = customers.some(c => getRawCedula(c.cedula) === raw) ||
                    deudas.some(d => {
                      if (!d.cliente) return false;
                      const match = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
-                     return match && cleanCedula(match[2].trim()) === cleanDoc;
+                     return match && getRawCedula(match[2]) === raw;
                    });
 
     if (exists) {
       toast({ 
         title: "Cliente ya existe", 
-        description: `Ya existe un cliente con el documento ${fullDoc}`,
+        description: `Ya existe un cliente con el documento ${normalizedCedula}`,
         variant: "destructive"
       });
       return;
@@ -173,7 +265,7 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
 
     const newCustomer: Customer = {
       id: `CUS-${Date.now()}`,
-      cedula: fullDoc,
+      cedula: normalizedCedula,
       name: newName.trim().toUpperCase(),
       phone: newPhone.trim(),
       address: newAddress.trim(),
