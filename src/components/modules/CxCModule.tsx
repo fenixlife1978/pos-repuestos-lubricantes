@@ -33,11 +33,6 @@ import { useToast } from '@/hooks/use-toast';
 // UTILIDADES DE NORMALIZACIÓN DE CÉDULA (integradas)
 // ============================================================
 
-/**
- * Normaliza una cédula según el tipo de documento
- * - Para V- y E-: formato con puntos (XX.XXX.XXX)
- * - Para J-, G-, P-: solo dígitos sin formato
- */
 function normalizeCedula(cedula: string, docType?: string): string {
   if (!cedula) return '';
   
@@ -67,24 +62,15 @@ function normalizeCedula(cedula: string, docType?: string): string {
   return `${type}${cleanNumber}`;
 }
 
-/**
- * Obtiene solo el número de cédula sin puntos ni tipo
- */
 function getRawCedula(cedula: string): string {
   return cedula.replace(/[^0-9]/g, '');
 }
 
-/**
- * Busca un cliente por cédula normalizada, ignorando formato
- */
 function findCustomerByCedula(customers: Customer[], cedula: string): Customer | null {
   const raw = getRawCedula(cedula);
   return customers.find(c => getRawCedula(c.cedula) === raw) || null;
 }
 
-/**
- * Busca deudas por cédula del cliente (en el campo cliente)
- */
 function findDebtsByCedula(deudas: Debt[], cedula: string): Debt[] {
   const raw = getRawCedula(cedula);
   return deudas.filter(d => {
@@ -97,9 +83,6 @@ function findDebtsByCedula(deudas: Debt[], cedula: string): Debt[] {
   });
 }
 
-/**
- * Extrae el tipo de documento (V-, J-, etc.) de una cédula
- */
 function extractDocType(cedula: string): string {
   const match = cedula.match(/^([A-Z]-?)/);
   return match ? match[1].replace('-', '').trim() + '-' : 'V-';
@@ -127,7 +110,6 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     sinVencimiento: false
   });
 
-  // ===== FORMATO DE CÉDULA CON PUNTOS (SOLO PARA V- Y E-) =====
   const formatCedula = (value: string, type: string) => {
     if (type !== 'V' && type !== 'E') {
       return value.replace(/\D/g, '');
@@ -150,17 +132,12 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     setNuevaDeuda({ ...nuevaDeuda, tipoDoc: tipo, cedula: formatted });
   };
 
-  // Obtener TODOS los clientes del sistema
   const allCustomers: Customer[] = state.clientes || [];
-  
-  // Todas las deudas (incluyendo pagadas)
   const todasLasDeudas = state.cxc || [];
-  
-  // Deudas pendientes (no pagadas) para el total
   const pendientes = todasLasDeudas.filter((x: any) => x.estado !== 'pagada');
   const totalPendiente = pendientes.reduce((s: number, x: any) => s + x.saldoUSD, 0);
 
-  // ===== CORREGIDO: Agrupar por cliente usando allCustomers y deudas =====
+  // ===== AGRUPACIÓN POR CLIENTE =====
   const groupedCredits = useMemo(() => {
     const groups: Record<string, { 
       totalUSD: number; 
@@ -170,7 +147,6 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
       cedula: string;
     }> = {};
 
-    // 1. Agregar todos los clientes del sistema (incluyendo saldo 0)
     allCustomers.forEach((customer: Customer) => {
       const raw = getRawCedula(customer.cedula);
       groups[raw] = {
@@ -182,9 +158,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
       };
     });
 
-    // 2. Agregar deudas a los clientes existentes o crear grupos para deudas sin cliente
     todasLasDeudas.forEach((debt: Debt) => {
-      // Extraer cédula del nombre de la deuda
       const match = debt.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
       let raw = '';
       let nombreCliente = debt.cliente || 'DESCONOCIDO';
@@ -193,12 +167,10 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
         raw = getRawCedula(match[2]);
         nombreCliente = match[1].trim();
       } else {
-        // Si no tiene formato, intentar buscar por nombre
         const clienteEncontrado = allCustomers.find(c => c.name === debt.cliente);
         if (clienteEncontrado) {
           raw = getRawCedula(clienteEncontrado.cedula);
         } else {
-          // Si no se puede identificar, crear un grupo temporal
           const key = `temp_${debt.id}`;
           groups[key] = {
             totalUSD: 0,
@@ -213,12 +185,10 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
 
       if (raw && groups[raw]) {
         groups[raw].debts.push(debt);
-        // Solo sumar al total si la deuda no está pagada
         if (debt.estado !== 'pagada') {
           groups[raw].totalUSD += debt.saldoUSD;
         }
       } else if (raw) {
-        // Si el cliente no existe en allCustomers pero tiene deudas, crear grupo
         const tipo = extractDocType(match ? match[2] : '');
         const cedulaNormalizada = normalizeCedula(match ? match[2] : '', tipo);
         groups[raw] = {
@@ -231,12 +201,10 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
       }
     });
 
-    // Ordenar las deudas de cada grupo
     Object.keys(groups).forEach(key => {
       groups[key].debts.sort((a: Debt, b: Debt) => a.fecha.localeCompare(b.fecha));
     });
 
-    // Filtrar por estado si es necesario
     if (filterEstado !== 'todos') {
       const filteredGroups: Record<string, any> = {};
       Object.keys(groups).forEach(key => {
@@ -249,7 +217,6 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
             totalUSD: filteredDebts.reduce((s: number, d: Debt) => s + (d.estado !== 'pagada' ? d.saldoUSD : 0), 0)
           };
         } else if (group.debts.length === 0 && group.customer) {
-          // Cliente sin deudas, mostrar si existe
           filteredGroups[key] = group;
         }
       });
@@ -259,7 +226,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     return groups;
   }, [todasLasDeudas, allCustomers, filterEstado]);
 
-  // Función para sincronizar clientes desde CxC
+  // ===== SINCORNIZAR CLIENTES DESDE CXC =====
   const syncCustomersFromCxC = () => {
     const clientesExistentes = new Map(allCustomers.map(c => [getRawCedula(c.cedula), c]));
     const clientesFromCxC: Map<string, { name: string, cedula: string }> = new Map();
@@ -306,27 +273,38 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     }
   };
 
-  // Sincronizar al cargar el módulo
   useEffect(() => {
     syncCustomersFromCxC();
   }, []);
 
-  // ===== ELIMINAR CLIENTE COMPLETO =====
+  // ===== CORREGIDO: ELIMINAR CLIENTE Y TODAS SUS DEUDAS =====
   const eliminarCliente = (clientName: string) => {
-    const tieneDeudasPendientes = todasLasDeudas.some(
-      (d: Debt) => d.cliente === clientName && d.estado !== 'pagada'
-    );
-    
-    if (tieneDeudasPendientes) {
+    // Buscar el cliente por nombre para obtener su cédula
+    const cliente = allCustomers.find(c => c.name === clientName);
+    if (!cliente) {
       toast({ 
         variant: "destructive",
-        title: "No se puede eliminar", 
-        description: `El cliente "${clientName}" tiene deudas pendientes.` 
+        title: "Cliente no encontrado", 
+        description: `No se encontró el cliente "${clientName}".` 
       });
       return;
     }
 
-    const tieneDeudas = todasLasDeudas.some((d: Debt) => d.cliente === clientName);
+    const rawCedula = getRawCedula(cliente.cedula);
+
+    // Verificar si tiene deudas pendientes
+    const deudasPendientes = findDebtsByCedula(todasLasDeudas, rawCedula).filter(d => d.estado !== 'pagada');
+    
+    if (deudasPendientes.length > 0) {
+      toast({ 
+        variant: "destructive",
+        title: "No se puede eliminar", 
+        description: `El cliente "${clientName}" tiene ${deudasPendientes.length} deuda(s) pendiente(s).` 
+      });
+      return;
+    }
+
+    const tieneDeudas = findDebtsByCedula(todasLasDeudas, rawCedula).length > 0;
     let mensajeConfirmacion = `¿Está seguro de eliminar permanentemente al cliente "${clientName}"`;
     if (tieneDeudas) {
       mensajeConfirmacion += " y todo su historial de deudas (pagadas)";
@@ -335,9 +313,19 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
 
     if (!confirm(mensajeConfirmacion)) return;
 
-    const clientesActualizados = allCustomers.filter((c: Customer) => c.name !== clientName);
-    const deudasActualizadas = todasLasDeudas.filter((d: Debt) => d.cliente !== clientName);
+    // Eliminar cliente de allCustomers
+    const clientesActualizados = allCustomers.filter((c: Customer) => c.id !== cliente.id);
     
+    // Eliminar TODAS las deudas de este cliente (usando la cédula raw)
+    const deudasActualizadas = todasLasDeudas.filter((d: Debt) => {
+      const match = d.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
+      if (match) {
+        return getRawCedula(match[2]) !== rawCedula;
+      }
+      // Si la deuda no tiene formato con cédula, comparar por nombre
+      return d.cliente !== clientName && d.cliente !== `${clientName} [${cliente.cedula}]`;
+    });
+
     updateState({ 
       clientes: clientesActualizados, 
       cxc: deudasActualizadas 
@@ -345,32 +333,27 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     
     toast({ 
       title: "Cliente eliminado", 
-      description: `El cliente "${clientName}" ha sido eliminado permanentemente.` 
+      description: `El cliente "${clientName}" y su historial han sido eliminados permanentemente.` 
     });
   };
 
-  // ===== GUARDAR DEUDA DIRECTA CORREGIDO =====
+  // ===== GUARDAR DEUDA DIRECTA =====
   const guardarDeudaDirecta = () => {
     if (!nuevaDeuda.cliente || !nuevaDeuda.cedula || nuevaDeuda.montoUSD <= 0) {
       alert('Por favor ingrese el cliente, su cédula y un monto válido.');
       return;
     }
 
-    // Limpiar puntos para obtener el número puro
     const cleanNumber = nuevaDeuda.cedula.replace(/\./g, '');
     const rawDoc = `${nuevaDeuda.tipoDoc}-${cleanNumber}`;
     const normalizedCedula = normalizeCedula(rawDoc);
     const raw = getRawCedula(normalizedCedula);
 
-    // Buscar cliente existente por cédula normalizada
     let cliente = findCustomerByCedula(allCustomers, normalizedCedula);
-    let clienteCreado = false;
 
     if (!cliente) {
-      // Buscar en deudas por si existe pero no en clientes
       const deudasCliente = findDebtsByCedula(todasLasDeudas, normalizedCedula);
       if (deudasCliente.length > 0) {
-        // Extraer nombre de la primera deuda
         const match = deudasCliente[0].cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
         if (match) {
           const nombre = match[1].trim();
@@ -382,16 +365,13 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
             phone: 'Sin teléfono',
             debt: 0
           };
-          // Agregar cliente a la lista
           const updatedCustomers = [...allCustomers, cliente];
           updateState({ clientes: updatedCustomers });
-          clienteCreado = true;
         }
       }
     }
 
     if (!cliente) {
-      // Crear nuevo cliente
       cliente = {
         id: `CUS-${Date.now()}`,
         name: nuevaDeuda.cliente,
@@ -402,16 +382,13 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
       };
       const updatedCustomers = [...allCustomers, cliente];
       updateState({ clientes: updatedCustomers });
-      clienteCreado = true;
     } else {
-      // Actualizar deuda del cliente existente
       const updatedCustomers = allCustomers.map((c: Customer) => 
         c.id === cliente!.id ? { ...c, debt: (c.debt || 0) + nuevaDeuda.montoUSD } : c
       );
       updateState({ clientes: updatedCustomers });
     }
 
-    // Crear la deuda con el nombre del cliente y su cédula normalizada
     const nombreCliente = cliente.name;
     const cedulaCliente = cliente.cedula;
     const nombreFull = `${nombreCliente} [${cedulaCliente}]`;
