@@ -77,7 +77,7 @@ function getRawCedula(cedula: string): string {
 /**
  * Busca un cliente por cédula normalizada, ignorando formato
  */
-function findCustomerByCedula(customers: any[], cedula: string): any | null {
+function findCustomerByCedula(customers: Customer[], cedula: string): Customer | null {
   const raw = getRawCedula(cedula);
   return customers.find(c => getRawCedula(c.cedula) === raw) || null;
 }
@@ -85,7 +85,7 @@ function findCustomerByCedula(customers: any[], cedula: string): any | null {
 /**
  * Busca deudas por cédula del cliente (en el campo cliente)
  */
-function findDebtsByCedula(deudas: any[], cedula: string): any[] {
+function findDebtsByCedula(deudas: Debt[], cedula: string): Debt[] {
   const raw = getRawCedula(cedula);
   return deudas.filter(d => {
     if (!d.cliente) return false;
@@ -160,65 +160,97 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
   const pendientes = todasLasDeudas.filter((x: any) => x.estado !== 'pagada');
   const totalPendiente = pendientes.reduce((s: number, x: any) => s + x.saldoUSD, 0);
 
-  // Agrupar TODOS los clientes (incluyendo saldo 0)
+  // ===== CORREGIDO: Agrupar por cliente usando allCustomers y deudas =====
   const groupedCredits = useMemo(() => {
     const groups: Record<string, { 
       totalUSD: number; 
       debts: Debt[];
       customer: Customer | null;
+      displayName: string;
+      cedula: string;
     }> = {};
 
-    // 1. Primero, agregar todos los clientes del sistema (incluyendo saldo 0)
+    // 1. Agregar todos los clientes del sistema (incluyendo saldo 0)
     allCustomers.forEach((customer: Customer) => {
-      const name = customer.name;
-      if (!groups[name]) {
-        groups[name] = { 
-          totalUSD: 0, 
-          debts: [],
-          customer: customer
-        };
-      }
+      const raw = getRawCedula(customer.cedula);
+      groups[raw] = {
+        totalUSD: 0,
+        debts: [],
+        customer: customer,
+        displayName: customer.name,
+        cedula: customer.cedula
+      };
     });
 
-    // 2. Luego, agregar las deudas de todos los clientes (incluyendo pagadas)
+    // 2. Agregar deudas a los clientes existentes o crear grupos para deudas sin cliente
     todasLasDeudas.forEach((debt: Debt) => {
-      const name = debt.cliente || 'DESCONOCIDO';
-      if (!groups[name]) {
-        groups[name] = { 
-          totalUSD: 0, 
-          debts: [],
-          customer: null
-        };
+      // Extraer cédula del nombre de la deuda
+      const match = debt.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
+      let raw = '';
+      let nombreCliente = debt.cliente || 'DESCONOCIDO';
+      
+      if (match) {
+        raw = getRawCedula(match[2]);
+        nombreCliente = match[1].trim();
+      } else {
+        // Si no tiene formato, intentar buscar por nombre
+        const clienteEncontrado = allCustomers.find(c => c.name === debt.cliente);
+        if (clienteEncontrado) {
+          raw = getRawCedula(clienteEncontrado.cedula);
+        } else {
+          // Si no se puede identificar, crear un grupo temporal
+          const key = `temp_${debt.id}`;
+          groups[key] = {
+            totalUSD: 0,
+            debts: [],
+            customer: null,
+            displayName: debt.cliente || 'DESCONOCIDO',
+            cedula: 'SIN-CEDULA'
+          };
+          raw = key;
+        }
       }
-      groups[name].debts.push(debt);
-      // Solo sumar al total si la deuda no está pagada
-      if (debt.estado !== 'pagada') {
-        groups[name].totalUSD += debt.saldoUSD;
+
+      if (raw && groups[raw]) {
+        groups[raw].debts.push(debt);
+        // Solo sumar al total si la deuda no está pagada
+        if (debt.estado !== 'pagada') {
+          groups[raw].totalUSD += debt.saldoUSD;
+        }
+      } else if (raw) {
+        // Si el cliente no existe en allCustomers pero tiene deudas, crear grupo
+        const tipo = extractDocType(match ? match[2] : '');
+        const cedulaNormalizada = normalizeCedula(match ? match[2] : '', tipo);
+        groups[raw] = {
+          totalUSD: debt.estado !== 'pagada' ? debt.saldoUSD : 0,
+          debts: [debt],
+          customer: null,
+          displayName: match ? match[1].trim() : debt.cliente || 'DESCONOCIDO',
+          cedula: cedulaNormalizada || 'SIN-CEDULA'
+        };
       }
     });
 
-    // Ordenar los grupos
-    Object.keys(groups).forEach(name => {
-      groups[name].debts.sort((a: Debt, b: Debt) => a.fecha.localeCompare(b.fecha));
+    // Ordenar las deudas de cada grupo
+    Object.keys(groups).forEach(key => {
+      groups[key].debts.sort((a: Debt, b: Debt) => a.fecha.localeCompare(b.fecha));
     });
 
     // Filtrar por estado si es necesario
     if (filterEstado !== 'todos') {
       const filteredGroups: Record<string, any> = {};
-      Object.keys(groups).forEach(name => {
-        const group = groups[name];
+      Object.keys(groups).forEach(key => {
+        const group = groups[key];
         const filteredDebts = group.debts.filter((d: Debt) => d.estado === filterEstado);
         if (filteredDebts.length > 0) {
-          filteredGroups[name] = {
+          filteredGroups[key] = {
             ...group,
             debts: filteredDebts,
             totalUSD: filteredDebts.reduce((s: number, d: Debt) => s + (d.estado !== 'pagada' ? d.saldoUSD : 0), 0)
           };
-        } else {
-          // Si no tiene deudas del estado filtrado, pero el cliente existe, lo mostramos
-          if (group.customer && group.debts.length === 0) {
-            filteredGroups[name] = group;
-          }
+        } else if (group.debts.length === 0 && group.customer) {
+          // Cliente sin deudas, mostrar si existe
+          filteredGroups[key] = group;
         }
       });
       return filteredGroups;
@@ -229,49 +261,48 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
 
   // Función para sincronizar clientes desde CxC
   const syncCustomersFromCxC = () => {
-    const clientesExistentes = new Set(allCustomers.map((c: Customer) => getRawCedula(c.cedula)));
-    const clientesFromCxC: string[] = [];
+    const clientesExistentes = new Map(allCustomers.map(c => [getRawCedula(c.cedula), c]));
+    const clientesFromCxC: Map<string, { name: string, cedula: string }> = new Map();
     
     todasLasDeudas.forEach((d: Debt) => {
       if (!d.cliente) return;
       const match = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
       if (match) {
         const raw = getRawCedula(match[2]);
-        if (!clientesExistentes.has(raw)) {
-          clientesFromCxC.push(raw);
-          clientesExistentes.add(raw);
-        }
-      }
-    });
-
-    const nuevosClientes: Customer[] = [];
-    clientesFromCxC.forEach((raw: string) => {
-      // Buscar la deuda para obtener el nombre
-      const deuda = todasLasDeudas.find(d => {
-        if (!d.cliente) return false;
-        const m = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
-        return m && getRawCedula(m[2]) === raw;
-      });
-      if (deuda) {
-        const match = deuda.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
-        if (match) {
-          const nombre = match[1].trim();
+        if (!clientesExistentes.has(raw) && !clientesFromCxC.has(raw)) {
           const tipo = extractDocType(match[2]);
-          const cedulaNormalizada = normalizeCedula(raw, tipo);
-          nuevosClientes.push({
-            id: `CUS-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            name: nombre,
-            cedula: cedulaNormalizada,
-            address: 'Sin dirección',
-            phone: 'Sin teléfono',
-            debt: 0
+          const cedulaNormalizada = normalizeCedula(match[2], tipo);
+          clientesFromCxC.set(raw, {
+            name: match[1].trim(),
+            cedula: cedulaNormalizada
           });
         }
       }
     });
 
+    const nuevosClientes: Customer[] = [];
+    clientesFromCxC.forEach((data, raw) => {
+      nuevosClientes.push({
+        id: `CUS-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        name: data.name,
+        cedula: data.cedula,
+        address: 'Sin dirección',
+        phone: 'Sin teléfono',
+        debt: 0
+      });
+    });
+
     if (nuevosClientes.length > 0) {
       updateState({ clientes: [...allCustomers, ...nuevosClientes] });
+      toast({ 
+        title: "Clientes sincronizados", 
+        description: `Se agregaron ${nuevosClientes.length} clientes desde las deudas.` 
+      });
+    } else {
+      toast({ 
+        title: "Sin cambios", 
+        description: "Todos los clientes ya están sincronizados." 
+      });
     }
   };
 
@@ -318,7 +349,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     });
   };
 
-  // ===== GUARDAR DEUDA DIRECTA CON NORMALIZACIÓN =====
+  // ===== GUARDAR DEUDA DIRECTA CORREGIDO =====
   const guardarDeudaDirecta = () => {
     if (!nuevaDeuda.cliente || !nuevaDeuda.cedula || nuevaDeuda.montoUSD <= 0) {
       alert('Por favor ingrese el cliente, su cédula y un monto válido.');
@@ -330,52 +361,61 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     const rawDoc = `${nuevaDeuda.tipoDoc}-${cleanNumber}`;
     const normalizedCedula = normalizeCedula(rawDoc);
     const raw = getRawCedula(normalizedCedula);
-    const nombreFull = `${nuevaDeuda.cliente} [${normalizedCedula}]`;
 
-    // Verificar si el cliente ya existe (comparando por número sin formato)
-    const clienteExistente = findCustomerByCedula(allCustomers, normalizedCedula);
-    
-    if (clienteExistente) {
-      // Actualizar deuda del cliente existente
-      const updatedCustomers = allCustomers.map((c: Customer) => 
-        c.id === clienteExistente.id ? { ...c, debt: (c.debt || 0) + nuevaDeuda.montoUSD } : c
-      );
-      updateState({ clientes: updatedCustomers });
-    } else {
-      // Verificar si existe en deudas (para unificar)
-      const deudasExistentes = findDebtsByCedula(todasLasDeudas, normalizedCedula);
-      if (deudasExistentes.length > 0) {
-        // Ya existe en deudas, extraer nombre y actualizar
-        const primeraDeuda = deudasExistentes[0];
-        const match = primeraDeuda.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
+    // Buscar cliente existente por cédula normalizada
+    let cliente = findCustomerByCedula(allCustomers, normalizedCedula);
+    let clienteCreado = false;
+
+    if (!cliente) {
+      // Buscar en deudas por si existe pero no en clientes
+      const deudasCliente = findDebtsByCedula(todasLasDeudas, normalizedCedula);
+      if (deudasCliente.length > 0) {
+        // Extraer nombre de la primera deuda
+        const match = deudasCliente[0].cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
         if (match) {
           const nombre = match[1].trim();
-          // Crear cliente con el nombre existente
-          const nuevoCliente: Customer = {
+          cliente = {
             id: `CUS-${Date.now()}`,
             name: nombre,
             cedula: normalizedCedula,
             address: 'Sin dirección',
             phone: 'Sin teléfono',
-            debt: nuevaDeuda.montoUSD + deudasExistentes.reduce((sum, d) => sum + (d.saldoUSD || 0), 0)
+            debt: 0
           };
-          updateState({ clientes: [...allCustomers, nuevoCliente] });
+          // Agregar cliente a la lista
+          const updatedCustomers = [...allCustomers, cliente];
+          updateState({ clientes: updatedCustomers });
+          clienteCreado = true;
         }
-      } else {
-        // Crear nuevo cliente
-        const nuevoCliente: Customer = {
-          id: `CUS-${Date.now()}`,
-          name: nuevaDeuda.cliente,
-          cedula: normalizedCedula,
-          address: 'Sin dirección',
-          phone: 'Sin teléfono',
-          debt: nuevaDeuda.montoUSD
-        };
-        updateState({ clientes: [...allCustomers, nuevoCliente] });
       }
     }
 
-    // Crear la deuda con la cédula normalizada en el nombre del cliente
+    if (!cliente) {
+      // Crear nuevo cliente
+      cliente = {
+        id: `CUS-${Date.now()}`,
+        name: nuevaDeuda.cliente,
+        cedula: normalizedCedula,
+        address: 'Sin dirección',
+        phone: 'Sin teléfono',
+        debt: nuevaDeuda.montoUSD
+      };
+      const updatedCustomers = [...allCustomers, cliente];
+      updateState({ clientes: updatedCustomers });
+      clienteCreado = true;
+    } else {
+      // Actualizar deuda del cliente existente
+      const updatedCustomers = allCustomers.map((c: Customer) => 
+        c.id === cliente!.id ? { ...c, debt: (c.debt || 0) + nuevaDeuda.montoUSD } : c
+      );
+      updateState({ clientes: updatedCustomers });
+    }
+
+    // Crear la deuda con el nombre del cliente y su cédula normalizada
+    const nombreCliente = cliente.name;
+    const cedulaCliente = cliente.cedula;
+    const nombreFull = `${nombreCliente} [${cedulaCliente}]`;
+
     const nuevaEntrada: Debt = {
       id: 'DEU-' + Store.uid().toUpperCase().slice(0, 6),
       fecha: nuevaDeuda.fecha,
@@ -390,6 +430,11 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
     updateState({ cxc: [...state.cxc, nuevaEntrada] });
     setShowModal(false);
     setNuevaDeuda({ cliente: '', tipoDoc: 'V', cedula: '', montoUSD: 0, fecha: Utils.hoy(), vencimiento: Utils.hoy(), sinVencimiento: false });
+    
+    toast({ 
+      title: "Deuda registrada", 
+      description: `Se cargó ${Utils.fmtUSD(nuevaDeuda.montoUSD)} a ${nombreCliente}.` 
+    });
   };
 
   const eliminarDeuda = (deuda: any) => {
@@ -468,7 +513,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
            <div>
               <div className="text-ink text-[10px] font-black uppercase mb-0.5">Clientes con Deuda</div>
               <div className="text-3xl font-black text-ink">
-                {Object.keys(groupedCredits).filter(name => groupedCredits[name].totalUSD > 0).length}
+                {Object.keys(groupedCredits).filter(key => groupedCredits[key].totalUSD > 0).length}
               </div>
            </div>
         </div>
@@ -505,27 +550,32 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
               {Object.entries(groupedCredits).length === 0 ? (
                 <tr><td colSpan={7} className="text-center py-20 text-ink font-black uppercase italic">No hay clientes registrados</td></tr>
               ) : (
-                Object.entries(groupedCredits).map(([clientName, group]) => {
+                Object.entries(groupedCredits).map(([key, group]) => {
                   const tieneDeudaPendiente = group.totalUSD > 0;
                   const tieneDeudas = group.debts.length > 0;
+                  const displayName = group.displayName || group.customer?.name || 'CLIENTE SIN NOMBRE';
+                  const cedula = group.cedula || group.customer?.cedula || 'SIN-CEDULA';
                   
                   return (
-                    <React.Fragment key={clientName}>
+                    <React.Fragment key={key}>
                       <tr className={`border-b border-line hover:bg-surface-warm/20 transition-colors ${!tieneDeudaPendiente && tieneDeudas ? 'opacity-60' : ''}`}>
                         <td className="px-6 py-4">
                            {tieneDeudas ? (
-                             <button onClick={() => setExpandedClient(expandedClient === clientName ? null : clientName)} className="text-brand-gold hover:scale-110 transition-transform">
-                                {expandedClient === clientName ? <ChevronUp /> : <ChevronDown />}
+                             <button onClick={() => setExpandedClient(expandedClient === key ? null : key)} className="text-brand-gold hover:scale-110 transition-transform">
+                                {expandedClient === key ? <ChevronUp /> : <ChevronDown />}
                              </button>
                            ) : (
                              <span className="text-gray-300">-</span>
                            )}
                         </td>
                         <td className="py-4">
-                           <div className="text-ink font-black text-sm uppercase">{clientName}</div>
+                           <div className="text-ink font-black text-sm uppercase">{displayName}</div>
                            <div className="text-[10px] text-ink font-black uppercase tracking-widest">
-                             {tieneDeudaPendiente ? 'Saldo Pendiente' : 'Cliente al día'}
+                             {tieneDeudaPendiente ? 'Saldo Pendiente' : (tieneDeudas ? 'Cliente al día' : 'Cliente sin deudas')}
                            </div>
+                           {cedula !== 'SIN-CEDULA' && (
+                             <div className="text-[9px] text-ink/40 mono">{cedula}</div>
+                           )}
                         </td>
                         <td className="text-right py-4 font-black text-ink">{group.debts.length} Facturas</td>
                         <td className={`text-right py-4 font-black text-base ${tieneDeudaPendiente ? 'text-status-info' : 'text-green-600'}`}>
@@ -546,7 +596,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                              {tieneDeudas ? (
                                <>
                                  <button 
-                                   onClick={() => setShowClientHistory(clientName)} 
+                                   onClick={() => setShowClientHistory(displayName)} 
                                    className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-status-success border-2 border-status-success/20 hover:bg-status-success hover:text-white transition-all shadow-md"
                                    title="Consultar Historial Maestro"
                                  >
@@ -554,7 +604,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                                  </button>
                                  {!tieneDeudaPendiente && (
                                    <button 
-                                     onClick={() => eliminarCliente(clientName)} 
+                                     onClick={() => eliminarCliente(displayName)} 
                                      className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-status-danger border-2 border-status-danger/20 hover:bg-status-danger hover:text-white transition-all shadow-md"
                                      title="Eliminar Cliente"
                                    >
@@ -564,7 +614,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                                </>
                              ) : (
                                <button 
-                                 onClick={() => eliminarCliente(clientName)} 
+                                 onClick={() => eliminarCliente(displayName)} 
                                  className="w-10 h-10 rounded-full flex items-center justify-center bg-white text-status-danger border-2 border-status-danger/20 hover:bg-status-danger hover:text-white transition-all shadow-md"
                                  title="Eliminar Cliente"
                                >
@@ -574,7 +624,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                            </div>
                         </td>
                       </tr>
-                      {expandedClient === clientName && group.debts.length > 0 && (
+                      {expandedClient === key && group.debts.length > 0 && (
                         <tr className="bg-surface-soft/40 animate-in slide-in-from-top-1 duration-200">
                            <td colSpan={7} className="px-12 py-4">
                               <div className="card border-line bg-white shadow-inner rounded-xl overflow-hidden">
@@ -741,7 +791,7 @@ export default function CxCModule({ state, updateState }: { state: AppState, upd
                       </tr>
                     </thead>
                     <tbody>
-                      {state.cxc.filter((d: Debt) => d.cliente === showClientHistory).sort((a: Debt, b: Debt) => b.fecha.localeCompare(a.fecha)).map((d: Debt) => (
+                      {state.cxc.filter((d: Debt) => d.cliente === showClientHistory || d.cliente?.includes(showClientHistory)).sort((a: Debt, b: Debt) => b.fecha.localeCompare(a.fecha)).map((d: Debt) => (
                         <tr key={d.id} className="border-b border-line/30 hover:bg-surface-warm/20 transition-colors">
                           <td className="p-4 text-xs font-black text-ink">{Utils.fmtFecha(d.fecha)}</td>
                           <td className="p-4 text-xs font-black mono text-ink">{d.id}</td>
