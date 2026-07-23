@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { Store, Utils } from '@/lib/db-store';
 import { AppState, Product, Movimiento, PaymentMethod, KitItem, Supplier, LibroDiarioEntry, Debt } from '@/lib/types';
-import { ProductForm } from '@/components/inventory/ProductFormModal';
+import { toast } from '@/hooks/use-toast';
+import { ProductFormModal } from '@/components/inventory/ProductFormModal';
 
 interface PurchaseItemTemp {
   productoId: string;
@@ -41,7 +42,7 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
   const [proveedor, setProveedor] = useState('');
   const [numeroFactura, setNumeroFactura] = useState('');
   const [fecha, setFecha] = useState(Utils.hoy());
-  const [tasaCompra, setTasaCompra] = useState<string | number>(state.tasa);
+  const [tasaCompra, setTasaCompra] = useState<string | number>(state.tasa || 1);
   
   // 2. CONDICIONES DE PAGO
   const [condicion, setCondicion] = useState<'contado' | 'credito' | 'mixto'>('contado');
@@ -110,15 +111,33 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
 
   const handleSelectItem = (p: Product) => {
     setItemSeleccionado(p);
-    setCostoInput(p.costoUSD);
+    setCostoInput(p.costoUSD || 0);
     setBusqueda('');
   };
 
   const handleAddTempItem = () => {
     const pCant = parseFloat(cantidad.toString()) || 0;
     const pCosto = parseFloat(costoInput.toString()) || 0;
-    if (!itemSeleccionado || pCant <= 0 || pCosto <= 0) return;
+    if (!itemSeleccionado || pCant <= 0 || pCosto <= 0) {
+      toast({ 
+        title: "Datos inválidos", 
+        description: "Seleccione un producto y asegúrese de que la cantidad y el costo sean mayores a 0.",
+        variant: "destructive"
+      });
+      return;
+    }
     
+    // Verificar si el producto ya está en la lista para evitar duplicados
+    const existe = loteTemporal.some(item => item.productoId === itemSeleccionado.id);
+    if (existe) {
+      toast({ 
+        title: "Producto duplicado", 
+        description: "Este producto ya está en la lista. Si necesita agregar más cantidad, modifique la cantidad existente.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const nuevo: PurchaseItemTemp = {
       productoId: itemSeleccionado.id,
       nombre: itemSeleccionado.nombre,
@@ -131,6 +150,12 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
     setItemSeleccionado(null);
     setCantidad(1);
     setCostoInput(0);
+    setBusqueda('');
+    
+    toast({ 
+      title: "Producto agregado", 
+      description: `${nuevo.nombre} - Cantidad: ${nuevo.cantidad}` 
+    });
   };
 
   const handleRemoveTempItem = (idx: number) => {
@@ -138,9 +163,18 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
   };
 
   const handleProcessPurchase = () => {
-    if (!proveedor) return alert('Seleccione un proveedor');
-    if (!numeroFactura) return alert('Ingrese el número de factura');
-    if (loteTemporal.length === 0) return alert('Agregue productos a la lista');
+    if (!proveedor) {
+      toast({ title: "Proveedor requerido", description: "Seleccione un proveedor", variant: "destructive" });
+      return;
+    }
+    if (!numeroFactura) {
+      toast({ title: "Número de factura requerido", description: "Ingrese el número de factura", variant: "destructive" });
+      return;
+    }
+    if (loteTemporal.length === 0) {
+      toast({ title: "Lote vacío", description: "Agregue productos a la lista", variant: "destructive" });
+      return;
+    }
 
     const ahoraStr = Utils.ahora();
     const pDias = parseInt(diasPlazo.toString()) || 0;
@@ -158,7 +192,9 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
         
         const stockTotal = stockActual + nuevaCantidad;
         // Costo Promedio Ponderado con 4 decimales
-        const costoPromedio = Math.round((((stockActual * costoActual) + (nuevaCantidad * nuevoCosto)) / stockTotal + Number.EPSILON) * 10000) / 10000;
+        const costoPromedio = stockTotal > 0 ? 
+          Math.round((((stockActual * costoActual) + (nuevaCantidad * nuevoCosto)) / stockTotal + Number.EPSILON) * 10000) / 10000 : 
+          nuevoCosto;
 
         return { ...p, stock: stockTotal, costoUSD: costoPromedio };
       }
@@ -231,11 +267,33 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
       cxp: nuevasCxP
     });
 
-    alert('Compra registrada exitosamente.');
+    toast({ 
+      title: "Compra Registrada", 
+      description: `Factura ${numeroFactura} procesada exitosamente.` 
+    });
+    
     setProveedor('');
     setNumeroFactura('');
     setLoteTemporal([]);
     setCondicion('contado');
+    setMontoPagadoUSD('0');
+    setMontoPagadoBS('0');
+  };
+
+  // Handler para guardar producto desde el modal
+  const handleSaveProduct = (productData: any) => {
+    const newProduct = {
+      id: Store.uid(),
+      ...productData,
+      activo: true,
+      createdAt: Utils.ahora(),
+      updatedAt: Utils.ahora()
+    };
+    updateState({
+      productos: [...state.productos, newProduct]
+    });
+    setShowNewProductModal(false);
+    toast({ title: "Producto creado", description: `${newProduct.nombre} ha sido agregado al inventario.` });
   };
 
   return (
@@ -275,8 +333,12 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                 </div>
                 <div className="form-group">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">Tasa Aplicada</label>
-                  <input type="number" className="form-input h-11 text-brand-gold-deep font-black" value={tasaCompra} onChange={e => setTasaCompra(e.target.value)} />
+                  <input type="number" step="0.01" className="form-input h-11 text-brand-gold-deep font-black" value={tasaCompra} onChange={e => setTasaCompra(e.target.value)} />
                 </div>
+              </div>
+              <div className="form-group">
+                <label className="text-ink text-[10px] font-black uppercase block mb-1">Fecha Factura</label>
+                <input type="date" className="form-input h-11 text-sm font-black" value={fecha} onChange={e => setFecha(e.target.value)} />
               </div>
             </div>
           </div>
@@ -366,11 +428,11 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                     <input className="form-input pl-10 h-11 bg-surface-soft border-line" placeholder="Nombre o Código..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
                   </div>
                   {matches.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 bg-white border border-line rounded shadow-2xl z-[100] mt-1 overflow-hidden">
+                    <div className="absolute top-full left-0 right-0 bg-white border border-line rounded shadow-2xl z-[100] mt-1 overflow-hidden max-h-[200px] overflow-y-auto">
                       {matches.map(p => (
                         <div key={p.id} onClick={() => handleSelectItem(p)} className="p-3 border-b border-line hover:bg-brand-gold/10 cursor-pointer flex justify-between items-center transition-colors">
                           <div className="flex flex-col"><span className="text-xs font-black text-ink uppercase">{p.nombre}</span><span className="text-[9px] text-ink/40 mono">{p.codigo}</span></div>
-                          <div className="text-brand-gold-deep font-black text-xs">${p.costoUSD.toFixed(4)}</div>
+                          <div className="text-brand-gold-deep font-black text-xs">${(p.costoUSD || 0).toFixed(4)}</div>
                         </div>
                       ))}
                     </div>
@@ -382,17 +444,22 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
                 </div>
                 <div className="md:col-span-2 text-center">
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">Costo $</label>
-                  <input type="number" className="form-input h-11 text-center font-black bg-surface-soft border-line text-brand-gold-deep" value={costoInput} onChange={e => setCostoInput(e.target.value)} />
+                  <input type="number" step="0.0001" className="form-input h-11 text-center font-black bg-surface-soft border-line text-brand-gold-deep" value={costoInput} onChange={e => setCostoInput(e.target.value)} />
                 </div>
                 <div className="md:col-span-2">
                   <button onClick={handleAddTempItem} disabled={!itemSeleccionado} className="btn btn-primary w-full h-11 shadow-md disabled:opacity-20 flex items-center justify-center"><Plus className="w-5 h-5"/></button>
                 </div>
               </div>
+              {itemSeleccionado && (
+                <div className="mt-3 p-3 bg-brand-gold-soft/20 border border-brand-gold/20 rounded-lg">
+                  <p className="text-xs font-black text-brand-gold-deep">Producto seleccionado: {itemSeleccionado.nombre} (Stock actual: {itemSeleccionado.stock || 0} und)</p>
+                </div>
+              )}
             </div>
 
-            <div className="table-wrap border-t border-line">
+            <div className="table-wrap border-t border-line max-h-[300px] overflow-y-auto">
               <table className="bg-white">
-                <thead className="bg-surface-soft">
+                <thead className="bg-surface-soft sticky top-0 z-10">
                   <tr>
                     <th className="font-black text-ink uppercase text-[10px] py-4 px-6">Producto</th>
                     <th className="font-black text-ink uppercase text-[10px] text-center">Cant</th>
@@ -447,13 +514,16 @@ export default function PurchaseModule({ state, updateState }: PurchaseModulePro
         </div>
       </div>
 
+      {/* Modal de Producto - CORREGIDO */}
       {showNewProductModal && (
-        <ProductForm 
-          isOpen={showNewProductModal}
+        <ProductFormModal 
+          state={state}
           onClose={() => setShowNewProductModal(false)}
-          store={state}
-          updateStore={updateState}
-          editingProduct={null}
+          onSave={handleSaveProduct}
+          onUpdateLists={(lists: any) => {
+            updateState(lists);
+          }}
+          producto={undefined}
         />
       )}
     </div>
