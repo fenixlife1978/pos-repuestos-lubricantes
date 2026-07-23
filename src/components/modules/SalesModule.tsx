@@ -1118,9 +1118,11 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         onClose={() => setIsCreditModalOpen(false)}
         onConfirm={handleCreditModalConfirm}
         totalAmount={subtotalUSD}
-        clients={state.clientes || []}
-        debts={state.cxc || []}
-        initialClientName={cliente}
+        {...({ 
+          clients: state.clientes || [], 
+          debts: state.cxc || [], 
+          initialClientName: cliente 
+        } as any)}
       />
     </div>
   );
