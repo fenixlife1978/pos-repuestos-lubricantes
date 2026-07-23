@@ -156,36 +156,51 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
     }
   };
 
-  // ===== BUSCAR CLIENTE EN CLIENTES Y EN CXC =====
+  // ===== BUSCAR CLIENTE EN CLIENTES Y EN CXC (CON SALDO TOTAL ACTUALIZADO) =====
   const findCustomer = (fullDoc: string): Customer | null => {
     const raw = getRawCedula(fullDoc);
+    let customer: Customer | null = null;
     
     // 1. Buscar en clientes
     const customers: Customer[] = store.clientes || [];
     const found = customers.find(c => getRawCedula(c.cedula) === raw);
-    if (found) return found;
-
-    // 2. Buscar en deudas
-    const deudas: Debt[] = store.cxc || [];
-    const deudasCliente = findDebtsByCedula(deudas, fullDoc);
-    if (deudasCliente.length > 0) {
-      const primera = deudasCliente[0];
-      const match = primera.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
-      if (match) {
-        // Determinar el tipo de documento correcto
-        const tipo = extractDocType(fullDoc);
-        const cedulaNormalizada = normalizeCedula(match[2], tipo);
-        return {
-          id: `CUS-${Date.now()}`,
-          name: match[1].trim(),
-          cedula: cedulaNormalizada,
-          address: 'Sin dirección',
-          phone: 'Sin teléfono',
-          debt: deudasCliente.reduce((sum, d) => sum + (d.saldoUSD || 0), 0)
-        };
-      }
+    if (found) {
+      customer = { ...found };
     }
-    return null;
+    
+    // 2. Buscar en deudas y sumar saldos
+    const deudas: Debt[] = store.cxc || [];
+    const deudasCliente = deudas.filter(d => {
+      if (!d.cliente) return false;
+      const match = d.cliente.match(/^(.*?)\s*\[(.*?)\]$/);
+      return match && getRawCedula(match[2]) === raw;
+    });
+    const totalDeuda = deudasCliente.reduce((sum, d) => sum + (d.saldoUSD || 0), 0);
+    
+    if (!customer) {
+      // Si no existe en clientes pero tiene deudas, crear cliente virtual
+      if (deudasCliente.length > 0) {
+        const primera = deudasCliente[0];
+        const match = primera.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
+        if (match) {
+          const tipo = extractDocType(fullDoc);
+          const cedulaNormalizada = normalizeCedula(match[2], tipo);
+          customer = {
+            id: `CUS-${Date.now()}`,
+            name: match[1].trim(),
+            cedula: cedulaNormalizada,
+            address: 'Sin dirección',
+            phone: 'Sin teléfono',
+            debt: totalDeuda
+          };
+        }
+      }
+    } else {
+      // Si existe, actualizar su deuda con el total calculado
+      customer.debt = totalDeuda;
+    }
+    
+    return customer;
   };
 
   const handleSearch = () => {
@@ -357,13 +372,23 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
           )}
 
           {/* ============================================================ */}
-          {/* PASO 2: CLIENTE ENCONTRADO */}
+          {/* PASO 2: CLIENTE ENCONTRADO (con saldo total actualizado) */}
           {/* ============================================================ */}
           {view === 'found' && foundCustomer && (
             <div className="space-y-3">
-              <div className="bg-gray-50 rounded-xl p-3 text-center">
+              <div className="bg-gray-50 rounded-xl p-3 text-center border border-gray-200">
                 <p className="font-bold text-base text-gray-800">{foundCustomer.name}</p>
-                <p className="text-sm text-gray-500">SALDO: <span className="font-bold text-red-600">{formatUsd(foundCustomer.debt || 0)}</span></p>
+                <p className="text-sm text-gray-500 mt-1">
+                  SALDO ACTUAL: <span className="font-bold text-red-600">{formatUsd(foundCustomer.debt || 0)}</span>
+                  {foundCustomer.debt === 0 && (
+                    <span className="ml-2 text-xs text-green-600 font-bold">(AL DÍA)</span>
+                  )}
+                </p>
+                {foundCustomer.debt !== undefined && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Equiv. Bs: <span className="font-bold">{(foundCustomer.debt * (store.tasa || 1)).toFixed(2)}</span>
+                  </p>
+                )}
               </div>
               <button
                 onClick={handleConfirmCharge}
