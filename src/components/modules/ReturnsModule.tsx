@@ -220,8 +220,8 @@ export default function ReturnsModule({ state, updateState, onBackToPOS, termina
   }, [state.devoluciones, state.anulaciones, state.ventas, terminalId]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-line shadow-sm">
+    <div className="space-y-6 h-[calc(100vh-140px)] flex flex-col overflow-hidden">
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-line shadow-sm shrink-0">
         <div>
           <h2 className="text-ink font-black uppercase italic tracking-tighter text-xl flex items-center gap-2">
             <RotateCcw className="text-status-danger" /> DEVOLUCIONES Y ANULACIONES
@@ -241,50 +241,52 @@ export default function ReturnsModule({ state, updateState, onBackToPOS, termina
       </div>
 
       {view === 'list' ? (
-        <div className="card shadow-lg animate-in fade-in duration-300 border-line bg-white">
-          <div className="card-head bg-surface-soft border-b border-line px-5 py-4">
+        <div className="card shadow-lg animate-in fade-in duration-300 border-line bg-white flex-1 flex flex-col overflow-hidden">
+          <div className="card-head bg-surface-soft border-b border-line px-5 py-4 shrink-0">
             <h3 className="text-ink font-black text-xs uppercase tracking-widest flex items-center gap-2">
               <ClipboardList className="w-4 h-4 text-status-info" /> Historial de {terminalId ? `Terminal ${terminalId}` : 'Sistema'}
             </h3>
           </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr className="bg-surface-soft">
-                  <th className="text-ink font-black text-[10px] uppercase">ID Operación</th>
-                  <th className="text-ink font-black text-[10px] uppercase">Tipo</th>
-                  <th className="text-ink font-black text-[10px] uppercase">Fecha</th>
-                  <th className="text-ink font-black text-[10px] uppercase">Venta Ref.</th>
-                  <th className="text-ink font-black text-[10px] uppercase text-right">Monto Total</th>
-                  <th className="text-ink font-black text-[10px] uppercase">Motivo</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white">
-                {historialUnificado.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-20 text-ink/20 font-black uppercase italic opacity-40">No hay operaciones registradas para este terminal</td></tr>
-                ) : (
-                  historialUnificado.map(d => (
-                    <tr key={d.id} className="border-b border-line/30 hover:bg-surface-warm/20">
-                      <td className={`font-black text-xs mono ${d.id.startsWith('ANU') ? 'text-ink' : 'text-status-danger'}`}>{d.id}</td>
-                      <td className="text-[9px] font-black uppercase">
-                        <span className={`badge ${d.tipoOperacion === 'ANULACIÓN' ? 'badge-neutral' : 'badge-err'}`}>{d.tipoOperacion}</span>
-                      </td>
-                      <td className="text-ink font-bold text-xs">{Utils.fmtFecha(d.fecha)}</td>
-                      <td className="text-ink font-black text-xs mono opacity-60">{d.ventaId}</td>
-                      <td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(d.totalUSD)}</td>
-                      <td className="text-ink text-[10px] uppercase font-bold italic truncate max-w-[200px]">{d.motivo}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="flex-1 overflow-y-auto">
+            <div className="table-wrap">
+              <table>
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-surface-soft">
+                    <th className="text-ink font-black text-[10px] uppercase">ID Operación</th>
+                    <th className="text-ink font-black text-[10px] uppercase">Tipo</th>
+                    <th className="text-ink font-black text-[10px] uppercase">Fecha</th>
+                    <th className="text-ink font-black text-[10px] uppercase">Venta Ref.</th>
+                    <th className="text-ink font-black text-[10px] uppercase text-right">Monto Total</th>
+                    <th className="text-ink font-black text-[10px] uppercase">Motivo</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white">
+                  {historialUnificado.length === 0 ? (
+                    <tr><td colSpan={6} className="text-center py-20 text-ink/20 font-black uppercase italic opacity-40">No hay operaciones registradas para este terminal</td></tr>
+                  ) : (
+                    historialUnificado.map(d => (
+                      <tr key={d.id} className="border-b border-line/30 hover:bg-surface-warm/20">
+                        <td className={`font-black text-xs mono ${d.id.startsWith('ANU') ? 'text-ink' : 'text-status-danger'}`}>{d.id}</td>
+                        <td className="text-[9px] font-black uppercase">
+                          <span className={`badge ${d.tipoOperacion === 'ANULACIÓN' ? 'badge-neutral' : 'badge-err'}`}>{d.tipoOperacion}</span>
+                        </td>
+                        <td className="text-ink font-bold text-xs">{Utils.fmtFecha(d.fecha)}</td>
+                        <td className="text-ink font-black text-xs mono opacity-60">{d.ventaId}</td>
+                        <td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(d.totalUSD)}</td>
+                        <td className="text-ink text-[10px] uppercase font-bold italic truncate max-w-[200px]">{d.motivo}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-300">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
+          <div className="lg:col-span-2 space-y-4 flex flex-col overflow-hidden">
             {!selectedSale ? (
-              <div className="card p-12 flex flex-col items-center justify-center text-center space-y-6 bg-white border-dashed border-2 border-line">
+              <div className="card p-12 flex flex-col items-center justify-center text-center space-y-6 bg-white border-dashed border-2 border-line flex-1">
                 <div className="p-5 bg-surface-soft rounded-full"><Search className="w-10 h-10 text-ink/20" /></div>
                 <div className="max-w-xs space-y-2">
                   <h3 className="text-ink font-black uppercase text-sm">Localizar Factura</h3>
@@ -302,8 +304,8 @@ export default function ReturnsModule({ state, updateState, onBackToPOS, termina
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="card bg-white border-status-info/30">
+              <div className="space-y-4 flex flex-col overflow-hidden flex-1">
+                <div className="card bg-white border-status-info/30 shrink-0">
                   <div className="card-head py-3 px-5 border-b border-line flex justify-between items-center">
                     <h3 className="text-status-info font-black uppercase text-xs">Venta Original: {selectedSale.id}</h3>
                     <div className="flex gap-2">
@@ -313,84 +315,89 @@ export default function ReturnsModule({ state, updateState, onBackToPOS, termina
                        <button onClick={() => setSelectedSale(null)} className="text-ink/40 hover:text-ink"><X className="w-4 h-4"/></button>
                     </div>
                   </div>
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr className="bg-surface-soft">
-                          <th className="text-[9px] uppercase font-black text-ink">Producto</th>
-                          <th className="text-[9px] uppercase text-center font-black text-ink">Cant. Compra</th>
-                          <th className="text-[9px] uppercase text-right font-black text-ink">Precio Hist.</th>
-                          <th className="text-[9px] uppercase text-center font-black text-ink">Acción</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedSale.items.map((item, idx) => (
-                          <tr key={idx} className="border-b border-line/30">
-                            <td className="text-ink font-bold text-xs uppercase">{item.nombre}</td>
-                            <td className="text-ink font-black text-xs text-center">{item.cantidad}</td>
-                            <td className="text-ink font-black text-xs text-right">{Utils.fmtUSD(item.precioUnitUSD)}</td>
-                            <td className="text-center">
-                              <button 
-                                onClick={() => handleAddItem(item.productoId, item.nombre, item.precioUnitUSD, item.cantidad)}
-                                className="btn btn-sm btn-secondary text-ink font-black text-[9px] uppercase h-7"
-                              >
-                                Devolver Item
-                              </button>
-                            </td>
+                  <div className="max-h-[200px] overflow-y-auto">
+                    <div className="table-wrap">
+                      <table>
+                        <thead className="sticky top-0 z-10">
+                          <tr className="bg-surface-soft">
+                            <th className="text-[9px] uppercase font-black text-ink">Producto</th>
+                            <th className="text-[9px] uppercase text-center font-black text-ink">Cant. Compra</th>
+                            <th className="text-[9px] uppercase text-right font-black text-ink">Precio Hist.</th>
+                            <th className="text-[9px] uppercase text-center font-black text-ink">Acción</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {selectedSale.items.map((item, idx) => (
+                            <tr key={idx} className="border-b border-line/30">
+                              <td className="text-ink font-bold text-xs uppercase">{item.nombre}</td>
+                              <td className="text-ink font-black text-xs text-center">{item.cantidad}</td>
+                              <td className="text-ink font-black text-xs text-right">{Utils.fmtUSD(item.precioUnitUSD)}</td>
+                              <td className="text-center">
+                                <button 
+                                  onClick={() => handleAddItem(item.productoId, item.nombre, item.precioUnitUSD, item.cantidad)}
+                                  className="btn btn-sm btn-secondary text-ink font-black text-[9px] uppercase h-7"
+                                >
+                                  Devolver Item
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
 
-                <div className="card bg-white border-line shadow-sm">
-                  <div className="card-head py-3 px-5 border-b border-line">
+                <div className="card bg-white border-line shadow-sm flex-1 flex flex-col overflow-hidden">
+                  <div className="card-head py-3 px-5 border-b border-line shrink-0">
                     <h3 className="text-status-danger font-black uppercase text-xs flex items-center gap-2">
                       <Undo2 className="w-4 h-4"/> Ítems en la Devolución Actual
                     </h3>
                   </div>
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr className="bg-surface-soft">
-                          <th className="text-[9px] uppercase font-black text-ink">Producto</th>
-                          <th className="text-[9px] uppercase text-center font-black text-ink">Cant.</th>
-                          <th className="text-[9px] uppercase font-black text-ink">Estado / Destino</th>
-                          <th className="text-[9px] uppercase text-right font-black text-ink">Subtotal</th>
-                          <th className="text-[9px] uppercase text-center"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {returnItems.map((item, idx) => (
-                          <tr key={idx} className="border-b border-line/30">
-                            <td className="text-ink font-bold text-xs uppercase">{item.nombre}</td>
-                            <td className="text-status-danger font-black text-xs text-center">{item.cantidad}</td>
-                            <td>
-                              <span className={`badge ${item.estadoProducto === 'REINTEGRADO_STOCK' ? 'badge-ok' : 'badge-err'} font-black text-[8px] uppercase`}>
-                                {item.estadoProducto.replace('_', ' ')}
-                              </span>
-                            </td>
-                            <td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(item.cantidad * item.precioUnitUSD)}</td>
-                            <td className="text-center">
-                              <button onClick={() => setReturnItems(returnItems.filter((_, i) => i !== idx))} className="text-ink/20 hover:text-status-danger"><Trash2 className="w-3.5 h-3.5"/></button>
-                            </td>
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="table-wrap">
+                      <table>
+                        <thead className="sticky top-0 z-10">
+                          <tr className="bg-surface-soft">
+                            <th className="text-[9px] uppercase font-black text-ink">Producto</th>
+                            <th className="text-[9px] uppercase text-center font-black text-ink">Cant.</th>
+                            <th className="text-[9px] uppercase font-black text-ink">Estado / Destino</th>
+                            <th className="text-[9px] uppercase text-right font-black text-ink">Subtotal</th>
+                            <th className="text-[9px] uppercase text-center"></th>
                           </tr>
-                        ))}
-                        {returnItems.length === 0 && (
-                          <tr><td colSpan={5} className="text-center py-10 text-ink/20 font-black uppercase italic text-[10px]">Añade productos para una devolución parcial</td></tr>
-                        )}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {returnItems.map((item, idx) => (
+                            <tr key={idx} className="border-b border-line/30">
+                              <td className="text-ink font-bold text-xs uppercase">{item.nombre}</td>
+                              <td className="text-status-danger font-black text-xs text-center">{item.cantidad}</td>
+                              <td>
+                                <span className={`badge ${item.estadoProducto === 'REINTEGRADO_STOCK' ? 'badge-ok' : 'badge-err'} font-black text-[8px] uppercase`}>
+                                  {item.estadoProducto.replace('_', ' ')}
+                                </span>
+                              </td>
+                              <td className="text-brand-gold-deep font-black text-xs text-right">{Utils.fmtUSD(item.cantidad * item.precioUnitUSD)}</td>
+                              <td className="text-center">
+                                <button onClick={() => setReturnItems(returnItems.filter((_, i) => i !== idx))} className="text-ink/20 hover:text-status-danger"><Trash2 className="w-3.5 h-3.5"/></button>
+                              </td>
+                            </tr>
+                          ))}
+                          {returnItems.length === 0 && (
+                            <tr><td colSpan={5} className="text-center py-10 text-ink/20 font-black uppercase italic text-[10px]">Añade productos para una devolución parcial</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="space-y-6">
-            <div className="card bg-white border-line h-fit shadow-lg">
-              <div className="card-head py-4 px-6 border-b border-line bg-surface-soft">
+          {/* Panel lateral - CON SCROLL */}
+          <div className="space-y-6 overflow-y-auto pb-4">
+            <div className="card bg-white border-line shadow-lg">
+              <div className="card-head py-4 px-6 border-b border-line bg-surface-soft shrink-0">
                 <h3 className="text-ink font-black uppercase text-xs">Confirmar Devolución Parcial</h3>
               </div>
               <div className="card-body p-6 space-y-6">
