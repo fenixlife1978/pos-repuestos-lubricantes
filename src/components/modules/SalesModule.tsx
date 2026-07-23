@@ -1111,13 +1111,16 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       )}
 
       {/* ============================================================ */}
-      {/* MODAL DE CRÉDITO - USANDO CreditModal */}
+      {/* MODAL DE CRÉDITO - AHORA RECIBE CLIENTES Y DEUDAS PARA MOSTRAR SALDO */}
       {/* ============================================================ */}
       <CreditModal
         isOpen={isCreditModalOpen}
         onClose={() => setIsCreditModalOpen(false)}
         onConfirm={handleCreditModalConfirm}
         totalAmount={subtotalUSD}
+        clients={state.clientes || []}
+        debts={state.cxc || []}
+        initialClientName={cliente}
       />
     </div>
   );
