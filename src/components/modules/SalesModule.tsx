@@ -804,8 +804,8 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         <button onClick={() => setView('pos')} className={`btn btn-sm ${view === 'pos' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ShoppingCart className="w-3.5 h-3.5"/> Punto de Venta</button>
         <button onClick={() => setView('history')} className={`btn btn-sm ${view === 'history' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><History className="w-3.5 h-3.5"/> Historial</button>
         <button onClick={() => setView('credits')} className={`btn btn-sm ${view === 'credits' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ClipboardList className="w-3.5 h-3.5"/> Consultar Créditos</button>
-        <button onClick={() => setShowCashSaleModal(true)} className="btn btn-sm bg-[#D4A017] text-white font-black uppercase border-none hover:bg-[#E8B831] transition-all">
-          <Banknote className="w-3.5 h-3.5" /> Venta Efectivo
+        <button onClick={() => setShowCashSaleModal(true)} className="btn btn-sm bg-[#D4A017] text-white font-black uppercase border-none hover:bg-[#E8B831] transition-all" title="Venta de Efectivo">
+          <Banknote className="w-3.5 h-3.5" />
         </button>
         <button onClick={() => handleOpenReport('REPORT_X')} className="btn btn-sm bg-white text-ink font-bold border-line border"><FileText className="w-3.5 h-3.5"/> Reporte X</button>
         <button onClick={() => handleOpenReport('REPORT_Z')} className="btn btn-sm bg-white text-ink font-bold border-line border"><Receipt className="w-3.5 h-3.5"/> Reporte Z</button>
