@@ -12,6 +12,7 @@ import { migrarEstructura } from '@/lib/migracion-firestore';
 
 export default function ConfigModule({ state, updateState }: { state: AppState, updateState: (s: Partial<AppState>) => void }) {
   const [tasa, setTasa] = useState<string | number>(state.tasa);
+  const [comision, setComision] = useState<string | number>(state.comisionEfectivo || 5); // <--- AGREGADO
   const [empresa, setEmpresa] = useState(state.empresa);
   const [pinDevolucion, setPinDevolucion] = useState(state.pinDevolucion || '');
   const [isFormatting, setIsFormatting] = useState(false);
@@ -21,15 +22,23 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
 
   useEffect(() => {
     setTasa(state.tasa);
+    setComision(state.comisionEfectivo || 5); // <--- AGREGADO
     setEmpresa(state.empresa);
     setPinDevolucion(state.pinDevolucion || '000000');
-  }, [state.tasa, state.empresa, state.pinDevolucion]);
+  }, [state.tasa, state.empresa, state.pinDevolucion, state.comisionEfectivo]);
 
   const guardarTasa = () => {
     const n = parseFloat(tasa.toString());
     if (isNaN(n)) return alert('Tasa inválida');
     updateState({ tasa: n });
     toast({ title: "Sincronizado", description: "Tasa de cambio actualizada en todos los terminales." });
+  };
+
+  const guardarComision = () => { // <--- AGREGADO
+    const n = parseFloat(comision.toString());
+    if (isNaN(n) || n < 0) return alert('Comisión inválida (debe ser mayor o igual a 0)');
+    updateState({ comisionEfectivo: n });
+    toast({ title: "Sincronizado", description: "Comisión de efectivo actualizada correctamente." });
   };
 
   const guardarEmpresa = () => {
@@ -177,6 +186,7 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
         fondoCajaHoyUSD: 0,
         fondoCajaHoyBS: 0,
         tasa: state.tasa || 36.50,
+        comisionEfectivo: state.comisionEfectivo || 5, // <--- AGREGADO
         empresa: {
           nombre: 'NOMBRE DE SU NEGOCIO',
           rif: 'J-00000000-0',
@@ -253,6 +263,37 @@ export default function ConfigModule({ state, updateState }: { state: AppState, 
           </div>
           <button className="btn btn-primary h-12 px-8 font-black uppercase text-xs shadow-md mt-2" onClick={guardarTasa}>
             <Save className="w-4 h-4" /> Guardar Tasa Actualizada
+          </button>
+        </div>
+      </div>
+
+      {/* ===== COMISIÓN POR VENTA DE EFECTIVO ===== */}
+      <div className="card shadow-lg border-line">
+        <div className="card-head bg-surface-soft border-b border-line px-5 py-4">
+          <h3 className="text-ink font-black uppercase text-xs tracking-widest">Comisión por Venta de Efectivo</h3>
+        </div>
+        <div className="card-body p-6 space-y-4 bg-white">
+          <div className="form-group">
+            <label className="text-ink text-[10px] font-black uppercase block mb-2 opacity-70">PORCENTAJE DE COMISIÓN (%)</label>
+            <div className="flex items-center gap-4">
+              <input 
+                type="number" 
+                step="0.5"
+                min="0"
+                max="100"
+                className="form-input flex-1 h-12 text-xl font-black text-brand-gold-deep border-line bg-surface-soft/30 px-4" 
+                value={comision} 
+                onChange={e => setComision(e.target.value)} 
+              />
+              <span className="text-ink font-black text-sm uppercase tracking-tighter">%</span>
+            </div>
+            <p className="text-[8px] text-ink/40 mt-2">
+              Porcentaje que se cobra al cliente por el servicio de venta de efectivo en bolívares.
+              Ej: 5% = Bs. 500.000 en efectivo se cobra Bs. 525.000
+            </p>
+          </div>
+          <button className="btn btn-primary h-12 px-8 font-black uppercase text-xs shadow-md mt-2" onClick={guardarComision}>
+            <Save className="w-4 h-4" /> Guardar Comisión
           </button>
         </div>
       </div>

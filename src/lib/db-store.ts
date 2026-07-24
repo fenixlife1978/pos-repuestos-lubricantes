@@ -12,6 +12,7 @@ export const initialState: AppState = {
   user: null,
   isAuthenticated: false,
   tasa: 36.50,
+  comisionEfectivo: 5, // <--- AGREGADA
   pinDevolucion: '000000',
   isInitialized: false,
   productos: [],
@@ -128,6 +129,7 @@ export const Store = {
     
     const dataToPersist = {
       tasa: state.tasa,
+      comisionEfectivo: state.comisionEfectivo, // <--- AGREGADO
       pinDevolucion: state.pinDevolucion,
       isInitialized: state.isInitialized ?? true,
       productos: state.productos || [],

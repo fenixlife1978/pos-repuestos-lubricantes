@@ -259,6 +259,14 @@ export interface ReportZ {
     anulaciones: number;
     ticketPromedio: number;
   };
+  // ===== NUEVOS CAMPOS PARA VENTA DE EFECTIVO =====
+  ventaEfectivo?: {
+    totalVendidoUSD: number;
+    totalVendidoBS: number;
+    comisionesUSD: number;
+    efectivoEntregadoUSD: number;
+    cantidadTransacciones: number;
+  };
 }
 
 // ========== TIPOS PARA ProductForm ==========
@@ -320,6 +328,7 @@ export interface AppState {
   user: User | null;
   isAuthenticated: boolean;
   tasa: number;
+  comisionEfectivo: number;
   pinDevolucion: string;
   isInitialized?: boolean;
   productos: Product[];

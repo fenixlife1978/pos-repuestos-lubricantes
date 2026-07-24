@@ -39,11 +39,13 @@ import {
   Minimize2,
   Tag,
   Loader2,
-  Hash
+  Hash,
+  Banknote
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { ReceiptModal } from '@/components/pos/ReceiptModal';
 import { CreditModal } from '@/components/pos/CreditModal';
+import { CashSaleModal } from '@/components/pos/CashSaleModal';
 import FloatingPaymentModal from '@/components/pos/FloatingPaymentModal';
 import { toast } from '@/hooks/use-toast';
 import { AppState, SaleItem, Sale, PaymentMethod, ReportZ, PagoRealizado, Customer, Return, ReturnItem, Product, Debt, Movimiento, LibroDiarioEntry } from '@/lib/types';
@@ -159,6 +161,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [newClient, setNewClient] = useState({ name: '', tipoDoc: 'V', cedula: '', phone: '', address: '' });
 
+  // ===== ESTADO PARA VENTA DE EFECTIVO =====
+  const [showCashSaleModal, setShowCashSaleModal] = useState(false);
+
   const [editandoTasa, setEditandoTasa] = useState(false);
   const [nuevaTasa, setNuevaTasa] = useState(state.tasa.toString());
 
@@ -202,15 +207,33 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const vAnuladas = (state.ventas || []).filter(v => v.fecha > corteTimestamp && v.estado === 'anulada' && v.terminalId === termId);
     const dHoy = (state.devoluciones || []).filter(d => d.fecha > corteTimestamp && (state.ventas.find(v => v.id === d.ventaId)?.terminalId === termId));
     
-    const brUSD = vActivas.reduce((s, v) => s + v.totalUSD, 0);
+    // ===== FILTRAR VENTAS DE EFECTIVO =====
+    const ventasEfectivo = vActivas.filter(v => v.type === 'VENTA EFECTIVO BS');
+    const ventasNormales = vActivas.filter(v => v.type !== 'VENTA EFECTIVO BS');
+    
+    const brUSD = ventasNormales.reduce((s, v) => s + v.totalUSD, 0);
     const devUSD = dHoy.reduce((s, d) => s + d.totalUSD, 0);
-    const descUSD = vActivas.reduce((s, v) => s + (v.descuentoUSD || 0), 0);
+    const descUSD = ventasNormales.reduce((s, v) => s + (v.descuentoUSD || 0), 0);
     const netUSD = brUSD - devUSD - descUSD;
 
-    const baseImponibleUSD = vActivas.reduce((s, v) => s + (v.baseImponibleUSD || 0), 0);
-    const ivaUSD = vActivas.reduce((s, v) => s + (v.ivaUSD || 0), 0);
-    const exentoUSD = vActivas.reduce((s, v) => s + (v.exentoUSD || 0), 0);
-    const igtfUSD = vActivas.reduce((s, v) => s + (v.igtfUSD || 0), 0);
+    // ===== DATOS DE VENTA DE EFECTIVO =====
+    const efectivoVendidoUSD = ventasEfectivo.reduce((s, v) => s + v.totalUSD, 0);
+    const efectivoVendidoBS = ventasEfectivo.reduce((s, v) => s + v.totalBS, 0);
+    
+    // Calcular comisiones desde el libro diario
+    const comisionesUSD = (state.libroDiario || [])
+      .filter(e => e.fecha > corteTimestamp && e.categoria === 'COMISION_EFECTIVO' && e.referencia.includes(termId))
+      .reduce((s, e) => s + e.montoUSD, 0);
+    
+    // Calcular efectivo entregado desde el libro diario
+    const salidasEfectivo = (state.libroDiario || [])
+      .filter(e => e.fecha > corteTimestamp && e.categoria === 'VENTA_EFECTIVO' && e.referencia.includes(termId))
+      .reduce((s, e) => s + e.montoUSD, 0);
+
+    const baseImponibleUSD = ventasNormales.reduce((s, v) => s + (v.baseImponibleUSD || 0), 0);
+    const ivaUSD = ventasNormales.reduce((s, v) => s + (v.ivaUSD || 0), 0);
+    const exentoUSD = ventasNormales.reduce((s, v) => s + (v.exentoUSD || 0), 0);
+    const igtfUSD = ventasNormales.reduce((s, v) => s + (v.igtfUSD || 0), 0);
 
     const paymentMethodsMap: Record<string, number> = {};
     vActivas.forEach(v => {
@@ -233,7 +256,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
     const relevantDiario = (state.libroDiario || []).filter(e => e.fecha > corteTimestamp && e.referencia.includes(termId));
     const totalSalidasCaja = relevantDiario.filter(e => e.tipo === 'egreso').reduce((s, e) => s + e.montoUSD, 0);
-    const totalEntradasCaja = relevantDiario.filter(e => e.tipo === 'ingreso' && e.categoria !== 'VENTA' && e.categoria !== 'COBRO_DEUDA').reduce((s, e) => s + e.montoUSD, 0);
+    const totalEntradasCaja = relevantDiario.filter(e => e.tipo === 'ingreso' && e.categoria !== 'VENTA' && e.categoria !== 'COBRO_DEUDA' && e.categoria !== 'COMISION_EFECTIVO').reduce((s, e) => s + e.montoUSD, 0);
 
     const terminalName = currentTerminal ? currentTerminal.nombre : 'SISTEMA GLOBAL';
 
@@ -246,7 +269,15 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       fondoAperturaBS: state.fondoCajaHoyBS || 0,
       desdeFactura, hastaFactura, desdeNC, hastaNC,
       stats: { facturas: vActivas.length, devoluciones: dHoy.length, anulaciones: vAnuladas.length, ticketPromedio: vActivas.length > 0 ? (netUSD / vActivas.length) : 0 },
-      fecha: Utils.ahora(), terminalName, terminalId: termId, numeroZ: state.ultimoZ + 1, acumuladoHistoricoUSD: state.acumuladoHistorico + netUSD
+      fecha: Utils.ahora(), terminalName, terminalId: termId, numeroZ: state.ultimoZ + 1, acumuladoHistoricoUSD: state.acumuladoHistorico + netUSD,
+      // ===== DATOS DE VENTA DE EFECTIVO =====
+      ventaEfectivo: {
+        totalVendidoUSD: efectivoVendidoUSD,
+        totalVendidoBS: efectivoVendidoBS,
+        comisionesUSD: comisionesUSD,
+        efectivoEntregadoUSD: salidasEfectivo,
+        cantidadTransacciones: ventasEfectivo.length
+      }
     };
   };
 
@@ -267,7 +298,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       cantidadAnuladas: data.stats.anulaciones, ventaBrutaUSD: data.brUSD, descuentoUSD: data.descUSD, devolucionesUSD: data.devUSD,
       ventaNetaUSD: data.netUSD, baseImponibleUSD: data.baseImponibleUSD, ivaUSD: data.ivaUSD, exentoUSD: data.exentoUSD,
       igtfUSD: data.igtfUSD, metodosPago: { ...data.paymentMethods }, salidasCajaUSD: data.manualSalidas, entradasCajaUSD: data.manualEntradas,
-      fondoAperturaUSD: data.fondoAperturaUSD, fondoAperturaBS: data.fondoAperturaBS, acumuladoHistoricoUSD: data.acumuladoHistoricoUSD, stats: { ...data.stats }
+      fondoAperturaUSD: data.fondoAperturaUSD, fondoAperturaBS: data.fondoAperturaBS, acumuladoHistoricoUSD: data.acumuladoHistoricoUSD, stats: { ...data.stats },
+      // ===== NUEVOS CAMPOS =====
+      ventaEfectivo: data.ventaEfectivo || { totalVendidoUSD: 0, totalVendidoBS: 0, comisionesUSD: 0, efectivoEntregadoUSD: 0, cantidadTransacciones: 0 }
     };
     
     if (typeof localStorage !== 'undefined') localStorage.removeItem('posven_apertura_done');
@@ -673,12 +706,107 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setTimeout(() => ejecutarVentaACredito(customer), 100);
   };
 
+  // ===== FUNCIÓN PARA PROCESAR VENTA DE EFECTIVO =====
+  const procesarVentaEfectivo = (data: {
+    montoEfectivoBS: number;
+    totalAPagarBS: number;
+    comision: number;
+    metodoPago: string;
+  }) => {
+    const ahoraStr = Utils.ahora();
+    const terminal = getCurrentTerminal();
+    const nextNum = terminal?.proximoRecibo || state.proximoRecibo;
+    const reciboId = String(nextNum).padStart(9, '0');
+
+    const totalUSD = data.totalAPagarBS / state.tasa;
+    const efectivoUSD = data.montoEfectivoBS / state.tasa;
+
+    const itemEspecial = {
+      productoId: 'SERVICIO_EFECTIVO',
+      nombre: `VENTA DE EFECTIVO Bs. (${data.comision}% comisión)`,
+      cantidad: 1,
+      precioUnitUSD: totalUSD,
+      subtotalUSD: totalUSD
+    };
+
+    const nuevaVenta: Sale = {
+      id: reciboId,
+      fecha: ahoraStr,
+      cliente: cliente || 'CONSUMIDOR FINAL',
+      items: [itemEspecial],
+      subtotalUSD: totalUSD,
+      descuentoUSD: 0,
+      totalUSD: totalUSD,
+      totalBS: data.totalAPagarBS,
+      metodoPago: data.metodoPago,
+      estado: 'completada',
+      type: 'VENTA EFECTIVO BS',
+      received: totalUSD,
+      change: 0,
+      payments: [{
+        metodo: data.metodoPago as PaymentMethod,
+        montoUSD: totalUSD,
+        montoBS: data.totalAPagarBS
+      }],
+      terminalId: terminal?.id,
+      terminalName: terminal?.nombre || 'SISTEMA GLOBAL',
+      cajeroId: auth?.currentUser?.uid,
+      baseImponibleUSD: totalUSD,
+      ivaUSD: 0,
+      exentoUSD: totalUSD,
+      igtfUSD: 0,
+      tasa: state.tasa
+    };
+
+    const salidaEfectivo: LibroDiarioEntry = {
+      id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
+      fecha: ahoraStr,
+      tipo: 'egreso',
+      categoria: 'VENTA_EFECTIVO',
+      concepto: `VENTA DE EFECTIVO #${reciboId} - CLIENTE: ${cliente?.toUpperCase() || 'CONSUMIDOR FINAL'}`,
+      montoUSD: efectivoUSD,
+      montoBS: data.montoEfectivoBS,
+      metodo: 'efectivo_bs',
+      referencia: reciboId
+    };
+
+    const ingresoComision: LibroDiarioEntry = {
+      id: 'ACC-' + Store.uid().toUpperCase().slice(0, 5),
+      fecha: ahoraStr,
+      tipo: 'ingreso',
+      categoria: 'COMISION_EFECTIVO',
+      concepto: `COMISIÓN POR VENTA DE EFECTIVO #${reciboId} - ${data.comision}%`,
+      montoUSD: totalUSD - efectivoUSD,
+      montoBS: data.totalAPagarBS - data.montoEfectivoBS,
+      metodo: data.metodoPago as PaymentMethod,
+      referencia: reciboId
+    };
+
+    updateState({
+      ventas: [...state.ventas, nuevaVenta],
+      libroDiario: [...(state.libroDiario || []), salidaEfectivo, ingresoComision],
+      proximoRecibo: state.proximoRecibo + 1,
+      terminales: state.terminales.map(t => 
+        t.id === terminal?.id ? { ...t, proximoRecibo: t.proximoRecibo + 1 } : t
+      )
+    });
+
+    toast({
+      title: "Venta de Efectivo Registrada",
+      description: `Se entregaron ${Utils.fmtBS(data.montoEfectivoBS)} en efectivo. Cobro: ${Utils.fmtBS(data.totalAPagarBS)} (${data.comision}% comisión)`,
+      duration: 5000
+    });
+  };
+
   return (
     <div className="flex flex-col gap-2 h-[calc(100vh-100px)] max-w-7xl mx-auto w-full overflow-hidden">
       <div className="flex gap-2 no-print shrink-0 overflow-x-auto pb-1 items-center">
         <button onClick={() => setView('pos')} className={`btn btn-sm ${view === 'pos' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ShoppingCart className="w-3.5 h-3.5"/> Punto de Venta</button>
         <button onClick={() => setView('history')} className={`btn btn-sm ${view === 'history' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><History className="w-3.5 h-3.5"/> Historial</button>
         <button onClick={() => setView('credits')} className={`btn btn-sm ${view === 'credits' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ClipboardList className="w-3.5 h-3.5"/> Consultar Créditos</button>
+        <button onClick={() => setShowCashSaleModal(true)} className="btn btn-sm bg-[#D4A017] text-white font-black uppercase border-none hover:bg-[#E8B831] transition-all">
+          <Banknote className="w-3.5 h-3.5" /> Venta Efectivo
+        </button>
         <button onClick={() => handleOpenReport('REPORT_X')} className="btn btn-sm bg-white text-ink font-bold border-line border"><FileText className="w-3.5 h-3.5"/> Reporte X</button>
         <button onClick={() => handleOpenReport('REPORT_Z')} className="btn btn-sm bg-white text-ink font-bold border-line border"><Receipt className="w-3.5 h-3.5"/> Reporte Z</button>
         <button onClick={() => setView('returns')} className={`btn btn-sm ${view === 'returns' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><RotateCcw className="w-3.5 h-3.5"/> Devoluciones y Anulaciones</button>
@@ -1111,7 +1239,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       )}
 
       {/* ============================================================ */}
-      {/* MODAL DE CRÉDITO - AHORA RECIBE CLIENTES Y DEUDAS PARA MOSTRAR SALDO */}
+      {/* MODAL DE CRÉDITO */}
       {/* ============================================================ */}
       <CreditModal
         isOpen={isCreditModalOpen}
@@ -1123,6 +1251,17 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
           debts: state.cxc || [], 
           initialClientName: cliente 
         } as any)}
+      />
+
+      {/* ============================================================ */}
+      {/* MODAL DE VENTA DE EFECTIVO */}
+      {/* ============================================================ */}
+      <CashSaleModal
+        isOpen={showCashSaleModal}
+        onClose={() => setShowCashSaleModal(false)}
+        onConfirm={procesarVentaEfectivo}
+        comisionEfectivo={state.comisionEfectivo || 5}
+        tasaCambio={state.tasa}
       />
     </div>
   );

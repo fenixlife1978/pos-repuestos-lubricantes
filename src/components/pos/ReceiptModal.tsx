@@ -420,7 +420,38 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
 
                    <div className="separator-dashed"></div>
 
-                   {/* ===== MOVIMIENTO DE CAJA CORREGIDO - INCLUYE COBROS DE DEUDA ===== */}
+                   {/* ===== NUEVA SECCIÓN: VENTA DE EFECTIVO ===== */}
+                   {data.ventaEfectivo && (
+                     <>
+                       <div className="text-center font-bold text-[11px]">VENTA DE EFECTIVO</div>
+                       <div className="separator-dashed"></div>
+                       <table><tbody>
+                         <tr>
+                           <td>TRANSACCIONES:</td>
+                           <td className="text-right">{data.ventaEfectivo.cantidadTransacciones || 0}</td>
+                         </tr>
+                         <tr>
+                           <td>TOTAL VENDIDO (USD):</td>
+                           <td className="text-right">$ {formatUsd(data.ventaEfectivo.totalVendidoUSD || 0)}</td>
+                         </tr>
+                         <tr>
+                           <td>TOTAL VENDIDO (Bs.):</td>
+                           <td className="text-right">{formatBs(data.ventaEfectivo.totalVendidoBS || 0)}</td>
+                         </tr>
+                         <tr className="text-status-success">
+                           <td>COMISIONES (GANANCIA):</td>
+                           <td className="text-right">$ {formatUsd(data.ventaEfectivo.comisionesUSD || 0)}</td>
+                         </tr>
+                         <tr className="text-status-danger">
+                           <td>EFECTIVO ENTREGADO:</td>
+                           <td className="text-right">$ {formatUsd(data.ventaEfectivo.efectivoEntregadoUSD || 0)}</td>
+                         </tr>
+                       </tbody></table>
+                       <div className="separator-dashed"></div>
+                     </>
+                   )}
+
+                   {/* ===== MOVIMIENTO DE CAJA ===== */}
                    <div className="text-center font-bold">MOVIMIENTO DE CAJA</div>
                    <div className="separator-dashed"></div>
                    {(() => {
