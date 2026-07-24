@@ -860,7 +860,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   <input className="form-input h-8 text-xs bg-surface-soft text-ink border-line font-black uppercase" value={cliente} onChange={e => setCliente(e.target.value)} />
                 </div>
 
-                {/* ===== BOTÓN VENTA EFECTIVO - MOVIDO AQUÍ ===== */}
+                {/* ===== BOTÓN VENTA EFECTIVO - NUEVA UBICACIÓN ===== */}
                 <button 
                   onClick={() => setShowCashSaleModal(true)} 
                   className="w-full h-10 bg-[#D4A017] text-white font-black uppercase text-[10px] rounded-xl transition-all hover:bg-[#E8B831] flex items-center justify-center gap-2 shadow-sm"
