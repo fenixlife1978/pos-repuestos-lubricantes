@@ -57,11 +57,6 @@ import { cn } from '@/lib/utils';
 // UTILIDADES DE NORMALIZACIÓN DE CÉDULA (integradas)
 // ============================================================
 
-/**
- * Normaliza una cédula según el tipo de documento
- * - Para V- y E-: formato con puntos (XX.XXX.XXX)
- * - Para J-, G-, P-: solo dígitos sin formato
- */
 function normalizeCedula(cedula: string, docType?: string): string {
   if (!cedula) return '';
   
@@ -91,24 +86,15 @@ function normalizeCedula(cedula: string, docType?: string): string {
   return `${type}${cleanNumber}`;
 }
 
-/**
- * Obtiene solo el número de cédula sin puntos ni tipo
- */
 function getRawCedula(cedula: string): string {
   return cedula.replace(/[^0-9]/g, '');
 }
 
-/**
- * Busca un cliente por cédula normalizada, ignorando formato
- */
 function findCustomerByCedula(customers: any[], cedula: string): any | null {
   const raw = getRawCedula(cedula);
   return customers.find(c => getRawCedula(c.cedula) === raw) || null;
 }
 
-/**
- * Busca deudas por cédula del cliente (en el campo cliente)
- */
 function findDebtsByCedula(deudas: any[], cedula: string): any[] {
   const raw = getRawCedula(cedula);
   return deudas.filter(d => {
@@ -121,9 +107,6 @@ function findDebtsByCedula(deudas: any[], cedula: string): any[] {
   });
 }
 
-/**
- * Extrae el tipo de documento (V-, J-, etc.) de una cédula
- */
 function extractDocType(cedula: string): string {
   const match = cedula.match(/^([A-Z]-?)/);
   return match ? match[1].replace('-', '').trim() + '-' : 'V-';
@@ -172,7 +155,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // ===== CORREGIDO: Formato de cédula según tipo =====
   const formatCedulaByType = (val: string, type: string) => {
     if (type !== 'V' && type !== 'E') {
       return val.replace(/\D/g, '');
@@ -224,11 +206,13 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const comisionesUSD = (state.libroDiario || [])
       .filter(e => e.fecha > corteTimestamp && e.categoria === 'COMISION_EFECTIVO' && e.referencia.includes(termId))
       .reduce((s, e) => s + e.montoUSD, 0);
+    const comisionesBS = comisionesUSD * state.tasa;
     
     // Calcular efectivo entregado desde el libro diario
     const salidasEfectivo = (state.libroDiario || [])
       .filter(e => e.fecha > corteTimestamp && e.categoria === 'VENTA_EFECTIVO' && e.referencia.includes(termId))
       .reduce((s, e) => s + e.montoUSD, 0);
+    const efectivoEntregadoBS = salidasEfectivo * state.tasa;
 
     const baseImponibleUSD = ventasNormales.reduce((s, v) => s + (v.baseImponibleUSD || 0), 0);
     const ivaUSD = ventasNormales.reduce((s, v) => s + (v.ivaUSD || 0), 0);
@@ -270,12 +254,14 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       desdeFactura, hastaFactura, desdeNC, hastaNC,
       stats: { facturas: vActivas.length, devoluciones: dHoy.length, anulaciones: vAnuladas.length, ticketPromedio: vActivas.length > 0 ? (netUSD / vActivas.length) : 0 },
       fecha: Utils.ahora(), terminalName, terminalId: termId, numeroZ: state.ultimoZ + 1, acumuladoHistoricoUSD: state.acumuladoHistorico + netUSD,
-      // ===== DATOS DE VENTA DE EFECTIVO =====
+      // ===== DATOS DE VENTA DE EFECTIVO CON Bs. =====
       ventaEfectivo: {
         totalVendidoUSD: efectivoVendidoUSD,
         totalVendidoBS: efectivoVendidoBS,
         comisionesUSD: comisionesUSD,
+        comisionesBS: comisionesBS,
         efectivoEntregadoUSD: salidasEfectivo,
+        efectivoEntregadoBS: efectivoEntregadoBS,
         cantidadTransacciones: ventasEfectivo.length
       }
     };
@@ -299,8 +285,15 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       ventaNetaUSD: data.netUSD, baseImponibleUSD: data.baseImponibleUSD, ivaUSD: data.ivaUSD, exentoUSD: data.exentoUSD,
       igtfUSD: data.igtfUSD, metodosPago: { ...data.paymentMethods }, salidasCajaUSD: data.manualSalidas, entradasCajaUSD: data.manualEntradas,
       fondoAperturaUSD: data.fondoAperturaUSD, fondoAperturaBS: data.fondoAperturaBS, acumuladoHistoricoUSD: data.acumuladoHistoricoUSD, stats: { ...data.stats },
-      // ===== NUEVOS CAMPOS =====
-      ventaEfectivo: data.ventaEfectivo || { totalVendidoUSD: 0, totalVendidoBS: 0, comisionesUSD: 0, efectivoEntregadoUSD: 0, cantidadTransacciones: 0 }
+      ventaEfectivo: data.ventaEfectivo || { 
+        totalVendidoUSD: 0, 
+        totalVendidoBS: 0, 
+        comisionesUSD: 0,
+        comisionesBS: 0,
+        efectivoEntregadoUSD: 0,
+        efectivoEntregadoBS: 0,
+        cantidadTransacciones: 0 
+      }
     };
     
     if (typeof localStorage !== 'undefined') localStorage.removeItem('posven_apertura_done');
@@ -581,7 +574,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     }
   };
 
-  // ===== CORREGIDO: FUNCIÓN PARA EJECUTAR VENTA A CRÉDITO CON CLIENTE =====
   const ejecutarVentaACredito = async (customer: Customer) => {
     if (state.carrito.length === 0 || isProcessing) return;
     if (!customer) return alert("Seleccione un cliente.");
@@ -644,7 +636,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         tasa: state.tasa
       };
       
-      // Normalizar cédula para la deuda (asegurar formato correcto)
       const cedulaNormalizada = normalizeCedula(customer.cedula, extractDocType(customer.cedula));
       const nombreCliente = customer.name;
       
@@ -681,24 +672,18 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     }
   };
 
-  // ===== HANDLER PARA EL CREDIT MODAL =====
   const handleCreditModalConfirm = (customer: Customer, amount: number) => {
-    // Verificar si el cliente tiene una cédula normalizada
     if (customer.cedula && !customer.cedula.includes('.')) {
-      // Si la cédula no tiene formato, normalizarla
       const tipo = extractDocType(customer.cedula);
       const cedulaNormalizada = normalizeCedula(customer.cedula, tipo);
-      // Actualizar el cliente antes de proceder
       const customers = state.clientes || [];
       const exists = findCustomerByCedula(customers, cedulaNormalizada);
       if (exists) {
-        // Usar el cliente existente
         setSelectedClient(exists);
         setIsCreditModalOpen(false);
         setTimeout(() => ejecutarVentaACredito(exists), 100);
         return;
       }
-      // Actualizar el cliente con la cédula normalizada
       customer.cedula = cedulaNormalizada;
     }
     setSelectedClient(customer);
@@ -706,7 +691,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     setTimeout(() => ejecutarVentaACredito(customer), 100);
   };
 
-  // ===== FUNCIÓN PARA PROCESAR VENTA DE EFECTIVO =====
   const procesarVentaEfectivo = (data: {
     montoEfectivoBS: number;
     totalAPagarBS: number;
