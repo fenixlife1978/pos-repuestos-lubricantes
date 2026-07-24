@@ -189,22 +189,32 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const vAnuladas = (state.ventas || []).filter(v => v.fecha > corteTimestamp && v.estado === 'anulada' && v.terminalId === termId);
     const dHoy = (state.devoluciones || []).filter(d => d.fecha > corteTimestamp && (state.ventas.find(v => v.id === d.ventaId)?.terminalId === termId));
     
-    const ventasEfectivo = vActivas.filter(v => v.type === 'VENTA EFECTIVO BS');
-    const ventasNormales = vActivas.filter(v => v.type !== 'VENTA EFECTIVO BS');
+    // ===== CORREGIDO: IDENTIFICAR VENTAS DE EFECTIVO POR TYPE Y POR ITEM =====
+    const ventasEfectivo = vActivas.filter(v => 
+      v.type === 'VENTA EFECTIVO BS' || 
+      (v.items && v.items.some(item => item.productoId === 'SERVICIO_EFECTIVO'))
+    );
+    const ventasNormales = vActivas.filter(v => 
+      v.type !== 'VENTA EFECTIVO BS' && 
+      !(v.items && v.items.some(item => item.productoId === 'SERVICIO_EFECTIVO'))
+    );
     
     const brUSD = ventasNormales.reduce((s, v) => s + v.totalUSD, 0);
     const devUSD = dHoy.reduce((s, d) => s + d.totalUSD, 0);
     const descUSD = ventasNormales.reduce((s, v) => s + (v.descuentoUSD || 0), 0);
     const netUSD = brUSD - devUSD - descUSD;
 
+    // ===== DATOS DE VENTA DE EFECTIVO =====
     const efectivoVendidoUSD = ventasEfectivo.reduce((s, v) => s + v.totalUSD, 0);
     const efectivoVendidoBS = ventasEfectivo.reduce((s, v) => s + v.totalBS, 0);
     
+    // Calcular comisiones desde el libro diario
     const comisionesUSD = (state.libroDiario || [])
       .filter(e => e.fecha > corteTimestamp && e.categoria === 'COMISION_EFECTIVO' && e.referencia.includes(termId))
       .reduce((s, e) => s + e.montoUSD, 0);
     const comisionesBS = comisionesUSD * state.tasa;
     
+    // Calcular efectivo entregado desde el libro diario
     const salidasEfectivo = (state.libroDiario || [])
       .filter(e => e.fecha > corteTimestamp && e.categoria === 'VENTA_EFECTIVO' && e.referencia.includes(termId))
       .reduce((s, e) => s + e.montoUSD, 0);
@@ -776,7 +786,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       duration: 5000
     });
 
-    // ===== CIERRE AUTOMÁTICO DEL MODAL =====
+    // Cierre automático del modal
     setShowCashSaleModal(false);
   };
 
