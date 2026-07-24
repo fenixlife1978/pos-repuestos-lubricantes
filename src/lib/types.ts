@@ -259,12 +259,14 @@ export interface ReportZ {
     anulaciones: number;
     ticketPromedio: number;
   };
-  // ===== NUEVOS CAMPOS PARA VENTA DE EFECTIVO =====
+  // ===== VENTA DE EFECTIVO - CORREGIDO =====
   ventaEfectivo?: {
     totalVendidoUSD: number;
     totalVendidoBS: number;
     comisionesUSD: number;
+    comisionesBS: number;
     efectivoEntregadoUSD: number;
+    efectivoEntregadoBS: number;
     cantidadTransacciones: number;
   };
 }

@@ -420,7 +420,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
 
                    <div className="separator-dashed"></div>
 
-                   {/* ===== NUEVA SECCIÓN: VENTA DE EFECTIVO ===== */}
+                   {/* ===== VENTA DE EFECTIVO - CORREGIDO (SOLO EN Bs.) ===== */}
                    {data.ventaEfectivo && (
                      <>
                        <div className="text-center font-bold text-[11px]">VENTA DE EFECTIVO</div>
@@ -431,20 +431,16 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                            <td className="text-right">{data.ventaEfectivo.cantidadTransacciones || 0}</td>
                          </tr>
                          <tr>
-                           <td>TOTAL VENDIDO (USD):</td>
-                           <td className="text-right">$ {formatUsd(data.ventaEfectivo.totalVendidoUSD || 0)}</td>
-                         </tr>
-                         <tr>
                            <td>TOTAL VENDIDO (Bs.):</td>
                            <td className="text-right">{formatBs(data.ventaEfectivo.totalVendidoBS || 0)}</td>
                          </tr>
                          <tr className="text-status-success">
                            <td>COMISIONES (GANANCIA):</td>
-                           <td className="text-right">$ {formatUsd(data.ventaEfectivo.comisionesUSD || 0)}</td>
+                           <td className="text-right">{formatBs(data.ventaEfectivo.comisionesBS || 0)}</td>
                          </tr>
                          <tr className="text-status-danger">
                            <td>EFECTIVO ENTREGADO:</td>
-                           <td className="text-right">$ {formatUsd(data.ventaEfectivo.efectivoEntregadoUSD || 0)}</td>
+                           <td className="text-right">{formatBs(data.ventaEfectivo.efectivoEntregadoBS || 0)}</td>
                          </tr>
                        </tbody></table>
                        <div className="separator-dashed"></div>
