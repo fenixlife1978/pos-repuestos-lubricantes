@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Search, CreditCard, User, UserPlus, AlertCircle } from 'lucide-react';
 import { Customer, Debt } from '@/lib/types';
 import { Store } from '@/lib/db-store';
@@ -121,6 +121,17 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
 
+  // Refs para navegación con Enter en formulario de creación
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const docSelectRef = useRef<HTMLSelectElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+  const addressInputRef = useRef<HTMLInputElement>(null);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Ref para el input de búsqueda
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const unsubscribe = Store.subscribe(setStore);
     return () => unsubscribe();
@@ -135,13 +146,13 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
       setNewName('');
       setNewPhone('');
       setNewAddress('');
+      // Enfocar el input de búsqueda al abrir
+      setTimeout(() => searchInputRef.current?.focus(), 100);
     }
   }, [isOpen]);
 
   // ===== FORMATO DE CÉDULA CON PUNTOS (SOLO PARA V- Y E-) =====
-  // Ahora usa normalizeCedula
   const handleDocNumberChange = (value: string) => {
-    // Primero limpiar todo lo que no sea número, luego normalizar con el tipo actual
     const clean = value.replace(/[^0-9]/g, '');
     const formatted = normalizeCedula(clean, docType);
     setDocNumber(formatted);
@@ -156,19 +167,17 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
     }
   };
 
-  // ===== BUSCAR CLIENTE EN CLIENTES Y EN CXC (CON SALDO TOTAL ACTUALIZADO) =====
+  // ===== BUSCAR CLIENTE =====
   const findCustomer = (fullDoc: string): Customer | null => {
     const raw = getRawCedula(fullDoc);
     let customer: Customer | null = null;
     
-    // 1. Buscar en clientes
     const customers: Customer[] = store.clientes || [];
     const found = customers.find(c => getRawCedula(c.cedula) === raw);
     if (found) {
       customer = { ...found };
     }
     
-    // 2. Buscar en deudas y sumar saldos
     const deudas: Debt[] = store.cxc || [];
     const deudasCliente = deudas.filter(d => {
       if (!d.cliente) return false;
@@ -178,7 +187,6 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
     const totalDeuda = deudasCliente.reduce((sum, d) => sum + (d.saldoUSD || 0), 0);
     
     if (!customer) {
-      // Si no existe en clientes pero tiene deudas, crear cliente virtual
       if (deudasCliente.length > 0) {
         const primera = deudasCliente[0];
         const match = primera.cliente?.match(/^(.*?)\s*\[(.*?)\]$/);
@@ -196,7 +204,6 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
         }
       }
     } else {
-      // Si existe, actualizar su deuda con el total calculado
       customer.debt = totalDeuda;
     }
     
@@ -208,7 +215,6 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
       toast({ title: "Documento Requerido", description: "Por favor, ingrese un documento de identidad.", variant: "destructive" });
       return;
     }
-    // Limpiar puntos para la búsqueda
     const cleanDoc = docNumber.replace(/\./g, '');
     const fullDoc = `${docType}${cleanDoc}`;
     
@@ -227,7 +233,6 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
       const customers: Customer[] = store.clientes || [];
       const exists = customers.some(c => getRawCedula(c.cedula) === getRawCedula(foundCustomer.cedula));
       if (!exists) {
-        // Normalizar cédula antes de guardar
         const cedulaNormalizada = normalizeCedula(foundCustomer.cedula, extractDocType(foundCustomer.cedula));
         const newCustomer: Customer = {
           id: `CUS-${Date.now()}`,
@@ -250,7 +255,6 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
   const handleCreateAndCharge = () => {
     const cleanDoc = docNumber.replace(/\./g, '');
     const fullDoc = `${docType}${cleanDoc}`;
-    // Normalizar la cédula completa
     const normalizedCedula = normalizeCedula(fullDoc);
     const raw = getRawCedula(normalizedCedula);
     
@@ -259,7 +263,6 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
       return;
     }
 
-    // Verificar duplicado en clientes y en deudas usando raw
     const customers: Customer[] = store.clientes || [];
     const deudas: Debt[] = store.cxc || [];
     const exists = customers.some(c => getRawCedula(c.cedula) === raw) ||
@@ -302,6 +305,38 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
     setNewName('');
     setNewPhone('');
     setNewAddress('');
+    setTimeout(() => searchInputRef.current?.focus(), 100);
+  };
+
+  // ===== MANEJADORES DE TECLADO PARA NAVEGACIÓN POR ENTER =====
+  const handleKeyDownCreate = (e: React.KeyboardEvent<HTMLInputElement>, field: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      switch (field) {
+        case 'name':
+          docInputRef.current?.focus();
+          break;
+        case 'doc':
+          phoneInputRef.current?.focus();
+          break;
+        case 'phone':
+          addressInputRef.current?.focus();
+          break;
+        case 'address':
+          createButtonRef.current?.click();
+          break;
+        default:
+          break;
+      }
+    }
+  };
+
+  // En la vista 'found', permitir Enter para confirmar carga
+  const handleKeyDownFound = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleConfirmCharge();
+    }
   };
 
   if (!isOpen) return null;
@@ -344,11 +379,12 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
                     <option>V-</option> <option>E-</option> <option>J-</option> <option>G-</option>
                   </select>
                   <input
+                    ref={searchInputRef}
                     id="doc-input"
                     type="text"
                     value={docNumber}
                     onChange={(e) => handleDocNumberChange(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                     placeholder={docType === 'V-' || docType === 'E-' ? "XX.XXX.XXX" : "Número de identificación"}
                     className="flex-1 h-9 px-3 bg-white border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-[#D4A017] outline-none text-sm"
                   />
@@ -375,7 +411,10 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
           {/* PASO 2: CLIENTE ENCONTRADO (con saldo total actualizado) */}
           {/* ============================================================ */}
           {view === 'found' && foundCustomer && (
-            <div className="space-y-3">
+            <div 
+              className="space-y-3"
+              onKeyDown={handleKeyDownFound}
+            >
               <div className="bg-gray-50 rounded-xl p-3 text-center border border-gray-200">
                 <p className="font-bold text-base text-gray-800">{foundCustomer.name}</p>
                 <p className="text-sm text-gray-500 mt-1">
@@ -440,9 +479,11 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
               <div>
                 <label className="text-[10px] font-bold text-gray-500 block mb-0.5">NOMBRE COMPLETO</label>
                 <input 
+                  ref={nameInputRef}
                   type="text" 
                   value={newName} 
                   onChange={e => setNewName(e.target.value)} 
+                  onKeyDown={(e) => handleKeyDownCreate(e, 'name')}
                   className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg font-semibold focus:ring-2 focus:ring-[#D4A017] outline-none text-sm uppercase" 
                   placeholder="GLORIA MACHETE"
                 />
@@ -451,6 +492,7 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
                 <label className="text-[10px] font-bold text-gray-500 block mb-0.5">CÉDULA / IDENTIFICACIÓN</label>
                 <div className="flex items-center gap-2">
                   <select 
+                    ref={docSelectRef}
                     value={docType} 
                     onChange={e => handleDocTypeChange(e.target.value)} 
                     className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg font-bold focus:ring-2 focus:ring-[#D4A017] outline-none text-sm w-[70px]"
@@ -458,9 +500,11 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
                     <option>V-</option><option>E-</option><option>J-</option><option>G-</option>
                   </select>
                   <input 
+                    ref={docInputRef}
                     type="text" 
                     value={docNumber} 
                     onChange={(e) => handleDocNumberChange(e.target.value)} 
+                    onKeyDown={(e) => handleKeyDownCreate(e, 'doc')}
                     className="flex-1 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg font-semibold focus:ring-2 focus:ring-[#D4A017] outline-none text-sm" 
                     placeholder={docType === 'V-' || docType === 'E-' ? "XX.XXX.XXX" : "Número de identificación"}
                   />
@@ -469,9 +513,11 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
               <div>
                 <label className="text-[10px] font-bold text-gray-500 block mb-0.5">TELÉFONO</label>
                 <input 
+                  ref={phoneInputRef}
                   type="tel" 
                   value={newPhone} 
                   onChange={e => setNewPhone(e.target.value)} 
+                  onKeyDown={(e) => handleKeyDownCreate(e, 'phone')}
                   className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg font-semibold focus:ring-2 focus:ring-[#D4A017] outline-none text-sm" 
                   placeholder="04125896659"
                 />
@@ -479,15 +525,18 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
               <div>
                 <label className="text-[10px] font-bold text-gray-500 block mb-0.5">DIRECCIÓN</label>
                 <input 
+                  ref={addressInputRef}
                   type="text" 
                   value={newAddress} 
                   onChange={e => setNewAddress(e.target.value)} 
+                  onKeyDown={(e) => handleKeyDownCreate(e, 'address')}
                   className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg font-semibold focus:ring-2 focus:ring-[#D4A017] outline-none text-sm" 
                   placeholder="Dirección del cliente"
                 />
               </div>
               <div className="flex flex-col gap-1.5 pt-1">
                 <button 
+                  ref={createButtonRef}
                   onClick={handleCreateAndCharge} 
                   className="w-full h-10 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
                 >
