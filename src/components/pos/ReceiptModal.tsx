@@ -420,7 +420,7 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
 
                    <div className="separator-dashed"></div>
 
-                   {/* ===== VENTA DE EFECTIVO - CORREGIDO (SOLO EN Bs.) ===== */}
+                   {/* ===== VENTA DE EFECTIVO - CORREGIDO CON FALLBACK ===== */}
                    {data.ventaEfectivo && (
                      <>
                        <div className="text-center font-bold text-[11px]">VENTA DE EFECTIVO</div>
@@ -432,15 +432,15 @@ export function ReceiptModal({ isOpen, onClose, saleData, reportData, type = 'SA
                          </tr>
                          <tr>
                            <td>TOTAL VENDIDO (Bs.):</td>
-                           <td className="text-right">{formatBs(data.ventaEfectivo.totalVendidoBS || 0)}</td>
+                           <td className="text-right">{formatBs(data.ventaEfectivo.totalVendidoBS ?? 0)}</td>
                          </tr>
                          <tr className="text-status-success">
                            <td>COMISIONES (GANANCIA):</td>
-                           <td className="text-right">{formatBs(data.ventaEfectivo.comisionesBS || 0)}</td>
+                           <td className="text-right">{formatBs(data.ventaEfectivo.comisionesBS ?? 0)}</td>
                          </tr>
                          <tr className="text-status-danger">
                            <td>EFECTIVO ENTREGADO:</td>
-                           <td className="text-right">{formatBs(data.ventaEfectivo.efectivoEntregadoBS || 0)}</td>
+                           <td className="text-right">{formatBs(data.ventaEfectivo.efectivoEntregadoBS ?? 0)}</td>
                          </tr>
                        </tbody></table>
                        <div className="separator-dashed"></div>
