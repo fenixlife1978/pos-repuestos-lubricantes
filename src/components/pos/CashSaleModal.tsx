@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, Banknote, CreditCard, Wallet, Smartphone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Banknote, CreditCard, Wallet, Smartphone, Percent } from 'lucide-react';
 import { Utils } from '@/lib/db-store';
 
 interface CashSaleModalProps {
@@ -13,7 +13,7 @@ interface CashSaleModalProps {
     comision: number;
     metodoPago: string;
   }) => void;
-  comisionEfectivo: number;
+  comisionEfectivo: number;  // porcentaje por defecto desde configuración
   tasaCambio: number;
 }
 
@@ -21,16 +21,26 @@ export function CashSaleModal({
   isOpen, 
   onClose, 
   onConfirm, 
-  comisionEfectivo,
+  comisionEfectivo: defaultComision,
   tasaCambio 
 }: CashSaleModalProps) {
   const [montoEfectivoBS, setMontoEfectivoBS] = useState<string>('');
+  const [comision, setComision] = useState<number>(defaultComision);
   const [metodoPago, setMetodoPago] = useState<'biopago' | 'punto_venta' | 'pagomovil'>('biopago');
+
+  // Reiniciar estado al abrir el modal
+  useEffect(() => {
+    if (isOpen) {
+      setMontoEfectivoBS('');
+      setComision(defaultComision);
+      setMetodoPago('biopago');
+    }
+  }, [isOpen, defaultComision]);
 
   if (!isOpen) return null;
 
   const montoNum = parseFloat(montoEfectivoBS.replace(/\./g, '')) || 0;
-  const comisionDecimal = comisionEfectivo / 100;
+  const comisionDecimal = comision / 100;
   const totalAPagar = montoNum * (1 + comisionDecimal);
   const ganancia = totalAPagar - montoNum;
 
@@ -48,20 +58,33 @@ export function CashSaleModal({
       alert('Ingrese un monto válido mayor a 0');
       return;
     }
+    if (comision < 0) {
+      alert('La comisión no puede ser negativa');
+      return;
+    }
 
     onConfirm({
       montoEfectivoBS: montoNum,
       totalAPagarBS: totalAPagar,
-      comision: comisionEfectivo,
+      comision: comision,
       metodoPago: metodoPago
     });
 
-    setMontoEfectivoBS('');
+    // El modal se cierra automáticamente desde el padre (SalesModule)
   };
 
   const handleMontoChange = (value: string) => {
     const clean = value.replace(/[^0-9.]/g, '');
     setMontoEfectivoBS(clean);
+  };
+
+  const handleComisionChange = (value: string) => {
+    const parsed = parseFloat(value);
+    if (!isNaN(parsed) && parsed >= 0) {
+      setComision(parsed);
+    } else if (value === '') {
+      setComision(0);
+    }
   };
 
   const methods = [
@@ -72,9 +95,9 @@ export function CashSaleModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4 animate-in fade-in-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 overflow-hidden max-h-[95vh] flex flex-col">
         {/* HEADER */}
-        <div className="px-6 py-4 bg-ink flex justify-between items-center border-b border-white/10">
+        <div className="px-6 py-4 bg-ink flex justify-between items-center border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
             <Banknote className="w-5 h-5 text-[#D4A017]" />
             <h2 className="text-base font-bold text-white">VENTA DE EFECTIVO (Bs.)</h2>
@@ -85,16 +108,7 @@ export function CashSaleModal({
         </div>
 
         {/* BODY */}
-        <div className="p-6 space-y-6 bg-white max-h-[90vh] overflow-y-auto">
-          {/* Información de la comisión */}
-          <div className="bg-[#D4A017]/10 border border-[#D4A017]/30 rounded-xl p-4 text-center">
-            <p className="text-xs font-black uppercase text-[#D4A017]">Comisión por Servicio</p>
-            <p className="text-2xl font-black text-[#D4A017]">{comisionEfectivo}%</p>
-            <p className="text-[9px] text-gray-500 mt-1">
-              El cliente paga el monto + {comisionEfectivo}% de comisión
-            </p>
-          </div>
-
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-white">
           {/* Monto de efectivo en bolívares */}
           <div className="form-group">
             <label className="text-ink text-[10px] font-black uppercase block mb-1">
@@ -116,7 +130,27 @@ export function CashSaleModal({
             </p>
           </div>
 
-          {/* Resumen de la operación */}
+          {/* Comisión editable */}
+          <div className="form-group">
+            <label className="text-ink text-[10px] font-black uppercase block mb-1 flex items-center gap-1">
+              <Percent className="w-3.5 h-3.5" /> Comisión (%)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="100"
+                className="form-input h-10 w-24 text-lg font-black text-[#D4A017] border-2 border-[#D4A017]/30 focus:border-[#D4A017] text-center"
+                value={comision}
+                onChange={(e) => handleComisionChange(e.target.value)}
+              />
+              <span className="text-ink font-black text-sm">%</span>
+              <span className="text-[10px] text-ink/40 ml-2">(por defecto: {defaultComision}%)</span>
+            </div>
+          </div>
+
+          {/* Resumen de la operación - actualizado en tiempo real */}
           {montoNum > 0 && (
             <div className="space-y-2 p-4 bg-surface-soft rounded-xl border border-line animate-in slide-in-from-top-2 duration-200">
               <div className="flex justify-between items-center text-xs font-black uppercase">
@@ -124,7 +158,7 @@ export function CashSaleModal({
                 <span className="text-ink">{formatBS(montoNum)}</span>
               </div>
               <div className="flex justify-between items-center text-xs font-black uppercase">
-                <span className="text-ink/60">Comisión ({comisionEfectivo}%):</span>
+                <span className="text-ink/60">Comisión ({comision}%):</span>
                 <span className="text-status-success">{formatBS(ganancia)}</span>
               </div>
               <div className="flex justify-between items-center text-sm font-black uppercase border-t border-line pt-2">
@@ -168,7 +202,7 @@ export function CashSaleModal({
           {/* Botón confirmar */}
           <button
             onClick={handleConfirm}
-            disabled={montoNum <= 0}
+            disabled={montoNum <= 0 || comision < 0}
             className="w-full h-14 bg-gradient-to-r from-[#D4A017] to-[#E8B831] text-white rounded-xl font-black uppercase text-sm shadow-lg hover:shadow-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Banknote className="w-5 h-5" />
