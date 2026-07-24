@@ -189,7 +189,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const vAnuladas = (state.ventas || []).filter(v => v.fecha > corteTimestamp && v.estado === 'anulada' && v.terminalId === termId);
     const dHoy = (state.devoluciones || []).filter(d => d.fecha > corteTimestamp && (state.ventas.find(v => v.id === d.ventaId)?.terminalId === termId));
     
-    // ===== FILTRAR VENTAS DE EFECTIVO =====
     const ventasEfectivo = vActivas.filter(v => v.type === 'VENTA EFECTIVO BS');
     const ventasNormales = vActivas.filter(v => v.type !== 'VENTA EFECTIVO BS');
     
@@ -198,17 +197,14 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
     const descUSD = ventasNormales.reduce((s, v) => s + (v.descuentoUSD || 0), 0);
     const netUSD = brUSD - devUSD - descUSD;
 
-    // ===== DATOS DE VENTA DE EFECTIVO =====
     const efectivoVendidoUSD = ventasEfectivo.reduce((s, v) => s + v.totalUSD, 0);
     const efectivoVendidoBS = ventasEfectivo.reduce((s, v) => s + v.totalBS, 0);
     
-    // Calcular comisiones desde el libro diario
     const comisionesUSD = (state.libroDiario || [])
       .filter(e => e.fecha > corteTimestamp && e.categoria === 'COMISION_EFECTIVO' && e.referencia.includes(termId))
       .reduce((s, e) => s + e.montoUSD, 0);
     const comisionesBS = comisionesUSD * state.tasa;
     
-    // Calcular efectivo entregado desde el libro diario
     const salidasEfectivo = (state.libroDiario || [])
       .filter(e => e.fecha > corteTimestamp && e.categoria === 'VENTA_EFECTIVO' && e.referencia.includes(termId))
       .reduce((s, e) => s + e.montoUSD, 0);
@@ -254,7 +250,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       desdeFactura, hastaFactura, desdeNC, hastaNC,
       stats: { facturas: vActivas.length, devoluciones: dHoy.length, anulaciones: vAnuladas.length, ticketPromedio: vActivas.length > 0 ? (netUSD / vActivas.length) : 0 },
       fecha: Utils.ahora(), terminalName, terminalId: termId, numeroZ: state.ultimoZ + 1, acumuladoHistoricoUSD: state.acumuladoHistorico + netUSD,
-      // ===== DATOS DE VENTA DE EFECTIVO CON Bs. =====
       ventaEfectivo: {
         totalVendidoUSD: efectivoVendidoUSD,
         totalVendidoBS: efectivoVendidoBS,
@@ -751,7 +746,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       montoUSD: efectivoUSD,
       montoBS: data.montoEfectivoBS,
       metodo: 'efectivo_bs',
-      referencia: reciboId + '-' + (terminal?.id || 'GLOBAL') // <--- CORREGIDO
+      referencia: reciboId + '-' + (terminal?.id || 'GLOBAL')
     };
 
     const ingresoComision: LibroDiarioEntry = {
@@ -763,7 +758,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       montoUSD: totalUSD - efectivoUSD,
       montoBS: data.totalAPagarBS - data.montoEfectivoBS,
       metodo: data.metodoPago as PaymentMethod,
-      referencia: reciboId + '-' + (terminal?.id || 'GLOBAL') // <--- CORREGIDO
+      referencia: reciboId + '-' + (terminal?.id || 'GLOBAL')
     };
 
     updateState({
@@ -780,6 +775,9 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       description: `Se entregaron ${Utils.fmtBS(data.montoEfectivoBS)} en efectivo. Cobro: ${Utils.fmtBS(data.totalAPagarBS)} (${data.comision}% comisión)`,
       duration: 5000
     });
+
+    // ===== CIERRE AUTOMÁTICO DEL MODAL =====
+    setShowCashSaleModal(false);
   };
 
   return (
@@ -844,7 +842,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   <input className="form-input h-8 text-xs bg-surface-soft text-ink border-line font-black uppercase" value={cliente} onChange={e => setCliente(e.target.value)} />
                 </div>
 
-                {/* ===== BOTÓN VENTA EFECTIVO - NUEVA UBICACIÓN ===== */}
                 <button 
                   onClick={() => setShowCashSaleModal(true)} 
                   className="w-full h-10 bg-[#D4A017] text-white font-black uppercase text-[10px] rounded-xl transition-all hover:bg-[#E8B831] flex items-center justify-center gap-2 shadow-sm"
@@ -1229,9 +1226,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         </div>
       )}
 
-      {/* ============================================================ */}
-      {/* MODAL DE CRÉDITO */}
-      {/* ============================================================ */}
       <CreditModal
         isOpen={isCreditModalOpen}
         onClose={() => setIsCreditModalOpen(false)}
@@ -1244,9 +1238,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         } as any)}
       />
 
-      {/* ============================================================ */}
-      {/* MODAL DE VENTA DE EFECTIVO */}
-      {/* ============================================================ */}
       <CashSaleModal
         isOpen={showCashSaleModal}
         onClose={() => setShowCashSaleModal(false)}
