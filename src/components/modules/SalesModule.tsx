@@ -804,9 +804,6 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
         <button onClick={() => setView('pos')} className={`btn btn-sm ${view === 'pos' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ShoppingCart className="w-3.5 h-3.5"/> Punto de Venta</button>
         <button onClick={() => setView('history')} className={`btn btn-sm ${view === 'history' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><History className="w-3.5 h-3.5"/> Historial</button>
         <button onClick={() => setView('credits')} className={`btn btn-sm ${view === 'credits' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><ClipboardList className="w-3.5 h-3.5"/> Consultar Créditos</button>
-        <button onClick={() => setShowCashSaleModal(true)} className="btn btn-sm bg-[#D4A017] text-white font-black uppercase border-none hover:bg-[#E8B831] transition-all" title="Venta de Efectivo">
-          <Banknote className="w-3.5 h-3.5" />
-        </button>
         <button onClick={() => handleOpenReport('REPORT_X')} className="btn btn-sm bg-white text-ink font-bold border-line border"><FileText className="w-3.5 h-3.5"/> Reporte X</button>
         <button onClick={() => handleOpenReport('REPORT_Z')} className="btn btn-sm bg-white text-ink font-bold border-line border"><Receipt className="w-3.5 h-3.5"/> Reporte Z</button>
         <button onClick={() => setView('returns')} className={`btn btn-sm ${view === 'returns' ? 'btn-primary shadow-md' : 'bg-white text-ink font-bold border-line border'}`}><RotateCcw className="w-3.5 h-3.5"/> Devoluciones y Anulaciones</button>
@@ -862,6 +859,16 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
                   <label className="text-ink text-[10px] font-black uppercase block mb-1">IDENTIFICACIÓN CLIENTE</label>
                   <input className="form-input h-8 text-xs bg-surface-soft text-ink border-line font-black uppercase" value={cliente} onChange={e => setCliente(e.target.value)} />
                 </div>
+
+                {/* ===== BOTÓN VENTA EFECTIVO - MOVIDO AQUÍ ===== */}
+                <button 
+                  onClick={() => setShowCashSaleModal(true)} 
+                  className="w-full h-10 bg-[#D4A017] text-white font-black uppercase text-[10px] rounded-xl transition-all hover:bg-[#E8B831] flex items-center justify-center gap-2 shadow-sm"
+                  title="Venta de Efectivo"
+                >
+                  <Banknote className="w-4 h-4" />
+                  Venta Efectivo
+                </button>
 
                 <div className="flex-1 overflow-y-auto space-y-2 pt-2 border-t border-line/10">
                   {selectedProductDisplay && (
