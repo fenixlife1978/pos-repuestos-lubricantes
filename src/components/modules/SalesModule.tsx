@@ -751,7 +751,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       montoUSD: efectivoUSD,
       montoBS: data.montoEfectivoBS,
       metodo: 'efectivo_bs',
-      referencia: reciboId
+      referencia: reciboId + '-' + (terminal?.id || 'GLOBAL') // <--- CORREGIDO
     };
 
     const ingresoComision: LibroDiarioEntry = {
@@ -763,7 +763,7 @@ export default function SalesModule({ state, updateState }: { state: AppState, u
       montoUSD: totalUSD - efectivoUSD,
       montoBS: data.totalAPagarBS - data.montoEfectivoBS,
       metodo: data.metodoPago as PaymentMethod,
-      referencia: reciboId
+      referencia: reciboId + '-' + (terminal?.id || 'GLOBAL') // <--- CORREGIDO
     };
 
     updateState({
