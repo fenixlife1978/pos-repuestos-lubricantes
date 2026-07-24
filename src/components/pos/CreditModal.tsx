@@ -18,7 +18,6 @@ import { useToast } from '@/hooks/use-toast';
 function normalizeCedula(cedula: string, docType?: string): string {
   if (!cedula) return '';
   
-  // Si viene con tipo (ej: "V-13.313.521"), extraer tipo y número
   let type = docType || '';
   let number = cedula;
   
@@ -30,16 +29,12 @@ function normalizeCedula(cedula: string, docType?: string): string {
     number = match[2] || '';
   }
   
-  // Limpiar puntos y otros caracteres no numéricos
   const cleanNumber = number.replace(/[^0-9]/g, '');
   
-  // Si no hay tipo definido, intentar detectar
   if (!type) {
-    // Por defecto asumimos V- si no se especifica
     type = 'V-';
   }
   
-  // Para V- y E- aplicar formato con puntos
   if (type === 'V-' || type === 'E-') {
     const digits = cleanNumber;
     if (digits.length <= 2) return `${type}${digits}`;
@@ -48,44 +43,27 @@ function normalizeCedula(cedula: string, docType?: string): string {
     return `${type}${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}`;
   }
   
-  // Para J-, G-, P-: solo dígitos
   return `${type}${cleanNumber}`;
 }
 
-/**
- * Obtiene solo el número de cédula sin puntos ni tipo
- */
 function getRawCedula(cedula: string): string {
   return cedula.replace(/[^0-9]/g, '');
 }
 
-/**
- * Compara dos cédulas ignorando formato y tipo
- * Retorna true si el número (sin tipo) coincide
- */
 function sameCedula(cedula1: string, cedula2: string): boolean {
   return getRawCedula(cedula1) === getRawCedula(cedula2);
 }
 
-/**
- * Extrae el tipo de documento (V-, J-, etc.) de una cédula
- */
 function extractDocType(cedula: string): string {
   const match = cedula.match(/^([A-Z]-?)/);
   return match ? match[1].replace('-', '').trim() + '-' : 'V-';
 }
 
-/**
- * Busca un cliente por cédula normalizada, ignorando formato
- */
 function findCustomerByCedula(customers: any[], cedula: string): any | null {
   const raw = getRawCedula(cedula);
   return customers.find(c => getRawCedula(c.cedula) === raw) || null;
 }
 
-/**
- * Busca deudas por cédula del cliente (en el campo cliente)
- */
 function findDebtsByCedula(deudas: any[], cedula: string): any[] {
   const raw = getRawCedula(cedula);
   return deudas.filter(d => {
@@ -121,16 +99,15 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
   const [newPhone, setNewPhone] = useState('');
   const [newAddress, setNewAddress] = useState('');
 
-  // Refs para navegación con Enter en formulario de creación
+  // Refs para navegación con Enter
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const docSelectRef = useRef<HTMLSelectElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const addressInputRef = useRef<HTMLInputElement>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Ref para el input de búsqueda
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const unsubscribe = Store.subscribe(setStore);
@@ -146,12 +123,17 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
       setNewName('');
       setNewPhone('');
       setNewAddress('');
-      // Enfocar el input de búsqueda al abrir
       setTimeout(() => searchInputRef.current?.focus(), 100);
     }
   }, [isOpen]);
 
-  // ===== FORMATO DE CÉDULA CON PUNTOS (SOLO PARA V- Y E-) =====
+  // Enfocar el botón de confirmar cuando se encuentra un cliente
+  useEffect(() => {
+    if (view === 'found' && confirmButtonRef.current) {
+      setTimeout(() => confirmButtonRef.current?.focus(), 100);
+    }
+  }, [view]);
+
   const handleDocNumberChange = (value: string) => {
     const clean = value.replace(/[^0-9]/g, '');
     const formatted = normalizeCedula(clean, docType);
@@ -167,7 +149,6 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
     }
   };
 
-  // ===== BUSCAR CLIENTE =====
   const findCustomer = (fullDoc: string): Customer | null => {
     const raw = getRawCedula(fullDoc);
     let customer: Customer | null = null;
@@ -331,14 +312,6 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
     }
   };
 
-  // En la vista 'found', permitir Enter para confirmar carga
-  const handleKeyDownFound = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleConfirmCharge();
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -408,13 +381,10 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
           )}
 
           {/* ============================================================ */}
-          {/* PASO 2: CLIENTE ENCONTRADO (con saldo total actualizado) */}
+          {/* PASO 2: CLIENTE ENCONTRADO - CON ENTER ACTIVA EL BOTÓN */}
           {/* ============================================================ */}
           {view === 'found' && foundCustomer && (
-            <div 
-              className="space-y-3"
-              onKeyDown={handleKeyDownFound}
-            >
+            <div className="space-y-3">
               <div className="bg-gray-50 rounded-xl p-3 text-center border border-gray-200">
                 <p className="font-bold text-base text-gray-800">{foundCustomer.name}</p>
                 <p className="text-sm text-gray-500 mt-1">
@@ -430,8 +400,10 @@ export function CreditModal({ isOpen, onClose, onConfirm, totalAmount }: CreditM
                 )}
               </div>
               <button
+                ref={confirmButtonRef}
                 onClick={handleConfirmCharge}
-                className="w-full h-11 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold text-base hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                onKeyDown={(e) => e.key === 'Enter' && handleConfirmCharge()}
+                className="w-full h-11 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold text-base hover:shadow-lg transition-all flex items-center justify-center gap-2 focus:ring-2 focus:ring-blue-400 focus:outline-none"
               >
                 <CreditCard className="w-4 h-4" />
                 CARGAR CRÉDITO
