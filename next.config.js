@@ -1,9 +1,10 @@
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: 'export',
-  trailingSlash: true, // Crucial para que Electron resuelva las rutas de archivos correctamente
+  trailingSlash: true,
   distDir: 'out',
+  basePath: '',
+  assetPrefix: '',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -11,7 +12,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    unoptimized: true, // Requerido para exportación estática
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -45,4 +46,4 @@ const nextConfig: NextConfig = {
   compress: true,
 };
 
-export default nextConfig;
+module.exports = nextConfig;

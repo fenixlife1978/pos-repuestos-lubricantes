@@ -6,13 +6,15 @@
     "skipLibCheck": true,
     "strict": true,
     "resolveJsonModule": true,
-    "outDir": "."
+    "allowJs": true,
+    "outDir": "./dist"
   },
   "include": [
-    "main.ts",
-    "preload.ts"
+    "main.js",
+    "preload.js"
   ],
   "exclude": [
-    "../node_modules"
+    "../node_modules",
+    "./dist"
   ]
 }

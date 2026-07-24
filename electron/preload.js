@@ -1,7 +1,6 @@
-
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Exponer de forma segura las APIs del proceso principal al proceso de renderizado
+// Exponer APIs seguras al proceso de renderizado
 contextBridge.exposeInMainWorld('electronAPI', {
   /**
    * Envía el string del ticket al proceso principal para su impresión.
@@ -16,4 +15,3 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   getAppVersion: () => ipcRenderer.invoke('get-app-version')
 });
-
